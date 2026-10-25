@@ -321,7 +321,6 @@ packages/finances-downloader/
 │   ├── analyzer.py         # gaps, anomalies, stats
 │   ├── exporter.py         # stream_export (sink_*)
 │   ├── comparator.py       # compare_datasets
-│   ├── logging.py          # configure_logging (reutiliza patrón)
 │   └── models.py           # Re-exports desde finances_core
 ```
 

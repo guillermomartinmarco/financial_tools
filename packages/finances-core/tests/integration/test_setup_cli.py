@@ -14,6 +14,7 @@ from finances_core.schemas.setup import (
     SetupDoctorResponse,
     VarSource,
 )
+from finances_core.tasks import SQLTaskManager
 from ft_setup import cli
 
 runner = CliRunner()
@@ -109,3 +110,97 @@ def test_init_dry_run_does_not_write(monkeypatch: pytest.MonkeyPatch, tmp_path: 
     assert result.exit_code == cli.EXIT_OK
     assert not (tmp_path / ".env.template").exists()
     assert not (tmp_path / "data").exists()
+
+
+def test_help_lists_status_command() -> None:
+    result = runner.invoke(cli.app, ["--help"])
+    assert "status" in result.output
+
+
+def test_init_creates_root_marker(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(cli.app, ["--quiet", "init"])
+    assert result.exit_code == cli.EXIT_OK, result.output
+    assert (tmp_path / ".ft_root").is_file()
+
+
+def test_init_force_regenerates_env_template(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    runner.invoke(cli.app, ["--quiet", "init"])
+    template = tmp_path / ".env.template"
+    template.write_text("editado a mano", encoding="utf-8")
+
+    runner.invoke(cli.app, ["--quiet", "init"])
+    assert template.read_text(encoding="utf-8") == "editado a mano"
+
+    forced = runner.invoke(cli.app, ["--quiet", "init", "--force"])
+    assert forced.exit_code == cli.EXIT_OK
+    assert "FT_DATA_DIR" in template.read_text(encoding="utf-8")
+
+
+def test_init_io_error_exits_3(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    def _boom(**_kwargs: object) -> None:
+        raise OSError("disco lleno")
+
+    monkeypatch.setattr(cli, "run_init", _boom)
+    result = runner.invoke(cli.app, ["--quiet", "init"])
+    assert result.exit_code == cli.EXIT_IO
+    assert "disco lleno" in result.output
+
+
+def test_doctor_invalid_format_is_rejected(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(cli.app, ["--quiet", "doctor", "--format", "xml"])
+    assert result.exit_code == cli.EXIT_INVALID
+
+
+def test_global_log_format_json_is_kept_by_doctor(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    calls: list[tuple[object, ...]] = []
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        cli, "configure_logging", lambda *args, **kwargs: calls.append((*args, kwargs))
+    )
+    result = runner.invoke(cli.app, ["--log-format", "json", "doctor", "-v", "--format", "json"])
+    assert result.exit_code == cli.EXIT_OK, result.output
+    assert calls, "configure_logging no fue llamado"
+    for call in calls:
+        assert call[-1].get("log_format") == "json"
+
+
+def test_verbose_flag_sets_debug_level(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    levels: list[object] = []
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        cli, "configure_logging", lambda _mode, level, **_kw: levels.append(level)
+    )
+    runner.invoke(cli.app, ["--verbose", "doctor", "--format", "json"])
+    assert levels[0] == 10  # logging.DEBUG
+
+
+def test_status_reports_init_task(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+    runner.invoke(cli.app, ["--quiet", "init"])
+    with SQLTaskManager()._connect() as conn:
+        task_id = conn.execute("SELECT task_id FROM tasks LIMIT 1").fetchone()[0]
+
+    result = runner.invoke(cli.app, ["--quiet", "status", task_id])
+    assert result.exit_code == cli.EXIT_OK, result.output
+    payload = json.loads(result.output)
+    assert payload["task_id"] == task_id
+    assert payload["status"] == "COMPLETED"
+
+
+def test_status_unknown_task_exits_1(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(
+        cli.app, ["--quiet", "status", "00000000-0000-0000-0000-000000000000"]
+    )
+    assert result.exit_code == cli.EXIT_REQUIRED_MISSING

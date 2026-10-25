@@ -85,3 +85,7 @@ data/parquet/
 
 # Download plans (temp files)
 /tmp/download_plan_*.json
+
+# Runtime state (Art. 2: single tasks.db at <project root>/share)
+share/*.db
+share/*.db-*

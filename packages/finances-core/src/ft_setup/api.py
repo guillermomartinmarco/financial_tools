@@ -8,8 +8,8 @@ import structlog
 from fastapi import APIRouter, BackgroundTasks, FastAPI, HTTPException, Path, Request, status
 from fastapi.concurrency import run_in_threadpool
 
+from finances_core.logging import configure_logging
 from finances_core.schemas.setup import InitTaskResult, SetupDoctorResponse
-from ft_setup.logging import configure_logging
 from ft_setup.service import diagnose, get_init_result, run_init, start_init_task
 
 router = APIRouter(prefix="/setup", tags=["setup"])

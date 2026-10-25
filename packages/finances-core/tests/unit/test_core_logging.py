@@ -1,4 +1,4 @@
-"""Tests del logging dual (Art. 9, T1.1 de ft_setup)."""
+"""Tests del logging dual compartido (Art. 9)."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import pytest
 import structlog
 from rich.logging import RichHandler
 
-from ft_setup.logging import configure_logging, level_from_flags
+from finances_core.logging import configure_logging, level_from_flags
 
 
 def _processor_names() -> list[str]:
@@ -28,7 +28,7 @@ def test_cli_mode_uses_rich_handler() -> None:
 
 
 def test_api_mode_uses_json_renderer(capsys: pytest.CaptureFixture[str]) -> None:
-    configure_logging("api", logging.INFO)
+    configure_logging("api", logging.INFO, component="ft_setup")
     assert "JSONRenderer" in " ".join(_processor_names())
 
     structlog.get_logger("test").info("evento_prueba", task_id="abc")
@@ -38,6 +38,20 @@ def test_api_mode_uses_json_renderer(capsys: pytest.CaptureFixture[str]) -> None
     assert payload["task_id"] == "abc"
     assert payload["trace_id"] == "-"
     assert payload["span_id"] == "-"
+
+
+def test_cli_mode_with_json_format_emits_json_to_stderr(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    configure_logging("cli", logging.INFO, log_format="json", component="ft_data_viewer")
+    assert "JSONRenderer" in " ".join(_processor_names())
+
+    structlog.get_logger("test").info("evento_cli")
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    payload = json.loads(captured.err.strip())
+    assert payload["event"] == "evento_cli"
+    assert payload["component"] == "ft_data_viewer"
 
 
 @pytest.mark.parametrize(

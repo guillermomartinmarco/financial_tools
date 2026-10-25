@@ -1,16 +1,53 @@
-import pathlib
-from typing import Literal
+"""Configuración global de la suite (Pydantic Settings, prefijo ``FT_``).
 
+Todas las rutas relativas se resuelven contra la raíz del proyecto y nunca contra
+el directorio de trabajo actual (Art. 2), de modo que cualquier herramienta usa la
+misma ``share/tasks.db`` y los mismos directorios de datos.
+"""
+
+from __future__ import annotations
+
+import os
+import pathlib
+from typing import Any, Literal
+
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+#: Archivo que marca la raíz del proyecto (lo crea ``ft_setup init``).
+ROOT_MARKER = ".ft_root"
+
+
+def find_project_root(start: pathlib.Path | None = None) -> pathlib.Path:
+    """Devuelve la raíz del proyecto como ruta absoluta.
+
+    Prioridad: ``FT_PROJECT_ROOT`` > primer ancestro (incluido ``start``) que
+    contenga ``.ft_root`` > ``start`` (por defecto, el directorio actual).
+    """
+    env_root = os.environ.get("FT_PROJECT_ROOT")
+    if env_root:
+        return pathlib.Path(env_root).resolve()
+    origin = (start or pathlib.Path.cwd()).resolve()
+    for candidate in (origin, *origin.parents):
+        if (candidate / ROOT_MARKER).is_file():
+            return candidate
+    return origin
 
 
 class FinancesSettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="FT_",
-        env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
     )
+
+    def __init__(self, **values: Any) -> None:
+        # El .env se lee desde la raíz del proyecto, no desde el directorio actual.
+        values.setdefault("_env_file", find_project_root() / ".env")
+        super().__init__(**values)
+
+    # Raíz del proyecto (base de todas las rutas relativas)
+    PROJECT_ROOT: pathlib.Path = Field(default_factory=find_project_root)
 
     # Directorios base
     DATA_DIR: pathlib.Path = pathlib.Path("./data")
@@ -61,6 +98,15 @@ class FinancesSettings(BaseSettings):
     # Data Viewer
     DATA_VIEWER_SAMPLE_MAX_ROWS: int = 10000
     DATA_VIEWER_GAP_THRESHOLD_MS: int = 0
+
+    @model_validator(mode="after")
+    def _resolve_paths(self) -> FinancesSettings:
+        root = self.PROJECT_ROOT.resolve()
+        self.PROJECT_ROOT = root
+        for name, value in self.__dict__.items():
+            if isinstance(value, pathlib.Path) and not value.is_absolute():
+                setattr(self, name, (root / value).resolve())
+        return self
 
 
 settings = FinancesSettings()

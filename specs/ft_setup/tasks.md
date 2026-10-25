@@ -67,14 +67,16 @@
 - [x] **T4.1**: Implementar `cli.py` con `app`, `main` callback (logging), `init` command, `doctor` command
   - **Hecho cuando**: `uv run finances-core setup --help` muestra comandos; `uv run finances-core setup doctor` imprime tabla Rich bonita.
   - **Hecho**: entry point real `ft_setup` (`[project.scripts]`); `ft_setup --help` y `ft_setup doctor` verificados.
-- [ ] **T4.2**: Flags CLI: `--verbose/-v`, `--quiet/-q`, `--log-format [rich|json]`, `--force`, `--dry-run`, `--format [table|json]`
+- [x] **T4.2**: Flags CLI: `--verbose/-v`, `--quiet/-q`, `--log-format [rich|json]`, `--force`, `--dry-run`, `--format [table|json]`
   - **Hecho cuando**: Tests verifican cada flag afecta comportamiento (nivel log, formato salida, force overwrite, dry-run).
   - **Hecho**: `tests/integration/test_setup_cli.py` (7 tests) cubre formato, dry-run, idempotencia y logs.
   - **Auditoría 2026-10-25 — reabierta**: `--force`, `--verbose` y `--log-format` no tienen test a nivel CLI; `doctor` vuelve a llamar `configure_logging` (`cli.py:76`) y pisa el `--log-format json` del callback.
-- [ ] **T4.3**: Exit codes: `0` OK, `1` required vars missing, `2` validation errors, `3` IO/perm error
+  - **Resuelto 2026-10-25 (refactor/spec-consistency)**: tests CLI para `--force`, `--verbose`, `--format` inválido (exit 2) y `--log-format json` conservado por `doctor`; `doctor` ya no pisa el formato del callback.
+- [x] **T4.3**: Exit codes: `0` OK, `1` required vars missing, `2` validation errors, `3` IO/perm error
   - **Hecho cuando**: Tests `pytest -k cli_exit_codes` pasan.
   - **Hecho**: cubiertos como `test_doctor_invalid_value_exits_2`, `test_doctor_missing_required_exits_1`, `test_doctor_json_ok`, `test_init_*` (IO → 3).
   - **Auditoría 2026-10-25 — reabierta**: ningún test afirma exit code 3; `test_init_*` solo verifica `EXIT_OK`.
+  - **Resuelto 2026-10-25 (refactor/spec-consistency)**: `test_init_io_error_exits_3` verifica exit 3 ante `OSError`.
 
 ## Fase 5: API (FastAPI)
 
@@ -100,10 +102,11 @@
 - [x] **T6.3**: Tests de integración API: endpoints con `httpx.AsyncClient` (testserver)
   - **Hecho cuando**: `pytest packages/finances-core/tests/integration/test_setup_api.py -v` pasa.
   - **Hecho**: 6 tests, verdes.
-- [ ] **T6.4**: Configurar `ruff` + `mypy --strict` en `finances-core`; `pre-commit` hooks
+- [x] **T6.4**: Configurar `ruff` + `mypy --strict` en `finances-core`; `pre-commit` hooks
   - **Hecho cuando**: `uv run ruff check packages/finances-core` && `uv run mypy --strict packages/finances-core` → 0 errors.
   - **Hecho**: ruff 0.17.2 sin errores (config migrada a `[tool.ruff.lint]`), `mypy --strict src` limpio; `.pre-commit-config.yaml` añadido en la raíz (pre-commit no instalado aún).
   - **Auditoría 2026-10-25 — reabierta**: desde `packages/finances-core`: `ruff check .` → 32 errores; `mypy --strict src` → 2 errores en `finances_core/schemas/data_viewer.py` (añadido después, con ft_data_viewer).
+  - **Resuelto 2026-10-25 (refactor/spec-consistency)**: desde `packages/finances-core`: `ruff check .` → 0 errores; `mypy --strict src` → 0 errores (14 archivos).
 
 ## Fase 7: Documentación y Cierre
 
@@ -114,8 +117,12 @@
 - [ ] **T7.2**: Verificar matriz Art. 20 Constitución (100% dimensiones) via checklist interno
   - **Hecho cuando**: Checklist firmado en PR description; CI pipeline verde.
   - **Pendiente**: no hay pipeline CI en el repositorio todavía.
-- [ ] **T7.3**: Resolver `TASKS_DB_PATH` respecto de la raíz del proyecto (no del cwd), según Art. 2
+- [x] **T7.3**: Resolver `TASKS_DB_PATH` respecto de la raíz del proyecto (no del cwd), según Art. 2
   - **Hecho cuando**: Test ejecuta `SQLTaskManager()` desde un subdirectorio y la base usada es `<raíz>/share/tasks.db`; los tests de API (`test_setup_api.py`) dejan de escribir en bases reales del repo.
+  - **Hecho**: `find_project_root()` + `PROJECT_ROOT` en `FinancesSettings` (rutas y `.env` resueltos contra la raíz); `SQLTaskManager()` lee settings frescos; `tests/conftest.py` fija `FT_PROJECT_ROOT` a un tmp; `share/tasks.db` dejó de versionarse.
+- [x] **T4.4**: Comando CLI `status <task_id>` (simetría Art. 1 con `GET /setup/status/{task_id}`)
+  - **Hecho cuando**: Test: `status` de un init existente imprime `InitTaskResult` JSON (exit 0); task inexistente → exit 1.
+  - **Hecho**: `test_status_reports_init_task`, `test_status_unknown_task_exits_1`.
 
 ---
 

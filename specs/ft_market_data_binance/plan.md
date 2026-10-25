@@ -341,7 +341,6 @@ packages/finances-downloader/
 │           ├── inventory.py        # inventory_local_parquet, compute_gaps
 │           ├── public_data.py      # check_public_data_availability
 │           ├── rest_api.py         # plan_rest_fallback, REST client
-│           ├── logging.py          # configure_logging (reutiliza patrón)
 │           └── models.py           # Pydantic models (DownloadRequest, Plan, etc.)
 (la base de tareas NO vive en este paquete: es la única `<raíz del proyecto>/share/tasks.db`, Art. 2)
 ```

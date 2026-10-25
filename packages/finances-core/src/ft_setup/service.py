@@ -21,7 +21,7 @@ import structlog
 import uuid6
 from dotenv import dotenv_values
 
-from finances_core.config import FinancesSettings
+from finances_core.config import ROOT_MARKER, FinancesSettings
 from finances_core.schemas.setup import (
     EnvVarDiagnosis,
     EnvVarSpec,
@@ -376,9 +376,11 @@ def run_init(
     Idempotente (Art. 12): re-ejecutar no duplica ni corrompe. ``dry_run`` no
     escribe en disco. Cada ejecución queda registrada en ``tasks.db`` (RF-7).
     """
-    root = (project_root or Path.cwd()).resolve()
-    settings = FinancesSettings()
-    task_manager = manager if manager is not None else SQLTaskManager()
+    settings = (
+        FinancesSettings(PROJECT_ROOT=project_root) if project_root else FinancesSettings()
+    )
+    root = settings.PROJECT_ROOT
+    task_manager = manager if manager is not None else SQLTaskManager(settings.TASKS_DB_PATH)
     identifier = task_id or str(uuid6.uuid7())
 
     if task_manager.get_task(identifier) is None:
@@ -393,11 +395,17 @@ def run_init(
     try:
         for attr in _DIRS_ATTRS:
             directory = Path(getattr(settings, attr))
-            if not directory.is_absolute():
-                directory = root / directory
             if not dry_run:
                 directory.mkdir(parents=True, exist_ok=True)
             created_dirs.append(str(directory))
+
+        marker = root / ROOT_MARKER
+        if not marker.exists():
+            generated_files.append(str(marker))
+            if not dry_run:
+                marker.write_text(
+                    "# Marca la raíz del proyecto financial_tools (Art. 2)\n", encoding="utf-8"
+                )
 
         specs = load_env_specs()
         env_template_path = root / ENV_TEMPLATE_FILENAME
