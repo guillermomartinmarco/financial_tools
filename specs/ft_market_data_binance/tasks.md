@@ -81,7 +81,7 @@
 ## Fase 6: API (FastAPI)
 
 - [ ] **T6.1**: Implementar `api.py` con router `/market-data/binance` y 4 endpoints
-  - **Hecho cuando**: `uv run finances-backtester serve` levanta; OpenAPI docs en `/docs` muestran endpoints.
+  - **Hecho cuando**: `ft_serve` (paquete `finances-api`) levanta; OpenAPI docs en `/docs` muestran endpoints.
 - [ ] **T6.2**: `POST /download` → valida → genera plan → `BackgroundTasks.add_task(execute_download_plan)` → retorna `202` con `task_id`, `poll_url`
   - **Hecho cuando**: Test: response schema correcto; task_id UUID v7; poll_url absoluta; tarea se ejecuta en background.
 - [ ] **T6.3**: `GET /status/{task_id}` → retorna `DownloadProgress` actual

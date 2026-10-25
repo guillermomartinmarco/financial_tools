@@ -140,7 +140,7 @@ FT_SHARE_DIR: pathlib.Path = pathlib.Path("./share")
 
 ## 2. Mapeo de Interfaces
 
-### 2.1 CLI (Typer) — `packages/finances-downloader/src/ft_market_data_binance/cli.py`
+### 2.1 CLI (Typer) — `packages/finances-downloader/src/finances_downloader/ft_market_data_binance/cli.py`
 
 ```python
 import typer
@@ -194,7 +194,7 @@ def main(
     """Configura logging dual (Art. 9 Constitución)."""
 ```
 
-### 2.2 API (FastAPI) — `packages/finances-downloader/src/ft_market_data_binance/api.py`
+### 2.2 API (FastAPI) — `packages/finances-downloader/src/finances_downloader/ft_market_data_binance/api.py`
 
 ```python
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Path, status
@@ -292,12 +292,12 @@ async def result_endpoint(task_id: str = Path(..., pattern=r"^[0-9a-f-]{36}$")) 
 
 ### 3.7 `write_parquet_partitioned(df: pl.DataFrame, parquet_dir: Path) -> List[str]`
 ```python
-# df.partition_by(OHLCV_PARTITION_COLS).write_parquet(
-#     parquet_dir / "binance",
-#     partition_by=OHLCV_PARTITION_COLS,
-#     compression="zstd",
-#     statistics=True,
-# )
+# Para cada grupo (market_type, symbol, timeframe, year, month):
+#   path = parquet_dir / "binance" / f"market_type={m}" / f"symbol={s}" / f"timeframe={tf}"
+#          / f"year={y}" / f"month={mm:02d}" / "data.parquet"
+#   SI path existe: df = concat([read_parquet(path), df]).unique("open_time_ms", keep="last")
+#   df.sort("open_time_ms").write_parquet(tmp, compression="zstd", statistics=True)
+#   os.replace(tmp, path)   # reemplazo atómico
 # Retorna lista de rutas de archivos escritos
 ```
 
@@ -343,8 +343,7 @@ packages/finances-downloader/
 │           ├── rest_api.py         # plan_rest_fallback, REST client
 │           ├── logging.py          # configure_logging (reutiliza patrón)
 │           └── models.py           # Pydantic models (DownloadRequest, Plan, etc.)
-└── share/
-    └── tasks.db                   # SQLite WAL (compartido con finances-core)
+(la base de tareas NO vive en este paquete: es la única `<raíz del proyecto>/share/tasks.db`, Art. 2)
 ```
 
 ---

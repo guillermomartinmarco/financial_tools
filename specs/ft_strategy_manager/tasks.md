@@ -64,7 +64,7 @@
 ## Fase 5: API (FastAPI)
 
 - [ ] **T5.1**: Implementar `api.py` con router `/strategies` y 8 endpoints (ver plan.md §2.2)
-  - **Hecho cuando**: `uv run finances-backtester serve` levanta; OpenAPI docs en `/docs` muestran todos los endpoints.
+  - **Hecho cuando**: `ft_serve` (paquete `finances-api`) levanta; OpenAPI docs en `/docs` muestran todos los endpoints.
 - [ ] **T5.2**: Validación de request/response con modelos Pydantic (StrategyCreate, StrategyUpdate, etc.)
   - **Hecho cuando**: Request inválido → 422 con detail estructurado; Response valida vs modelo de salida.
 - [ ] **T5.3**: `POST /strategies` retorna `201 Created` + `Location: /strategies/{id}` header

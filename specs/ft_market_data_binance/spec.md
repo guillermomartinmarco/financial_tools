@@ -84,20 +84,20 @@
 ```
 {FT_PARQUET_DIR}/
   binance/
-    spot/
-      BTCUSDT/
+    market_type=spot/
+      symbol=BTCUSDT/
         timeframe=1h/
           year=2024/
             month=01/
               data.parquet
-    futures/
-      ETHUSDT/
+    market_type=futures/
+      symbol=ETHUSDT/
         timeframe=5m/
           ...
 ```
-- Usar `partition_by=["symbol", "timeframe", "market_type", "year", "month"]` en Polars
+- Particionado Hive completo (`clave=valor` en todos los niveles bajo `binance/`), de modo que `pl.scan_parquet(..., hive_partitioning=True)` infiera `market_type`, `symbol`, `timeframe`, `year` y `month`. El inventario local (paso 2 de RF-1) y `ft_data_viewer` **DEBEN** leer exactamente este layout.
 - Cada archivo Parquet **DEBE** tener schema Arrow: `Float32` para precios/volúmenes, `Int64` para timestamps/counts
-- **Idempotencia**: Sobrescribir partición completa (año/mes) si ya existe; no append row-a-row (evita duplicados)
+- **Idempotencia sin pérdida**: **SI** la partición (año/mes) ya existe, **ENTONCES** el sistema **DEBE** combinar las filas existentes con las nuevas, deduplicar por `open_time_ms` (prevalece la fila nueva), ordenar por `open_time_ms` y reescribir la partición de forma atómica (archivo temporal + reemplazo). Nunca append row-a-row y nunca descartar filas existentes fuera del rango descargado.
 
 ### RF-5 — Rate-Limiting Diferenciado por Fuente (Ubícuo)
 | Fuente | Algoritmo | Configuración (`FT_` settings) |

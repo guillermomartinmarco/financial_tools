@@ -27,8 +27,9 @@
 - [x] **T1.1**: Implementar `packages/finances-core/src/ft_setup/logging.py` con `configure_logging(mode, level)`
   - **Hecho cuando**: Test unitario verifica que `mode="cli"` usa RichHandler y `mode="api"` usa JSONRenderer; structlog emite en ambos casos.
   - **Hecho**: `tests/unit/test_setup_logging.py` (4 casos) + cobertura 100 % del módulo.
-- [x] **T1.2**: Integrar logging en entrypoint CLI (`cli.py` callback) y API (`api.py` lifespan)
+- [ ] **T1.2**: Integrar logging en entrypoint CLI (`cli.py` callback) y API (`api.py` lifespan)
   - **Hecho cuando**: `ft_setup --verbose doctor` muestra DEBUG con Rich; `GET /setup/doctor` loguea JSON con `task_id`, `component="ft_setup"`.
+  - **Auditoría 2026-10-25 — reabierta**: `api.py` no tiene lifespan; `create_app()` nunca configura logging (solo lo hace `serve.py`, que no es alcanzable).
   - **Hecho**: callback CLI + `configure_api_logging()` en `serve.py`; el router liga `component`/`task_id` vía `structlog.contextvars` y el processor `_add_service_context` añade `trace_id`/`span_id`.
 
 ## Fase 2: `env_list.conf` y Plantillas
@@ -66,18 +67,21 @@
 - [x] **T4.1**: Implementar `cli.py` con `app`, `main` callback (logging), `init` command, `doctor` command
   - **Hecho cuando**: `uv run finances-core setup --help` muestra comandos; `uv run finances-core setup doctor` imprime tabla Rich bonita.
   - **Hecho**: entry point real `ft_setup` (`[project.scripts]`); `ft_setup --help` y `ft_setup doctor` verificados.
-- [x] **T4.2**: Flags CLI: `--verbose/-v`, `--quiet/-q`, `--log-format [rich|json]`, `--force`, `--dry-run`, `--format [table|json]`
+- [ ] **T4.2**: Flags CLI: `--verbose/-v`, `--quiet/-q`, `--log-format [rich|json]`, `--force`, `--dry-run`, `--format [table|json]`
   - **Hecho cuando**: Tests verifican cada flag afecta comportamiento (nivel log, formato salida, force overwrite, dry-run).
   - **Hecho**: `tests/integration/test_setup_cli.py` (7 tests) cubre formato, dry-run, idempotencia y logs.
-- [x] **T4.3**: Exit codes: `0` OK, `1` required vars missing, `2` validation errors, `3` IO/perm error
+  - **Auditoría 2026-10-25 — reabierta**: `--force`, `--verbose` y `--log-format` no tienen test a nivel CLI; `doctor` vuelve a llamar `configure_logging` (`cli.py:76`) y pisa el `--log-format json` del callback.
+- [ ] **T4.3**: Exit codes: `0` OK, `1` required vars missing, `2` validation errors, `3` IO/perm error
   - **Hecho cuando**: Tests `pytest -k cli_exit_codes` pasan.
   - **Hecho**: cubiertos como `test_doctor_invalid_value_exits_2`, `test_doctor_missing_required_exits_1`, `test_doctor_json_ok`, `test_init_*` (IO → 3).
+  - **Auditoría 2026-10-25 — reabierta**: ningún test afirma exit code 3; `test_init_*` solo verifica `EXIT_OK`.
 
 ## Fase 5: API (FastAPI)
 
-- [x] **T5.1**: Implementar `api.py` con router `/setup`, endpoints `GET /doctor`, `POST /init`, `GET /status/{task_id}`
-  - **Hecho cuando**: `uv run finances-backtester serve` levanta servidor; `curl localhost:8000/setup/doctor` retorna JSON válido vs `SetupDoctorResponse`.
+- [ ] **T5.1**: Implementar `api.py` con router `/setup`, endpoints `GET /doctor`, `POST /init`, `GET /status/{task_id}`
+  - **Hecho cuando**: `ft_serve` (paquete `finances-api`) levanta servidor; `curl localhost:8000/setup/doctor` retorna JSON válido vs `SetupDoctorResponse`.
   - **Hecho**: `create_app()` + `ft_setup serve` (extra `[service]` con uvicorn, aún no instalado en `.venv`); contrato verificado con `httpx.ASGITransport`.
+  - **Auditoría 2026-10-25 — reabierta**: router y endpoints OK, pero `ft_setup serve` no existe: `serve.py` define su propio Typer app que no está montado en `cli.app` ni declarado en `[project.scripts]` (verificado: "No such command 'serve'").
 - [x] **T5.2**: `POST /init` retorna `202 ACCEPTED` con `{task_id, status: "ACCEPTED", poll_url}` (Art. 18)
   - **Hecho cuando**: Test verifica response schema, `task_id` es UUID v7 (regex), `poll_url` absoluta.
   - **Hecho**: `test_init_dispatch_and_poll` valida 202, regex UUID v7 y `poll_url` absoluta.
@@ -96,18 +100,22 @@
 - [x] **T6.3**: Tests de integración API: endpoints con `httpx.AsyncClient` (testserver)
   - **Hecho cuando**: `pytest packages/finances-core/tests/integration/test_setup_api.py -v` pasa.
   - **Hecho**: 6 tests, verdes.
-- [x] **T6.4**: Configurar `ruff` + `mypy --strict` en `finances-core`; `pre-commit` hooks
+- [ ] **T6.4**: Configurar `ruff` + `mypy --strict` en `finances-core`; `pre-commit` hooks
   - **Hecho cuando**: `uv run ruff check packages/finances-core` && `uv run mypy --strict packages/finances-core` → 0 errors.
   - **Hecho**: ruff 0.17.2 sin errores (config migrada a `[tool.ruff.lint]`), `mypy --strict src` limpio; `.pre-commit-config.yaml` añadido en la raíz (pre-commit no instalado aún).
+  - **Auditoría 2026-10-25 — reabierta**: desde `packages/finances-core`: `ruff check .` → 32 errores; `mypy --strict src` → 2 errores en `finances_core/schemas/data_viewer.py` (añadido después, con ft_data_viewer).
 
 ## Fase 7: Documentación y Cierre
 
-- [x] **T7.1**: Actualizar `README.md` sección "Inicio Rápido" con `ft_setup init` y `ft_setup doctor`
+- [ ] **T7.1**: Actualizar `README.md` sección "Inicio Rápido" con `ft_setup init` y `ft_setup doctor`
   - **Hecho cuando**: README refleja comandos reales.
   - **Hecho**: sección 3 reescrita con comandos verificados y nota sobre el workspace `uv` pendiente.
+  - **Auditoría 2026-10-25 — reabierta**: `README.md:79` documenta `ft_setup serve`, que no funciona (ver T5.1).
 - [ ] **T7.2**: Verificar matriz Art. 20 Constitución (100% dimensiones) via checklist interno
   - **Hecho cuando**: Checklist firmado en PR description; CI pipeline verde.
   - **Pendiente**: no hay pipeline CI en el repositorio todavía.
+- [ ] **T7.3**: Resolver `TASKS_DB_PATH` respecto de la raíz del proyecto (no del cwd), según Art. 2
+  - **Hecho cuando**: Test ejecuta `SQLTaskManager()` desde un subdirectorio y la base usada es `<raíz>/share/tasks.db`; los tests de API (`test_setup_api.py`) dejan de escribir en bases reales del repo.
 
 ---
 
@@ -117,8 +125,8 @@
 |---|---|
 | `pytest packages/finances-core/tests -q` | **52 passed** |
 | Cobertura (`--cov=ft_setup`) | **93 %** total · `service.py` 98 % |
-| `ruff check packages/finances-core` | **0 errores** |
-| `mypy --strict src` (desde `packages/finances-core`) | **0 errores** (12 archivos) |
+| `ruff check packages/finances-core` | **0 errores** (al cierre original; **32** en auditoría 2026-10-25) |
+| `mypy --strict src` (desde `packages/finances-core`) | **0 errores** (12 archivos) (al cierre original; **2** en 13 archivos en auditoría 2026-10-25) |
 | `ft_setup --help` / `doctor` / `init` | Verificados manualmente |
 
 **Desviaciones conscientes registradas**:
@@ -126,4 +134,4 @@
 1. `env_list.conf` se materializa al instalar/ejecutar `init`, no en un paso de *build* separado (no hay backend de build con hooks en el repo).
 2. El render de plantillas usa sustitución `{{ clave }}` en lugar de Jinja2 para no añadir una dependencia no declarada en `plan.md §5`.
 3. `ft_setup serve` sustituye al inexistente `finances-backtester serve` (ese paquete aún no existe).
-4. `SQLTaskManager` se creó en `finances_core/tasks.py` (plan lo ubicaba en `packages/finances-core/share/tasks.db`); el artefacto de datos sigue siendo `./share/tasks.db`.
+4. `SQLTaskManager` se creó en `finances_core/tasks.py` (plan lo ubicaba en `packages/finances-core/share/tasks.db`); el artefacto de datos sigue siendo `./share/tasks.db` (relativo al cwd; Art. 2 corregido el 2026-10-25 a `<raíz>/share/tasks.db` absoluto → ver T7.3).

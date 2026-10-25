@@ -10,7 +10,7 @@ El proyecto está diseñado bajo la metodología **Spec-Driven Development (SDD)
 
 Para garantizar el aislamiento y permitir ciclos SemVer independientes, las 13 herramientas de la suite se agrupan en 3 paquetes distribuidos de la siguiente manera:
 
-| Paquete Corporativo | Utilidades Asociadas (`src/ft_*`) | Stack Tecnológico Base |
+| Paquete Corporativo | Utilidades Asociadas (`ft_*`) | Stack Tecnológico Base |
 | :--- | :--- | :--- |
 | **`finances-core`** | `ft_setup`, `common/`, `ft_strategy_manager` | Pydantic Settings, Structlog, SQLite |
 | **`finances-downloader`** | `ft_market_data_binance`, `ft_market_data_yfinance`, `ft_market_data_manager` | Asyncio, Python standard, Polars, Parquet |

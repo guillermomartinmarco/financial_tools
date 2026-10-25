@@ -128,7 +128,7 @@ since_version = "0.1.0"
 
 ## 2. Mapeo de Interfaces
 
-### 2.1 CLI (Typer) — `packages/finances-downloader/src/ft_data_viewer/cli.py`
+### 2.1 CLI (Typer) — `packages/finances-downloader/src/finances_downloader/ft_data_viewer/cli.py`
 
 ```python
 app = typer.Typer(
@@ -246,7 +246,7 @@ def compare(
     """Compara dos datasets (mismo symbol/tf o distinto exchange/market)."""
 ```
 
-### 2.2 API (FastAPI) — `packages/finances-downloader/src/ft_data_viewer/api.py`
+### 2.2 API (FastAPI) — `packages/finances-downloader/src/finances_downloader/ft_data_viewer/api.py`
 
 ```python
 router = APIRouter(prefix="/data", tags=["data-viewer"])

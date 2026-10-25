@@ -72,7 +72,7 @@
 ## Fase 6: API (FastAPI)
 
 - [ ] **T6.1**: Implementar `api.py` con 7 endpoints REST (ver plan.md §2.2)
-  - **Hecho cuando**: `uv run finances-backtester serve` levanta; OpenAPI docs en `/docs` muestran endpoints.
+  - **Hecho cuando**: `ft_serve` (paquete `finances-api`) levanta; OpenAPI docs en `/docs` muestran endpoints.
 - [ ] **T6.2**: `GET /rows` con query `mode=head|tail|sample`, `n`, `cols`
   - **Hecho cuando**: Test verifica cada modo retorna filas correctas.
 - [ ] **T6.3**: `POST /export` retorna `StreamingResponse` con headers `Content-Disposition`, `Content-Type` correctos

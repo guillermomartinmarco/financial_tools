@@ -55,7 +55,7 @@
 - Permita filtrar por rango temporal (`--start-ms`, `--end-ms`), símbolos, timeframes.
 - Exporte a: Parquet (default), CSV, JSON Lines.
 - Escriba en directorio especificado (`--output-dir`) o stdout (`-`).
-- **SI** el rango solicitado no tiene datos, **ENTONCES** error 400 / CLI exit 2 con mensaje claro.
+- **SI** el rango solicitado no tiene datos, **ENTONCES** error 400 / CLI exit 3 con mensaje claro (exit 2 queda reservado para argumentos inválidos, ver T5.4).
 
 ### RF-7 — Comparación de Datasets (Ubícuo)
 **EL SISTEMA DEBE** proveer una operación `compare` (CLI) / `POST /data/compare` (API) que:
