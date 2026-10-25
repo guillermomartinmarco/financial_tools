@@ -52,14 +52,14 @@ jobs:
           done
 
       # RF-14 / T6.2 de ft_indicators: benchmarks B1/B2 solo en ubuntu-latest (umbrales en
-      # tests/ft_indicators/benchmarks/thresholds.json). BENCH_ENFORCE=0 hasta la calibración
-      # de T6.3; después pasa a 1 y el job falla ante una regresión.
+      # tests/ft_indicators/benchmarks/thresholds.json, calibrados en T6.3): el job falla ante
+      # una regresión.
       - name: Benchmarks ft_indicators (ubuntu-latest)
         if: matrix.os == 'ubuntu-latest'
         working-directory: packages/finances-analytics
         env:
           BENCH_OUTPUT: ${{ github.workspace }}/bench-results/ft_indicators.json
-          BENCH_ENFORCE: "0"
+          BENCH_ENFORCE: "1"
         run: python -m pytest -m benchmark -s -q
 
       - name: Upload benchmark results
