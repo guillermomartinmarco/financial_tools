@@ -136,7 +136,7 @@
   - **Hecho**: README §3 documenta `list`, `summary`, `head`, `gaps`, `anomalies`, `export` y `compare` (flags verificados contra `--help`).
 - [ ] **T8.3**: Verificar matriz Art. 20 Constitución (100% dimensiones) via checklist
   - **Hecho cuando**: Checklist firmado en PR description; CI pipeline verde.
-  - **Pendiente**: requiere PR/CI.
+  - **Pendiente**: firma del Tech Lead sobre la checklist de `.github/pull_request_template.md` en el PR de `refactor/spec-consistency`, con el workflow `.github/workflows/ci.yml` en verde. La dimensión *Desempeño* requiere benchmarks que aún no existen (o marcarla N/A justificado).
 - [x] **T8.4**: Registrar router en `finances-api` (`ft_serve`)
   - **Hecho cuando**: `finances_api.create_app()` importa e incluye `data_viewer_router`.
   - **Hecho**: `finances_api.create_app()` monta el router; `test_openapi_includes_all_tool_routers` y los tests de `ft_serve` (packages/finances-api/tests/test_app.py) verifican arranque y rutas en OpenAPI.

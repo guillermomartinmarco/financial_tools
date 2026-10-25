@@ -149,7 +149,7 @@
   - **Hecho**: README §3 incluye `download`, `status` y `result` con ejemplos copy-pasteables.
 - [ ] **T8.2**: Verificar matriz Art. 20 Constitución (100% dimensiones) via checklist interno
   - **Hecho cuando**: Checklist firmado en PR description; CI pipeline verde.
-  - **Pendiente**: Matriz Art. 20 pendiente de firma.
+  - **Pendiente**: firma del Tech Lead sobre la checklist de `.github/pull_request_template.md` en el PR de `refactor/spec-consistency`, con el workflow `.github/workflows/ci.yml` en verde. La dimensión *Desempeño* requiere benchmarks que aún no existen (o marcarla N/A justificado).
 - [x] **T8.3**: Registrar router en `finances-api` (`ft_serve`)
   - **Hecho cuando**: `finances_api.create_app()` importa e incluye `binance_router`; health-check incluye parquet dir accesible.
   - **Hecho**: `finances_api.create_app()` incluye `binance_router`; `GET /health` reporta `parquet_dir_accessible` (`test_health_reports_accessible_parquet_dir`).
