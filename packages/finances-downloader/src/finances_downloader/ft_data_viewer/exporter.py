@@ -1,75 +1,53 @@
+"""Exportación streaming de subconjuntos (RF-6, DV-03): ``sink_parquet/csv/ndjson``."""
+
+from __future__ import annotations
+
 from pathlib import Path
-from typing import Union, IO, Literal, Optional, List
+from typing import IO, Literal
+
 import polars as pl
 import structlog
-import sys
 
-logger = structlog.get_logger(__name__)
+logger = structlog.get_logger(__name__, component="ft_data_viewer")
+
+ExportFormat = Literal["parquet", "csv", "jsonl"]
+
+#: ``Content-Type`` por formato (API, T6.3).
+MEDIA_TYPES: dict[str, str] = {
+    "parquet": "application/vnd.apache.parquet",
+    "csv": "text/csv",
+    "jsonl": "application/x-ndjson",
+}
 
 
-def stream_export(
-    lf: pl.LazyFrame,
-    format: Literal["parquet", "csv", "jsonl"],
-    output: Union[Path, str, IO],
-    cols: Optional[List[str]] = None,
-) -> int:
+def stream_export(lf: pl.LazyFrame, fmt: ExportFormat, output: Path | IO[bytes]) -> int:
+    """Exporta ``lf`` en streaming a un archivo o a un stream binario.
+
+    Returns:
+        Número de filas exportadas (conteo lazy, resuelto desde metadatos cuando es posible).
+
+    Raises:
+        ValueError: SI ``fmt`` no es ``parquet``, ``csv`` o ``jsonl``.
+        OSError: SI el destino no se puede crear o escribir.
     """
-    Exporta LazyFrame a Parquet/CSV/JSONL streaming (sin cargar en memoria).
-    Retorna número de filas exportadas.
-    """
-    if cols:
-        lf = lf.select(cols)
+    if fmt not in MEDIA_TYPES:
+        msg = f"Formato no soportado: {fmt!r} (parquet|csv|jsonl)"
+        raise ValueError(msg)
+    if isinstance(output, Path):
+        output.parent.mkdir(parents=True, exist_ok=True)
 
-    # Determinar si output es Path o stream
-    is_path = isinstance(output, (Path, str))
-    if is_path:
-        output_path = Path(output)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        sink = output_path
+    if fmt == "parquet":
+        lf.sink_parquet(output, compression="zstd")
+    elif fmt == "csv":
+        lf.sink_csv(output)
     else:
-        sink = output
+        lf.sink_ndjson(output)
 
-    if format == "parquet":
-        lf.sink_parquet(sink, compression="zstd")
-    elif format == "csv":
-        lf.sink_csv(sink)
-    elif format == "jsonl":
-        lf.sink_ndjson(sink)
-    else:
-        raise ValueError(f"Formato no soportado: {format}")
-
-    # Para obtener row count, necesitamos contar
-    # Nota: sink_* no retorna count, así que hacemos count aparte si es Path
-    if is_path:
-        count_lf = pl.scan_parquet(output) if format == "parquet" else pl.scan_parquet(output) if format == "csv" else pl.scan_parquet(output)
-        # Para CSV/JSONL no hay scan_parquet, usamos count separado
-        count_lf = pl.scan_parquet(output) if format == "parquet" else pl.LazyFrame()
-        # Fallback: count mediante collect streaming
-        count = lf.select(pl.len()).collect()["len"][0]
-    else:
-        count = lf.select(pl.len()).collect()["len"][0]
-
-    logger.info("export_complete", format=format, rows=count, output=str(output) if is_path else "stream")
-    return count
-
-
-def export_to_stdout(
-    lf: pl.LazyFrame,
-    format: Literal["parquet", "csv", "jsonl"],
-    cols: Optional[List[str]] = None,
-) -> int:
-    """Exporta a stdout (para piping)."""
-    if cols:
-        lf = lf.select(cols)
-
-    if format == "parquet":
-        lf.sink_parquet(sys.stdout.buffer)
-    elif format == "csv":
-        lf.sink_csv(sys.stdout)
-    elif format == "jsonl":
-        lf.sink_ndjson(sys.stdout)
-    else:
-        raise ValueError(f"Formato no soportado: {format}")
-
-    count = lf.select(pl.len()).collect()["len"][0]
-    return count
+    rows = int(lf.select(pl.len()).collect().item())
+    logger.debug(
+        "export_written",
+        format=fmt,
+        rows=rows,
+        output=str(output) if isinstance(output, Path) else "stream",
+    )
+    return rows

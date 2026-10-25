@@ -246,6 +246,15 @@ def compare(
     """Compara dos datasets (mismo symbol/tf o distinto exchange/market)."""
 ```
 
+**Notas de implementación (as-built):**
+- `list` se implementa como `list_cmd` registrado con `@app.command("list")` (no se sombrea el builtin).
+- Callback global: `--verbose/-v`, `--quiet/-q`, `--format/-f [table|json|csv]` (default de salida) y `--log-format [rich|json]`; el `--format` de cada subcomando tiene prioridad sobre el global. Logging vía `finances_core.logging.configure_logging("cli", ..., component="ft_data_viewer")`.
+- `csv` usa `pl.DataFrame.write_csv` y está disponible en `list`, `summary` (stats por columna), `head/tail/sample` y `gaps`; en `anomalies`/`compare` es argumento inválido (exit 2).
+- `anomalies` acepta `--outlier-method [zscore|iqr]` (default `zscore`, RF-5).
+- `export`: `--output-dir -` o sin `--output-dir` → stdout binario; el resumen se escribe en stderr.
+- Exit codes por tipo de excepción (`errors.py`): `DatasetNotFoundError`→1, `InvalidArgumentError`→2, `NoDataInRangeError`→3, `OSError`→4.
+- `list` muestra barra de progreso Rich (stderr) en modo tabla con logs `rich` y sin `--quiet`.
+
 ### 2.2 API (FastAPI) — `packages/finances-downloader/src/finances_downloader/ft_data_viewer/api.py`
 
 ```python
@@ -280,7 +289,8 @@ async def get_gaps(
 
 @router.get("/datasets/{exchange}/{market_type}/{symbol}/{timeframe}/anomalies", response_model=AnomalyReport)
 async def get_anomalies(
-    exchange: str, market_type: str, symbol: str, timeframe: str
+    exchange: str, market_type: str, symbol: str, timeframe: str,
+    outlier_method: Literal["zscore", "iqr"] = Query("zscore"),
 ) -> AnomalyReport: ...
 
 @router.post("/datasets/{exchange}/{market_type}/{symbol}/{timeframe}/export")
@@ -299,12 +309,15 @@ async def compare_datasets(request: CompareRequest) -> CompareResult: ...
 
 | Función | Descripción |
 |---------|-------------|
-| `scan_parquet_partitions(parquet_dir)` | `pl.scan_parquet(parquet_dir / "**/*.parquet", hive_partitioning=True).collect_metadata()` → lista `DatasetInfo` sin leer datos |
-| `read_dataset_metadata(dataset_path)` | `pl.scan_parquet(path).select(pl.all().meta()).collect()` → stats por columna (min, max, null_count, distinct_count) |
-| `detect_gaps(lf, timeframe_ms)` | `lf.sort("open_time_ms").with_columns(diff=pl.col("open_time_ms").diff()).filter(pl.col("diff") > timeframe_ms * 1.5)` |
+| `scan_parquet_partitions(parquet_dir, on_progress=None)` | Recorre el árbol Hive `{exchange}/market_type=X/symbol=Y/timeframe=Z/year=YYYY/month=MM/*.parquet` (identidad desde la ruta) y lee solo footers Parquet (`pyarrow.parquet.read_metadata().num_rows`) → lista `DatasetInfo` sin leer filas. (`LazyFrame.collect_metadata()` no existe en Polars 2.x.) |
+| `resolve_dataset_path(base_dir, identifier)` | Ruta Hive concreta del dataset; `DatasetNotFoundError` si no existe, no contiene Parquet o escapa de `base_dir` |
+| `read_dataset_metadata(dataset_path)` | Estadísticas de footer Parquet agregadas por row group (`min`, `max`, `null_count`) → `dict[str, ColumnStats]`; `mean/std/distinct_count` no existen en las estadísticas y quedan `None` (los completa `compute_summary` con una única agregación lazy) |
+| `detect_gaps(lf, timeframe_ms, min_gap_candles=1, gap_threshold_ms=0)` | `lf.select(ts).unique().sort(ts)` + `shift(1)` + `filter(diff > 1.5·tf)` totalmente lazy; filtra `missing >= min_gap_candles` y `missing_ms >= FT_DATA_VIEWER_GAP_THRESHOLD_MS` |
 | `detect_anomalies(lf)` | Null check, `duplicated()`, Z-score `(x - mean) / std > 3`, IQR `Q1 - 1.5*IQR / Q3 + 1.5*IQR`, volumen == 0 |
-| `stream_export(lf, format, output)` | `lf.sink_parquet()/sink_csv()/sink_ndjson()` streaming sin cargar en memoria |
-| `compare_datasets(lf_a, lf_b)` | Join on `open_time_ms`, diff en `close`, `volume`, union de gaps |
+| `stream_export(lf, fmt, output: Path \| IO[bytes])` | `lf.sink_parquet()/sink_csv()/sink_ndjson()` streaming sin cargar en memoria |
+| `compare_datasets(lf_a, lf_b, identifier_a, identifier_b)` | Join on `open_time_ms`, diff en `close`, `volume`; `gaps_only_in_a/b` = diferencia de intervalos de gaps recortada al solape (el rango `start/end` lo aplica `service`) |
+| `sample_rows(lf, n, mode, cols, *, seed)` | `head/tail`: `sort + limit` y proyección posterior; `sample`: índices por reservoir sampling (Algorithm L, familia Vitter R) sobre `pl.len()` + `with_row_index().filter(is_in)`; solo materializa `n` filas, acotado por `FT_DATA_VIEWER_SAMPLE_MAX_ROWS` |
+| `service.export_data(request: ExportRequest, *, stream=None)` | Exactamente un destino (`output_dir` o `stream`); rechaza `output_dir` dentro de `PARQUET_DIR` (DV-01); API exporta a directorio temporal y lo sirve con `StreamingResponse` + `BackgroundTask` de limpieza |
 
 ---
 
@@ -321,6 +334,7 @@ packages/finances-downloader/
 │   ├── analyzer.py         # gaps, anomalies, stats
 │   ├── exporter.py         # stream_export (sink_*)
 │   ├── comparator.py       # compare_datasets
+│   ├── errors.py           # Errores tipados → exit codes / HTTP
 │   └── models.py           # Re-exports desde finances_core
 ```
 
@@ -372,6 +386,6 @@ ft_data_viewer = "finances_downloader.ft_data_viewer.cli:app"
 
 - Reutiliza `FinancesSettings` para `FT_PARQUET_DIR`, `FT_DATA_VIEWER_*`
 - Reutiliza `TF_MS_MAP`, `OHLCV_SCHEMA`, `OHLCV_PARTITION_COLS` de `finances_core.schemas.market_data`
-- Reutiliza `configure_logging` patrón compartido
+- Reutiliza `finances_core.logging.configure_logging` / `level_from_flags` y `finances_core.timeutils.parse_time_input` (sin imports de otras `ft_*`, Art. 4)
 - Registra router en `ft_api_service` via `include_router(data_viewer_router)`
 - Declara variables en `ft_setup/env_list.conf` (Art. 16)
