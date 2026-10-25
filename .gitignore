@@ -79,5 +79,9 @@ dmypy.json
 # Parquet data (large files - not committed)
 data/parquet/
 
+# AI agents (local/generated)
+.atl/
+.claude/settings.local.json
+
 # Download plans (temp files)
 /tmp/download_plan_*.json

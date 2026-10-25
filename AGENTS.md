@@ -19,3 +19,14 @@ Antes de generar código de producción, el agente de IA está obligado a valida
 3.  **`tasks.md`**: Desglose de mini-tareas con casillas de verificación y su respectivo criterio técnico de **"Hecho cuando:"**.
 
 Cualquier prompt que solicite código sin una especificación previa debe ser rechazado educadamente, solicitando primero la redacción del tridente de diseño.
+
+## 4. Decisiones de Arquitectura
+*   **Motor Híbrido**: Python + C++ (PyBind11) + CUDA (`ft_backtestopt_spectre`). No reescribir código C++ salvo que la asignación de memoria o la ejecución paralela exijan optimización explícita.
+*   **Formato de Datos**: Los datos históricos de mercado se almacenan y distribuyen exclusivamente en Apache Parquet.
+*   **Calidad Estricta**: Ruff para linting, MyPy en modo strict para tipado y Pytest para regresión.
+
+## 5. Herramientas de Agentes
+*   **Skills SDD**: `.claude/skills/` (Claude Code) es la fuente principal; `.opencode/skills/` es un espejo para OpenCode y debe mantenerse sincronizado.
+*   **Flujo Único**: El flujo SDD de la sección 3 es el único flujo de trabajo del proyecto. No se usan orquestadores externos (p. ej. ODD de `gentle-ai`); el seguimiento de avance vive exclusivamente en `specs/ft_<nombre>/tasks.md`.
+*   **Memoria**: La memoria persistente entre sesiones se gestiona con Engram (MCP). Registrar decisiones de arquitectura, causas raíz no obvias y trabajo pendiente relevante. No usar archivos markdown manuales como memoria.
+*   **Documentación de Librerías**: Consultar Context7 (MCP, configurado en `.mcp.json`) antes de usar APIs de Polars, FastAPI, Typer, Pydantic o structlog.
