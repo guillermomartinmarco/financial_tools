@@ -220,9 +220,7 @@ def _dotenv_values(env_file: Path) -> dict[str, str]:
     return {k: v for k, v in dotenv_values(env_file).items() if v is not None}
 
 
-def _resolve_source(
-    name: str, raw_value: str | None, dotenv: dict[str, str]
-) -> VarSource:
+def _resolve_source(name: str, raw_value: str | None, dotenv: dict[str, str]) -> VarSource:
     if name in os.environ:
         return VarSource.ENV
     if name in dotenv:
@@ -274,9 +272,7 @@ def diagnose(
 
     summary = _summarise(diagnoses)
     ok = all(d.valid for d in diagnoses if d.spec.required)
-    return SetupDoctorResponse(
-        ok=ok, timestamp_ms=now_ms(), vars=diagnoses, summary=summary
-    )
+    return SetupDoctorResponse(ok=ok, timestamp_ms=now_ms(), vars=diagnoses, summary=summary)
 
 
 def _summarise(diagnoses: list[EnvVarDiagnosis]) -> dict[str, int]:
@@ -349,9 +345,7 @@ def build_env_template(specs: Iterable[EnvVarSpec]) -> str:
     spec_list = list(specs)
     header_template = _template(".env.template.j2")
     if header_template.exists():
-        return _render_template(
-            header_template, {"sections": _env_template_sections(spec_list)}
-        )
+        return _render_template(header_template, {"sections": _env_template_sections(spec_list)})
     return _env_template_sections(spec_list)  # pragma: no cover
 
 
@@ -376,9 +370,7 @@ def run_init(
     Idempotente (Art. 12): re-ejecutar no duplica ni corrompe. ``dry_run`` no
     escribe en disco. Cada ejecución queda registrada en ``tasks.db`` (RF-7).
     """
-    settings = (
-        FinancesSettings(PROJECT_ROOT=project_root) if project_root else FinancesSettings()
-    )
+    settings = FinancesSettings(PROJECT_ROOT=project_root) if project_root else FinancesSettings()
     root = settings.PROJECT_ROOT
     task_manager = manager if manager is not None else SQLTaskManager(settings.TASKS_DB_PATH)
     identifier = task_id or str(uuid6.uuid7())
@@ -424,17 +416,13 @@ def run_init(
                     encoding="utf-8",
                 )
         elif not env_list_target.exists():  # pragma: no cover - instalación read-only
-            logger.warning(
-                "env_list_not_writable", path=str(env_list_target), root=str(root)
-            )
+            logger.warning("env_list_not_writable", path=str(env_list_target), root=str(root))
 
         if not dry_run:
             task_manager.ensure_ready()
     except Exception as exc:  # noqa: BLE001 - se persiste y se propaga
         errors.append(str(exc))
-        task_manager.update_task(
-            identifier, status="FAILED", error=str(exc), errors_json=errors
-        )
+        task_manager.update_task(identifier, status="FAILED", error=str(exc), errors_json=errors)
         logger.error("init_failed", task_id=identifier, error=str(exc))  # noqa: TRY400
         raise
 

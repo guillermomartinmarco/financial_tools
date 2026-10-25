@@ -5,6 +5,7 @@
 class HealthResponse(BaseModel):
     status: Literal["ok"]
     version: str
+    parquet_dir_accessible: bool
 ```
 
 ## 2. Rutas FastAPI — `packages/finances-api/src/finances_api/app.py`

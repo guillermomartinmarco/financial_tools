@@ -8,17 +8,18 @@ El proyecto está diseñado bajo la metodología **Spec-Driven Development (SDD)
 
 ## 1. Arquitectura del Monorepo
 
-Para garantizar el aislamiento y permitir ciclos SemVer independientes, las 13 herramientas de la suite se agrupan en 3 paquetes distribuidos de la siguiente manera:
+Para garantizar el aislamiento y permitir ciclos SemVer independientes, las herramientas de la suite se agrupan en paquetes distribuidos de la siguiente manera (los marcados *(planificado)* aún no existen):
 
 | Paquete Corporativo | Utilidades Asociadas (`ft_*`) | Stack Tecnológico Base |
 | :--- | :--- | :--- |
-| **`finances-core`** | `ft_setup`, `common/`, `ft_strategy_manager` | Pydantic Settings, Structlog, SQLite |
-| **`finances-downloader`** | `ft_market_data_binance`, `ft_market_data_yfinance`, `ft_market_data_manager` | Asyncio, Python standard, Polars, Parquet |
-| **`finances-backtester`**| `ft_vectorbt`, `ft_backtesting_py`, `ft_backtrader`, `ft_bt`, `ft_ffn`, `ft_backtestopt_spectre` (C++/CUDA), `ft_bot_paper_binance`, `ft_live_bot`, `ft_api_service` | VectorBT, Backtrader, PyBind11, CMake, FastAPI |
+| **`finances-core`** | `finances_core` (puente compartido: config, logging, tasks, schemas), `ft_setup`, `ft_strategy_manager` *(planificado)* | Pydantic Settings, Structlog, SQLite |
+| **`finances-downloader`** | `ft_market_data_binance`, `ft_data_viewer`, `ft_market_data_yfinance` *(planificado)*, `ft_market_data_manager` *(planificado)* | Asyncio, Polars, Parquet |
+| **`finances-api`** | `ft_serve` (raíz de composición: monta los routers de todas las herramientas) | FastAPI, Uvicorn |
+| **`finances-backtester`** *(planificado)* | `ft_vectorbt`, `ft_backtesting_py`, `ft_backtrader`, `ft_bt`, `ft_ffn`, `ft_backtestopt_spectre` (C++/CUDA), `ft_bot_paper_binance`, `ft_live_bot` | VectorBT, Backtrader, PyBind11, CMake |
 
 ---
 
-## 2. Mapa Detallado de Utilidades (`src/`)
+## 2. Mapa Detallado de Utilidades
 
 ### 2.1 Configuración y Gobernanza
 *   **`ft_setup`**: Inicialización del entorno, diagnóstico de variables y enmascaramiento de llaves criptográficas/secretos usando emojis de advertencia (`⚠️`).
@@ -37,7 +38,7 @@ Para garantizar el aislamiento y permitir ciclos SemVer independientes, las 13 h
 
 ### 2.4 Servidores y Ejecución en Vivo
 *   **`ft_bot_paper_binance` / `ft_live_bot`**: Bots de ejecución de órdenes (Simulado / Real) controlados en subprocesos.
-*   **`ft_api_service`**: El Daemon/Servidor central unificado. Expone endpoints web usando FastAPI y orquesta colas no bloqueantes delegando tareas al threadpool nativo mediante un `TaskManager` persistido en SQLite.
+*   **`ft_serve`** (paquete `finances-api`): Servidor HTTP central unificado. Monta en una sola app FastAPI los routers de todas las herramientas; las tareas pesadas se despachan sin bloquear el event loop y su estado se persiste con `SQLTaskManager` en `share/tasks.db`.
 
 ---
 
@@ -50,12 +51,14 @@ Para garantizar el aislamiento y permitir ciclos SemVer independientes, las 13 h
 ```bash
 python -m pip install -e packages/finances-core
 python -m pip install -e packages/finances-downloader
+python -m pip install -e packages/finances-api uvicorn   # servicio HTTP (ft_serve)
 ```
 
 ### Ejecución en Modo Efímero (CLI)
 ```bash
-# Inicialización del entorno (directorios, .env.template, tasks.db WAL)
+# Inicialización del entorno (directorios, .env.template, .ft_root, tasks.db WAL)
 ft_setup init
+ft_setup status <task_id>          # estado de una inicialización
 
 # Diagnóstico de variables FT_* (tabla Rich o JSON)
 ft_setup doctor
@@ -63,6 +66,8 @@ ft_setup doctor --format json
 
 # Descarga de datos históricos Binance (Public Data + REST fallback)
 ft_market_data_binance download --symbol BTCUSDT --timeframe 1h --start 2024-01-01
+ft_market_data_binance status <task_id>    # progreso (mismo JSON que GET /status)
+ft_market_data_binance result <task_id>    # resultado final (mismo JSON que GET /result)
 
 # Exploración y diagnóstico de datasets descargados
 ft_data_viewer list                                    # Lista todos los datasets
@@ -71,12 +76,13 @@ ft_data_viewer head -e binance -m spot -s BTCUSDT -t 1h -n 20  # Primeras 20 fil
 ft_data_viewer gaps -e binance -m spot -s BTCUSDT -t 1h      # Gaps temporales
 ft_data_viewer anomalies -e binance -m spot -s BTCUSDT -t 1h  # Duplicados, nulos, outliers
 ft_data_viewer export -e binance -m spot -s BTCUSDT -t 1h --start 2024-01-01 --end 2024-06-01 -o ./subset  # Exportar
+ft_data_viewer compare --exchange-a binance --market-a spot --symbol-a BTCUSDT --timeframe-a 1h \n  --exchange-b binance --market-b futures --symbol-b BTCUSDT --timeframe-b 1h  # Spot vs Futures
 ```
 
 ### Ejecución en Modo Servicio (FastAPI)
 ```bash
-# Servicio de setup (router /setup)
-ft_setup serve --port 8000
+# Servicio HTTP único: /setup, /market-data/binance, /data y /health (docs en /docs)
+ft_serve --port 8000
 ```
 
 ---
@@ -89,9 +95,8 @@ La suite aplica una política estricta de validación previa al commit. No se pe
 # Formateo y análisis estático rápido
 python -m ruff check packages && python -m ruff format packages
 
-# Chequeo estricto de tipos con MyPy (por paquete, usa su pyproject.toml)
-cd packages/finances-core && python -m mypy --strict src
-
-# Ejecución de la suite completa de pruebas (Unitarias e Integración)
-python -m pytest packages/finances-core/tests
+# Tipado estricto y tests: ejecutar DENTRO de cada paquete (cada uno tiene su pyproject.toml)
+for pkg in finances-core finances-downloader finances-api; do
+  (cd packages/$pkg && python -m mypy --strict src && python -m pytest -q)
+done
 ```

@@ -25,7 +25,8 @@ Cada herramienta `ft_*` expone un `APIRouter` de FastAPI, pero ninguna app los m
 **CUANDO** el servicio arranca, **EL SISTEMA DEBE** configurar logging JSON mediante `finances_core.logging.configure_logging("api", ...)` en el `lifespan` de la app, de modo que también aplique cuando la app se monta desde tests u otro servidor ASGI.
 
 ### RF-4 — Salud (Ubicuo)
-**EL SISTEMA DEBE** exponer `GET /health` que responda `200` con `{"status": "ok", "version": "<versión del paquete>"}`.
+**EL SISTEMA DEBE** exponer `GET /health` que responda `200` con `{"status": "ok", "version": "<versión del paquete>", "parquet_dir_accessible": <bool>}`.
+- `parquet_dir_accessible` es `true` **SI** `FT_PARQUET_DIR` existe y es legible (requisito de `ft_market_data_binance` T8.3); su valor `false` no cambia el código `200` (el servicio sigue vivo).
 
 ### RF-5 — Aislamiento (No deseado)
 **SI** algún módulo `ft_*` importa de `finances_api`, **ENTONCES** es una violación del Art. 4. `finances_api` solo importa los `router` públicos de cada herramienta.

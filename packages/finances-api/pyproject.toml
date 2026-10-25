@@ -1,0 +1,61 @@
+[project]
+name = "finances-api"
+version = "0.1.0"
+description = "HTTP composition root for the financial_tools suite (ft_serve)"
+requires-python = ">=3.11"
+dependencies = [
+    "finances-core",
+    "finances-downloader",
+    "fastapi>=0.111",
+    "typer>=0.12",
+]
+
+[project.optional-dependencies]
+service = ["uvicorn>=0.30"]
+dev = [
+    "pytest>=8.2",
+    "pytest-asyncio>=0.23",
+    "httpx>=0.27",
+    "ruff>=0.5",
+    "mypy>=1.10",
+]
+
+[project.scripts]
+ft_serve = "finances_api.cli:app"
+
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["finances_api*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+exclude = ["**/.venv/**", "**/__pycache__/**"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM", "T20", "PTH", "PD", "PGH", "PL", "TRY", "NPY"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["typer.Option", "typer.Argument"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["PLR2004", "TRY003"]
+
+[tool.mypy]
+strict = true
+python_version = "3.11"
+mypy_path = "src"
+namespace_packages = true
+explicit_package_bases = true
+
+[[tool.mypy.overrides]]
+module = ["uvicorn"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

@@ -27,9 +27,10 @@
 - [x] **T1.1**: Implementar `packages/finances-core/src/ft_setup/logging.py` con `configure_logging(mode, level)`
   - **Hecho cuando**: Test unitario verifica que `mode="cli"` usa RichHandler y `mode="api"` usa JSONRenderer; structlog emite en ambos casos.
   - **Hecho**: `tests/unit/test_setup_logging.py` (4 casos) + cobertura 100 % del módulo.
-- [ ] **T1.2**: Integrar logging en entrypoint CLI (`cli.py` callback) y API (`api.py` lifespan)
+- [x] **T1.2**: Integrar logging en entrypoint CLI (`cli.py` callback) y API (`api.py` lifespan)
   - **Hecho cuando**: `ft_setup --verbose doctor` muestra DEBUG con Rich; `GET /setup/doctor` loguea JSON con `task_id`, `component="ft_setup"`.
   - **Auditoría 2026-10-25 — reabierta**: `api.py` no tiene lifespan; `create_app()` nunca configura logging (solo lo hace `serve.py`, que no es alcanzable).
+  - **Resuelto 2026-10-25 (refactor/spec-consistency)**: el logging JSON del servicio lo configura el `lifespan` de `finances_api.create_app()` (`test_lifespan_configures_json_logging`); el CLI lo configura en el callback con `finances_core.logging`.
   - **Hecho**: callback CLI + `configure_api_logging()` en `serve.py`; el router liga `component`/`task_id` vía `structlog.contextvars` y el processor `_add_service_context` añade `trace_id`/`span_id`.
 
 ## Fase 2: `env_list.conf` y Plantillas
@@ -80,10 +81,11 @@
 
 ## Fase 5: API (FastAPI)
 
-- [ ] **T5.1**: Implementar `api.py` con router `/setup`, endpoints `GET /doctor`, `POST /init`, `GET /status/{task_id}`
+- [x] **T5.1**: Implementar `api.py` con router `/setup`, endpoints `GET /doctor`, `POST /init`, `GET /status/{task_id}`
   - **Hecho cuando**: `ft_serve` (paquete `finances-api`) levanta servidor; `curl localhost:8000/setup/doctor` retorna JSON válido vs `SetupDoctorResponse`.
   - **Hecho**: `create_app()` + `ft_setup serve` (extra `[service]` con uvicorn, aún no instalado en `.venv`); contrato verificado con `httpx.ASGITransport`.
   - **Auditoría 2026-10-25 — reabierta**: router y endpoints OK, pero `ft_setup serve` no existe: `serve.py` define su propio Typer app que no está montado en `cli.app` ni declarado en `[project.scripts]` (verificado: "No such command 'serve'").
+  - **Resuelto 2026-10-25 (refactor/spec-consistency)**: `ft_serve` (paquete `finances-api`) monta el router `/setup`; `test_mounted_setup_router_answers` verifica `GET /setup/doctor` → 200 vía la app compuesta.
 - [x] **T5.2**: `POST /init` retorna `202 ACCEPTED` con `{task_id, status: "ACCEPTED", poll_url}` (Art. 18)
   - **Hecho cuando**: Test verifica response schema, `task_id` es UUID v7 (regex), `poll_url` absoluta.
   - **Hecho**: `test_init_dispatch_and_poll` valida 202, regex UUID v7 y `poll_url` absoluta.
@@ -110,10 +112,11 @@
 
 ## Fase 7: Documentación y Cierre
 
-- [ ] **T7.1**: Actualizar `README.md` sección "Inicio Rápido" con `ft_setup init` y `ft_setup doctor`
+- [x] **T7.1**: Actualizar `README.md` sección "Inicio Rápido" con `ft_setup init` y `ft_setup doctor`
   - **Hecho cuando**: README refleja comandos reales.
   - **Hecho**: sección 3 reescrita con comandos verificados y nota sobre el workspace `uv` pendiente.
   - **Auditoría 2026-10-25 — reabierta**: `README.md:79` documenta `ft_setup serve`, que no funciona (ver T5.1).
+  - **Resuelto 2026-10-25 (refactor/spec-consistency)**: README documenta `ft_serve`, `ft_setup status` y la instalación de `finances-api`.
 - [ ] **T7.2**: Verificar matriz Art. 20 Constitución (100% dimensiones) via checklist interno
   - **Hecho cuando**: Checklist firmado en PR description; CI pipeline verde.
   - **Pendiente**: no hay pipeline CI en el repositorio todavía.
@@ -140,5 +143,5 @@
 
 1. `env_list.conf` se materializa al instalar/ejecutar `init`, no en un paso de *build* separado (no hay backend de build con hooks en el repo).
 2. El render de plantillas usa sustitución `{{ clave }}` en lugar de Jinja2 para no añadir una dependencia no declarada en `plan.md §5`.
-3. `ft_setup serve` sustituye al inexistente `finances-backtester serve` (ese paquete aún no existe).
+3. ~~`ft_setup serve` sustituye al inexistente `finances-backtester serve`~~ → reemplazado el 2026-10-25 por `ft_serve` (paquete `finances-api`, ADR-API02).
 4. `SQLTaskManager` se creó en `finances_core/tasks.py` (plan lo ubicaba en `packages/finances-core/share/tasks.db`); el artefacto de datos sigue siendo `./share/tasks.db` (relativo al cwd; Art. 2 corregido el 2026-10-25 a `<raíz>/share/tasks.db` absoluto → ver T7.3).

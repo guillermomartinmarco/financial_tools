@@ -5,7 +5,7 @@ Este archivo define las reglas de comportamiento y restricciones técnicas que c
 ## 1. Principios Técnicos Fundamentales (Constitución)
 *   **Dualidad Obligatoria**: Toda lógica implementada debe ser accesible mediante comandos de terminal de Typer y rutas asíncronas de FastAPI de forma simétrica.
 *   **Persistencia SQLite WAL**: El estado de procesamiento pesado nunca se deja solo en memoria. Se registra usando el `SQLTaskManager` (`finances_core.tasks`) en `<raíz del proyecto>/share/tasks.db` (ruta resuelta de forma absoluta, nunca relativa al directorio de trabajo) con modo WAL activado para consultas concurrentes ultra veloz de tipo *polling*.
-*   **Aislamiento Cruzado**: Prohibido realizar imports directos entre herramientas hermanas `ft_*`, sin importar en qué paquete de `packages/` vivan. El puente legítimo es exclusivamente `packages/finances-core`.
+*   **Aislamiento Cruzado**: Prohibido realizar imports directos entre herramientas hermanas `ft_*`, sin importar en qué paquete de `packages/` vivan. El puente legítimo es exclusivamente `packages/finances-core`. Única excepción: `packages/finances-api` (raíz de composición, comando `ft_serve`) importa el `router` público de cada herramienta; ninguna herramienta importa de ella.
 
 ## 2. Convenciones de Desarrollo
 *   **Configuraciones**: Las herramientas leen a través de `Pydantic Settings` respetando la jerarquía de prioridad (Variables de entorno con prefijo `FT_` actúan con la máxima prioridad).

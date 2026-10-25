@@ -2,7 +2,6 @@
 name = "finances-core"
 version = "0.1.0"
 description = "Core utilities for financial_tools suite"
-readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.8",
@@ -17,12 +16,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-service = ["uvicorn>=0.30"]
 dev = [
     "pytest>=8.2",
     "pytest-asyncio>=0.23",
     "httpx>=0.27",
-    "uvicorn>=0.30",
     "ruff>=0.5",
     "mypy>=1.10",
 ]
@@ -39,7 +36,8 @@ where = ["src"]
 include = ["finances_core*", "ft_setup*"]
 
 [tool.setuptools.package-data]
-ft_setup = ["env_list.conf", "templates/*.j2"]
+ft_setup = ["env_list.conf", "templates/*.j2", "py.typed"]
+finances_core = ["py.typed"]
 
 [tool.ruff]
 line-length = 100
@@ -74,10 +72,6 @@ pretty = true
 namespace_packages = true
 explicit_package_bases = true
 mypy_path = "src"
-
-[[tool.mypy.overrides]]
-module = ["uvicorn"]
-ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

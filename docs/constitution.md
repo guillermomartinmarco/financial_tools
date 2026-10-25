@@ -27,7 +27,7 @@ El bucle de eventos de FastAPI **JAMÁS** se bloqueará por operaciones de I/O i
 
 ## Artículo 4 — Aislamiento de Módulos (Cross-Import Ban)
 
-Queda **PROHIBIDO** realizar *imports* directos entre utilidades hermanas `ft_*`, sin importar en qué paquete de `packages/` residan (p. ej. `finances_downloader.ft_data_viewer` no puede importar de `finances_downloader.ft_market_data_binance`). El único puente legítimo para compartir código, contratos, modelos o utilidades es el paquete interno **`packages/finances-core`**. Cualquier dependencia cruzada detectada en CI provocará fallo de *merge*.
+Queda **PROHIBIDO** realizar *imports* directos entre utilidades hermanas `ft_*`, sin importar en qué paquete de `packages/` residan (p. ej. `finances_downloader.ft_data_viewer` no puede importar de `finances_downloader.ft_market_data_binance`). El único puente legítimo para compartir código, contratos, modelos o utilidades es el paquete interno **`packages/finances-core`**. La única excepción es la raíz de composición **`packages/finances-api`** (no es una utilidad `ft_*`): puede importar el `router` público de cada utilidad para montarlos en una sola app, y ninguna utilidad puede importar de ella. Cualquier dependencia cruzada detectada en CI provocará fallo de *merge*.
 
 ## Artículo 5 — Representación Numérica Unificada (float32 / int64)
 
