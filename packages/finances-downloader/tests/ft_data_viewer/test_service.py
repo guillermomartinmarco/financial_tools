@@ -219,3 +219,10 @@ def test_service_reads_settings_at_call_time(
     assert service.list_datasets().total_rows == 3
     monkeypatch.setenv("FT_PARQUET_DIR", str(tmp_path / "void"))
     assert service.list_datasets().total_count == 0
+
+
+def test_export_requires_dataset_id_when_called_without_one(tmp_path: Path) -> None:
+    request = ExportRequest(output_dir=str(tmp_path / "out"))
+    assert request.dataset_id is None
+    with pytest.raises(InvalidArgumentError, match="dataset_id"):
+        service.export_data(request)

@@ -5,9 +5,9 @@
 
 ## Fase 0: Fundación del Paquete `finances-downloader`
 
-- [ ] **T0.1**: Crear `packages/finances-downloader/pyproject.toml` con deps base + opcionales dev
-  - **Hecho cuando**: `uv sync --package finances-downloader` resuelve sin conflictos; `uv run ruff check packages/finances-downloader` pasa.
-  - **Pendiente**: pyproject.toml fuera del alcance de este refactor; no verificado `uv sync`.
+- [x] **T0.1**: Crear `packages/finances-downloader/pyproject.toml` con deps base + opcionales dev
+  - **Hecho cuando**: `pip install -e packages/finances-downloader` resuelve sin conflictos; `python -m ruff check packages/finances-downloader` pasa.
+  - **Hecho**: instalación por `pip install -e` (decisión 2026-10-25: sin workspace uv); `python -m ruff check packages/finances-downloader` → All checks passed.
 - [x] **T0.2**: Crear `packages/finances-downloader/src/finances_downloader/__init__.py` + estructura de carpetas
   - **Hecho cuando**: `from finances_downloader.ft_market_data_binance import cli` importa sin errores.
   - **Hecho**: `test_foundation.py::test_cli_module_imports`.
@@ -65,7 +65,7 @@
     - Validación: filas fuera de rango filtradas; schema Arrow coincide con OHLCV_SCHEMA.
   - **Hecho**: `test_normalizer.py` (REST y CSV → esquema canónico; CSV spot sin cabecera conserva la 1ª fila; CSV futures con cabecera; timestamps en µs → ms; filtrado de rango; dedup/orden; dtypes == OHLCV_SCHEMA).
 - [x] **T3.2**: Implementar `write_parquet_partitioned(df: pl.DataFrame, parquet_dir: Path) -> List[str]` en `writer.py`
-  - **Hecho cuando**: Test: escribe en estructura Hive correcta; `partition_by` funciona; compresión zstd; statistics=True; retorna lista de rutas; re-ejecutar sobrescribe partición (idempotencia).
+  - **Hecho cuando**: Test: escribe en estructura Hive correcta; compresión zstd; statistics=True; retorna lista de rutas; re-ejecutar combina y deduplica la partición sin pérdida (idempotencia RF-4).
   - **Hecho**: `test_writer.py`: `test_writes_full_hive_layout`, `test_file_schema_float32_int64_zstd_statistics`, `test_merge_keeps_existing_rows_outside_new_range` (RF-4: merge sin pérdida en lugar de sobrescritura), `test_atomic_replace_leaves_no_temp_files`, `test_failed_write_keeps_previous_partition`. Particionado manual por `group_by` (no `partition_by`).
 - [x] **T3.3**: Test de idempotencia: misma descarga 2 veces → mismo número de archivos, mismo row count, mismos hashes
   - **Hecho cuando**: Test integra normalizer + writer + inventory; 2da ejecución no duplica rows.
@@ -86,7 +86,7 @@
 ## Fase 5: CLI (Typer)
 
 - [x] **T5.1**: Implementar `cli.py` con comandos `download`, `plan`, `status` + callback logging
-  - **Hecho cuando**: `uv run finances-downloader binance --help` muestra 3 subcomandos; help descriptivo.
+  - **Hecho cuando**: `ft_market_data_binance --help` muestra los subcomandos; help descriptivo.
   - **Hecho**: `test_cli.py::test_import_and_help_lists_subcommands` (entrypoint real `ft_market_data_binance`; ahora 4 subcomandos: download, plan, status, result).
 - [x] **T5.2**: `download`: parse args → DownloadRequest → genera plan → si `--dry-run` imprime plan y sale; sino ejecuta `execute_download_plan` con progress bars Rich
   - **Hecho cuando**: Test CLI (temp dir, mock clients): `--dry-run` imprime JSON plan; sin dry-run muestra progress bars por fase; tabla final con stats por símbolo.
@@ -125,22 +125,22 @@
 ## Fase 7: Tests y Calidad (Art. 7, 17 Constitución)
 
 - [x] **T7.1**: Tests unitarios: `rate_limiter.py`, `inventory.py`, `normalizer.py`, `planner.py` (funciones puras)
-  - **Hecho cuando**: `pytest packages/finances-downloader/tests/unit/ -v` pasa; cobertura ≥ 95%.
+  - **Hecho cuando**: `pytest packages/finances-downloader/tests/ft_market_data_binance/ -v` pasa; cobertura ≥ 95%.
   - **Hecho**: Tests unitarios en `packages/finances-downloader/tests/ft_market_data_binance/` (no en `tests/unit/`: layout por herramienta). Cobertura del paquete de la herramienta 97% (rate_limiter 100%, inventory 95%, normalizer 100%, planner 98%).
 - [x] **T7.2**: Tests de integración: `client.py` (mock HTTP), `public_data.py`, `rest_api.py`, `writer.py` (FS real temp)
-  - **Hecho cuando**: `pytest packages/finances-downloader/tests/integration/ -v` pasa.
+  - **Hecho cuando**: `pytest packages/finances-downloader/tests/ft_market_data_binance/ -v` pasa.
   - **Hecho**: `packages/finances-downloader/tests/ft_market_data_binance/test_client.py`, `test_public_data.py`, `test_rest_api.py`, `test_writer.py` (mock HTTP + FS temporal).
 - [x] **T7.3**: Tests de integración CLI: todos los comandos con temp dir, mock clients
-  - **Hecho cuando**: `pytest packages/finances-downloader/tests/integration/test_cli.py -v` pasa.
+  - **Hecho cuando**: `pytest packages/finances-downloader/tests/ft_market_data_binance/test_cli.py -v` pasa.
   - **Hecho**: `packages/finances-downloader/tests/ft_market_data_binance/test_cli.py`.
 - [x] **T7.4**: Tests de integración API: todos los endpoints con `httpx.AsyncClient` (testserver)
-  - **Hecho cuando**: `pytest packages/finances-downloader/tests/integration/test_api.py -v` pasa.
+  - **Hecho cuando**: `pytest packages/finances-downloader/tests/ft_market_data_binance/test_api.py -v` pasa.
   - **Hecho**: `packages/finances-downloader/tests/ft_market_data_binance/test_api.py` (TestClient sobre app que monta `router`).
 - [x] **T7.5**: Tests de contrato: CLI vs API producen mismo resultado para mismos inputs
-  - **Hecho cuando**: `pytest packages/finances-downloader/tests/contract/ -v` pasa.
+  - **Hecho cuando**: `pytest packages/finances-downloader/tests/ft_market_data_binance/test_contract.py -v` pasa.
   - **Hecho**: `packages/finances-downloader/tests/ft_market_data_binance/test_contract.py` (status/result/plan CLI == API; misma descarga → mismas stats).
 - [x] **T7.6**: Configurar `ruff` + `mypy --strict` en `finances-downloader`; `pre-commit` hooks
-  - **Hecho cuando**: `uv run ruff check packages/finances-downloader` && `uv run mypy --strict packages/finances-downloader` → 0 errors.
+  - **Hecho cuando**: `python -m ruff check packages/finances-downloader` && `python -m mypy --strict packages/finances-downloader` → 0 errors.
   - **Hecho**: `ruff check packages/finances-downloader` → All checks passed; `mypy --strict` del paquete completo → Success (24 archivos); hooks pre-commit locales `mypy-finances-*` + ruff/ruff-format en `.pre-commit-config.yaml`.
 ## Fase 8: Documentación y Cierre
 

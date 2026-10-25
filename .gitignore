@@ -89,3 +89,4 @@ data/parquet/
 # Runtime state (Art. 2: single tasks.db at <project root>/share)
 share/*.db
 share/*.db-*
+share/plans/

@@ -44,8 +44,7 @@ Para garantizar el aislamiento y permitir ciclos SemVer independientes, las herr
 
 ## 3. Guía de Inicio Rápido
 
-> El workspace raíz con `uv` todavía no está creado; los comandos verificados hoy
-> usan el entorno virtual del repositorio (`.venv`).
+> Los paquetes se instalan en modo editable con `pip` (no se usa workspace `uv`).
 
 ### Instalación en modo editable
 ```bash

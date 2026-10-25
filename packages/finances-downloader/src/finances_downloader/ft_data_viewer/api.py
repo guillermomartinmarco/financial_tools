@@ -200,7 +200,10 @@ async def export_data(
 
     def work() -> tuple[DatasetIdentifier, Path, Path | None]:
         ident = _ident(exchange, market_type, symbol, timeframe)
-        if service.normalize_identifier(request.dataset_id) != ident:
+        if (
+            request.dataset_id is not None
+            and service.normalize_identifier(request.dataset_id) != ident
+        ):
             msg = "dataset_id del cuerpo no coincide con la ruta"
             raise InvalidArgumentError(msg)
         path, tmp_dir = _export_to_file(request.model_copy(update={"dataset_id": ident}))

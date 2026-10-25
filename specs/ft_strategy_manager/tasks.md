@@ -8,7 +8,7 @@
 - [ ] **T0.1**: Añadir `StrategyCreate`, `StrategyUpdate`, `Strategy`, `StrategyVersion`, `StrategySummary`, `StrategyListResponse`, `DiffResult` en `packages/finances-core/src/finances_core/schemas/strategy.py`
   - **Hecho cuando**: `from finances_core.schemas.strategy import StrategyCreate` importa; modelos validan ejemplos JSON; MyPy strict pasa.
 - [ ] **T0.2**: Añadir `jsonschema`, `jsonpatch`, `pyyaml` a `packages/finances-core/pyproject.toml` dependencies
-  - **Hecho cuando**: `uv sync --package finances-core` resuelve; `uv run python -c "import jsonschema, jsonpatch, yaml"` OK.
+  - **Hecho cuando**: `pip install -e packages/finances-core` resuelve; `python -c "import jsonschema, jsonpatch, yaml"` OK.
 - [ ] **T0.3**: Implementar `canonical_json`, `compute_hash`, `validate_parameters` en `packages/finances-core/src/ft_strategy_manager/utils.py`
   - **Hecho cuando**: Tests unitarios: hash determinístico (mismo input = mismo hash); keys ordenados; JSON Schema valida/rechaza correctamente; JSON Patch aplica correctamente.
 
@@ -51,7 +51,7 @@
 ## Fase 4: CLI (Typer)
 
 - [ ] **T4.1**: Implementar `cli.py` con todos los comandos: `create`, `get`, `update`, `delete`, `list`, `diff`, `versions`
-  - **Hecho cuando**: `uv run finances-core strategy --help` muestra 7 subcomandos; cada uno tiene help descriptivo.
+  - **Hecho cuando**: `ft_strategy_manager --help` muestra 7 subcomandos; cada uno tiene help descriptivo.
 - [ ] **T4.2**: Implementar flags globales: `--verbose/-v`, `--quiet/-q`, `--log-format [rich|json]`
   - **Hecho cuando**: Afectan nivel y formato de logging correctamente.
 - [ ] **T4.3**: Implementar formatos de salida: `--format [table|json|yaml]` por comando
@@ -87,7 +87,7 @@
 - [ ] **T6.6**: Tests de contrato: CLI vs API producen mismo resultado para mismos inputs
   - **Hecho cuando**: `pytest packages/finances-core/tests/contract/test_strategy_cli_api_parity.py -v` pasa.
 - [ ] **T6.7**: Configurar `ruff` + `mypy --strict` en `finances-core` (ya en T0.2/T6.4 de ft_setup)
-  - **Hecho cuando**: `uv run ruff check packages/finances-core` && `uv run mypy --strict packages/finances-core` → 0 errors.
+  - **Hecho cuando**: `python -m ruff check packages/finances-core` && `python -m mypy --strict packages/finances-core` → 0 errors.
 
 ## Fase 7: Documentación y Cierre
 

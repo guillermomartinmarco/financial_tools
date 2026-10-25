@@ -68,7 +68,7 @@ class AnomalyReport(BaseModel):
     volume_anomalies: Dict[str, List[Dict]]
 
 class ExportRequest(BaseModel):
-    dataset_id: DatasetIdentifier
+    dataset_id: Optional[DatasetIdentifier] = None  # en la API viene en la ruta; si se envía debe coincidir
     start_ms: Optional[int] = None
     end_ms: Optional[int] = None
     columns: Optional[List[str]] = None

@@ -277,3 +277,9 @@ async def test_async_client_roundtrip(btc_dataset: Path) -> None:
     assert listed.json()["total_count"] == 1
     assert summary.json()["row_count"] == 48
     assert gaps.json() == []
+
+
+def test_export_body_may_omit_dataset_id(client: TestClient, btc_dataset: Path) -> None:
+    res = client.post(f"{BASE}/export", json={"format": "csv"})
+    assert res.status_code == 200, res.text
+    assert "open_time_ms" in res.text.splitlines()[0]

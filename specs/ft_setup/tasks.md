@@ -3,14 +3,13 @@
 > **Convención**: Cada tarea es atómica, testeable independientemente, y sigue TDD (test primero).
 > **Hecho cuando**: criterio técnico verificable (archivo existe, test pasa, lint limpio).
 >
-> **Nota de ejecución (2026-10-25)**: el repositorio todavía no tiene workspace raíz
-> con `uv`, por lo que los criterios que citan `uv sync`/`uv run` se verificaron con
-> el equivalente `python -m <tool>` sobre `.venv`.
+> **Nota (2026-10-25)**: decisión de proyecto: no se usa workspace `uv`; los paquetes se
+> instalan con `pip install -e packages/<paquete>` y los checks se ejecutan con `python -m <tool>`.
 
 ## Fase 0: Fundación del Paquete `finances-core`
 
 - [x] **T0.1**: Crear `packages/finances-core/pyproject.toml` con deps base + opcionales dev
-  - **Hecho cuando**: `uv sync --package finances-core` resuelve sin conflictos; `uv run ruff check packages/finances-core` pasa.
+  - **Hecho cuando**: `pip install -e packages/finances-core` resuelve sin conflictos; `python -m ruff check packages/finances-core` pasa.
   - **Hecho**: `python -m ruff check packages/finances-core` → *All checks passed*; instalación editable OK (`pip install -e packages/finances-core --no-deps`).
 - [x] **T0.2**: Crear `packages/finances-core/src/finances_core/__init__.py` + `config.py` con `FinancesSettings`
   - **Hecho cuando**: `from finances_core.config import FinancesSettings` importa; `FinancesSettings()` instancia con defaults.
@@ -66,7 +65,7 @@
 ## Fase 4: CLI (Typer)
 
 - [x] **T4.1**: Implementar `cli.py` con `app`, `main` callback (logging), `init` command, `doctor` command
-  - **Hecho cuando**: `uv run finances-core setup --help` muestra comandos; `uv run finances-core setup doctor` imprime tabla Rich bonita.
+  - **Hecho cuando**: `ft_setup --help` muestra comandos; `ft_setup doctor` imprime tabla Rich bonita.
   - **Hecho**: entry point real `ft_setup` (`[project.scripts]`); `ft_setup --help` y `ft_setup doctor` verificados.
 - [x] **T4.2**: Flags CLI: `--verbose/-v`, `--quiet/-q`, `--log-format [rich|json]`, `--force`, `--dry-run`, `--format [table|json]`
   - **Hecho cuando**: Tests verifican cada flag afecta comportamiento (nivel log, formato salida, force overwrite, dry-run).
@@ -105,7 +104,7 @@
   - **Hecho cuando**: `pytest packages/finances-core/tests/integration/test_setup_api.py -v` pasa.
   - **Hecho**: 6 tests, verdes.
 - [x] **T6.4**: Configurar `ruff` + `mypy --strict` en `finances-core`; `pre-commit` hooks
-  - **Hecho cuando**: `uv run ruff check packages/finances-core` && `uv run mypy --strict packages/finances-core` → 0 errors.
+  - **Hecho cuando**: `python -m ruff check packages/finances-core` && `python -m mypy --strict packages/finances-core` → 0 errors.
   - **Hecho**: ruff 0.17.2 sin errores (config migrada a `[tool.ruff.lint]`), `mypy --strict src` limpio; `.pre-commit-config.yaml` añadido en la raíz (pre-commit no instalado aún).
   - **Auditoría 2026-10-25 — reabierta**: desde `packages/finances-core`: `ruff check .` → 32 errores; `mypy --strict src` → 2 errores en `finances_core/schemas/data_viewer.py` (añadido después, con ft_data_viewer).
   - **Resuelto 2026-10-25 (refactor/spec-consistency)**: desde `packages/finances-core`: `ruff check .` → 0 errores; `mypy --strict src` → 0 errores (14 archivos).

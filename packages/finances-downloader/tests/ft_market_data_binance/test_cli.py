@@ -63,7 +63,7 @@ def _fake_run(
         if exc is not None:
             raise exc
         return DownloadResult.model_validate(
-            {"task_id": task_id, "status": status, "parquet_paths": [], "stats": {"errors": []}}
+            {"task_id": task_id, "status": status, "parquet_paths": [], "stats": {}, "errors": []}
         )
 
     monkeypatch.setattr(cli, "run_download", fake)

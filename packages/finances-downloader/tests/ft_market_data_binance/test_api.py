@@ -212,7 +212,8 @@ def test_result_failed_returns_200_with_errors(
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "FAILED"
-    assert "500" in body["stats"]["errors"][0]
+    assert "500" in body["errors"][0]
+    assert "errors" not in body["stats"]
 
 
 def test_result_pending_409_and_unknown_404(client: TestClient, settings: FinancesSettings) -> None:

@@ -87,6 +87,7 @@ class DownloadResult(BaseModel):
     status: Literal["COMPLETED", "FAILED"]
     parquet_paths: List[str]
     stats: dict  # per symbol/timeframe: candles, bytes, source breakdown
+    errors: List[str] = []  # errores por item (RF-9)
     gaps_unfillable: List[dict] = []
 ```
 

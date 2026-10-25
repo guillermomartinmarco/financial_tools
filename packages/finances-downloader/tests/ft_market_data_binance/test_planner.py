@@ -108,7 +108,8 @@ async def test_generate_plan_end_to_end(
     assert rest[0].params["startTime"] == ms(2024, 3, 1)
 
     path = plan_file_path(plan.task_id)
-    assert path.parent == tmp_path / "systemp"
+    assert path.parent == settings.SHARE_DIR / "plans"
+    assert path.parent.parent == settings.TASKS_DB_PATH.parent
     assert DownloadPlan.model_validate(json.loads(path.read_text())) == plan
     assert load_plan(plan.task_id) == plan
     assert load_plan("00000000-0000-0000-0000-000000000000") is None

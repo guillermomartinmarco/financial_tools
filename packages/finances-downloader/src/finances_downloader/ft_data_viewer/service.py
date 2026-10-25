@@ -292,6 +292,9 @@ def export_data(request: ExportRequest, *, stream: IO[bytes] | None = None) -> E
         OSError: SI el destino no se puede escribir.
     """
     cfg = _settings()
+    if request.dataset_id is None:
+        msg = "dataset_id es obligatorio para exportar"
+        raise InvalidArgumentError(msg)
     identifier = normalize_identifier(request.dataset_id)
     start_ms, end_ms, columns = request.start_ms, request.end_ms, request.columns
     if (request.output_dir is None) == (stream is None):

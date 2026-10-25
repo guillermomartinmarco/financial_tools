@@ -27,13 +27,13 @@
   - **Hecho cuando**: Test con directorio Parquet temporal particionado (Hive) retorna lista correcta de datasets con year_range, month_count, estimated_rows, size_bytes.
   - **Hecho**: `packages/finances-downloader/tests/ft_data_viewer/test_scanner.py` (layout Hive RF-4 completo `exchange/market_type=/symbol=/timeframe=/year=/month=`; varios exchanges/mercados/símbolos/TF; year_range, month_count, estimated_rows desde footers, size_bytes, filtro de market_type inválido, lista vacía, callback de progreso).
 - [x] **T1.2**: Implementar `read_dataset_metadata(dataset_path: Path) -> Dict[str, ColumnStats]` en `scanner.py`
-  - **Hecho cuando**: Test usa `pl.scan_parquet(...).select(pl.all().meta()).collect()` y retorna stats por columna (min, max, mean, null_count, distinct_count) sin leer filas.
+  - **Hecho cuando**: Test verifica stats por columna (min, max, null_count) leídas solo del footer Parquet, sin leer filas (mean/distinct_count se calculan en `summary`, ver RF-2).
   - **Hecho**: `packages/finances-downloader/tests/ft_data_viewer/test_scanner.py::test_read_dataset_metadata_*` — estadísticas de footer Parquet (min/max/null_count) con `pl.read_parquet`/`LazyFrame.collect` parcheados para fallar (no lee filas). Desviación: `pl.all().meta()` no existe en Polars 2.x y `mean`/`distinct_count` no están en las estadísticas Parquet → quedan `None` aquí y los completa `compute_summary` (plan.md §3 actualizado).
 - [x] **T1.3**: Implementar `resolve_dataset_path(base_dir, identifier: DatasetIdentifier) -> Path` en `scanner.py`
   - **Hecho cuando**: Test resuelve path correcto para binance/spot/BTCUSDT/1h.
   - **Hecho**: `packages/finances-downloader/tests/ft_data_viewer/test_scanner.py::test_resolve_dataset_path_*` (ruta exacta binance/spot/BTCUSDT/1h; `DatasetNotFoundError` para símbolo/mercado/exchange/TF inexistentes o carpeta sin Parquet).
 - [x] **T1.4**: Tests unitarios `scanner.py` con dataset sintético (múltiples exchanges, symbols, timeframes)
-  - **Hecho cuando**: `pytest packages/finances-downloader/tests/unit/test_scanner.py -v` pasa; cobertura ≥ 95%.
+  - **Hecho cuando**: `pytest packages/finances-downloader/tests/ft_data_viewer/test_scanner.py -v` pasa; cobertura ≥ 95%.
   - **Hecho**: `pytest packages/finances-downloader/tests/ft_data_viewer/test_scanner.py` pasa; cobertura `scanner.py` 97%. (Ruta de tests: `tests/ft_data_viewer/` en lugar de `tests/unit/`.)
 
 ## Fase 2: Analyzer (Gaps, Anomalies, Stats)
@@ -51,7 +51,7 @@
   - **Hecho cuando**: `head/tail` usa `sort + limit`; `sample` usa reservoir sampling (Vitter R) sin cargar todo; proyección de columnas funciona.
   - **Hecho**: `packages/finances-downloader/tests/ft_data_viewer/test_analyzer.py` (`head/tail` sort+limit con proyección sin `open_time_ms`; `sample` = reservoir sampling Algorithm L (familia Vitter R) que solo materializa `n` filas — verificado con spy de `collect`; uniformidad de `reservoir_indices`).
 - [x] **T2.5**: Tests de integración `analyzer.py` con dataset Parquet real temporal
-  - **Hecho cuando**: `pytest packages/finances-downloader/tests/unit/test_analyzer.py -v` pasa; cobertura ≥ 90%.
+  - **Hecho cuando**: `pytest packages/finances-downloader/tests/ft_data_viewer/test_analyzer.py -v` pasa; cobertura ≥ 90%.
   - **Hecho**: `pytest packages/finances-downloader/tests/ft_data_viewer/test_analyzer.py` pasa (Parquet temporal real); cobertura `analyzer.py` 96%.
 
 ## Fase 3: Exporter y Comparator
@@ -63,7 +63,7 @@
   - **Hecho cuando**: Test con dos datasets idénticos salvo 5 filas con close divergente → price_divergence_max correcto, gaps_only_in_a/b vacíos, overlap correcto.
   - **Hecho**: `packages/finances-downloader/tests/ft_data_viewer/test_exporter_comparator.py::test_compare_identical_except_five_closes` + `gaps_only_in_a/b` implementados (diferencia de intervalos recortada al solape), sin solape, volumen, lado vacío.
 - [x] **T3.3**: Tests de integración `exporter.py` + `comparator.py`
-  - **Hecho cuando**: `pytest packages/finances-downloader/tests/unit/test_exporter_comparator.py -v` pasa.
+  - **Hecho cuando**: `pytest packages/finances-downloader/tests/ft_data_viewer/test_exporter_comparator.py -v` pasa.
   - **Hecho**: `pytest packages/finances-downloader/tests/ft_data_viewer/test_exporter_comparator.py` pasa.
 
 ## Fase 4: Service Layer (Orquestador Compartido)
@@ -72,7 +72,7 @@
   - **Hecho cuando**: Cada función orquesta scanner → analyzer → exporter/comparator; maneja errores (dataset no encontrado → excepción tipada).
   - **Hecho**: `packages/finances-downloader/tests/ft_data_viewer/test_service.py` — cada operación resuelve dataset → analiza/exporta/compara; `DatasetNotFoundError`, `InvalidArgumentError`, `NoDataInRangeError` tipadas; guard DV-01 (`output_dir` dentro de PARQUET_DIR); métricas RF-8 (`dataset_id`, `duration_ms`, `rows_scanned`, `bytes_read`, `scan_duration_ms`).
 - [x] **T4.2**: Tests unitarios `service.py` (mock scanner/analyzer/exporter)
-  - **Hecho cuando**: `pytest packages/finances-downloader/tests/unit/test_service.py -v` pasa; cobertura ≥ 90%.
+  - **Hecho cuando**: `pytest packages/finances-downloader/tests/ft_data_viewer/test_service.py -v` pasa; cobertura ≥ 90%.
   - **Hecho**: `pytest packages/finances-downloader/tests/ft_data_viewer/test_service.py` pasa; cobertura `service.py` 95%. Se usan datasets Parquet temporales reales en lugar de mocks (más estricto).
 
 ## Fase 5: CLI (Typer)
@@ -108,16 +108,16 @@
   - **Hecho cuando**: Test compara dos datasets vía API.
   - **Hecho**: `packages/finances-downloader/tests/ft_data_viewer/test_api.py::test_compare_endpoint`.
 - [x] **T6.5**: Tests de integración API con `httpx.AsyncClient` (testserver)
-  - **Hecho cuando**: `pytest packages/finances-downloader/tests/integration/test_api.py -v` pasa.
+  - **Hecho cuando**: `pytest packages/finances-downloader/tests/ft_data_viewer/test_api.py -v` pasa.
   - **Hecho**: `packages/finances-downloader/tests/ft_data_viewer/test_api.py::test_async_client_roundtrip` (`httpx.AsyncClient` + `ASGITransport`). (Ruta: `tests/ft_data_viewer/`.)
 
 ## Fase 7: Tests de Contrato y Calidad (Art. 7, 17 Constitución)
 
 - [x] **T7.1**: Tests de contrato CLI vs API: mismos inputs → mismos outputs (JSON comparable)
-  - **Hecho cuando**: `pytest packages/finances-downloader/tests/contract/ -v` pasa.
+  - **Hecho cuando**: `pytest packages/finances-downloader/tests/ft_data_viewer/test_contract.py -v` pasa.
   - **Hecho**: `pytest packages/finances-downloader/tests/ft_data_viewer/test_contract.py` pasa (list, summary, head, tail, gaps, anomalies, compare, export CSV: CLI JSON == API JSON).
 - [x] **T7.2**: Tests de integración CLI end-to-end con dataset Parquet real temporal
-  - **Hecho cuando**: `pytest packages/finances-downloader/tests/integration/test_cli.py -v` pasa.
+  - **Hecho cuando**: `pytest packages/finances-downloader/tests/ft_data_viewer/test_cli.py -v` pasa.
   - **Hecho**: `pytest packages/finances-downloader/tests/ft_data_viewer/test_cli.py` pasa (CliRunner end-to-end sobre Parquet temporal).
 - [x] **T7.3**: Configurar `ruff` + `mypy --strict` en `finances-downloader`
   - **Hecho cuando**: `ruff check packages/finances-downloader` && `mypy --strict packages/finances-downloader` → 0 errors.

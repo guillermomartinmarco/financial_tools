@@ -246,7 +246,7 @@ def settings(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> FinancesSetting
 
 @pytest.fixture(autouse=True)
 def _isolate_tempdir(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[None]:
-    """Los planes ``download_plan_{task_id}.json`` se escriben en un temp aislado."""
+    """Los .zip temporales de Public Data se escriben en un temp aislado."""
     plan_tmp = tmp_path / "systemp"
     plan_tmp.mkdir()
     monkeypatch.setattr(tempfile, "tempdir", str(plan_tmp))

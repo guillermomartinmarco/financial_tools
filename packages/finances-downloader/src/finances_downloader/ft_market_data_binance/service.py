@@ -205,7 +205,8 @@ class _TaskRecorder:
             task_id=self.task_id,
             status="FAILED",
             parquet_paths=[],
-            stats={"errors": list(self.errors)},
+            stats={},
+            errors=list(self.errors),
             gaps_unfillable=list(self.summary.get("gaps_unfillable", [])),
         )
 
@@ -479,7 +480,8 @@ class _PlanExecutor:
             task_id=self.plan.task_id,
             status=final,
             parquet_paths=parquet_paths,
-            stats={**state.stats, "errors": list(self.rec.errors)},
+            stats=dict(state.stats),
+            errors=list(self.rec.errors),
             gaps_unfillable=list(state.unfillable),
         )
 
@@ -595,13 +597,13 @@ def get_result(task_id: str, *, settings: FinancesSettings | None = None) -> Dow
         raise TaskNotFinishedError(task_id, status)
     summary: dict[str, Any] = json.loads(row.get("result_summary_json") or "{}")
     stats: dict[str, object] = json.loads(row.get("stats_json") or "{}")
-    stats["errors"] = json.loads(row.get("errors_json") or "[]")
     return DownloadResult.model_validate(
         {
             "task_id": row["task_id"],
             "status": status,
             "parquet_paths": json.loads(row.get("parquet_paths_json") or "[]"),
             "stats": stats,
+            "errors": json.loads(row.get("errors_json") or "[]"),
             "gaps_unfillable": summary.get("gaps_unfillable", []),
         }
     )

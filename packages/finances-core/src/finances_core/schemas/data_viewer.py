@@ -64,7 +64,8 @@ class AnomalyReport(BaseModel):
 
 
 class ExportRequest(BaseModel):
-    dataset_id: DatasetIdentifier
+    # Opcional en la API: el dataset ya viene en la ruta /datasets/{...}/export.
+    dataset_id: DatasetIdentifier | None = None
     start_ms: int | None = None
     end_ms: int | None = None
     columns: list[str] | None = None

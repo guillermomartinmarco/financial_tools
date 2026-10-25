@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import tempfile
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -84,8 +83,8 @@ def validate_request(request: DownloadRequest, now_ms: int | None = None) -> int
 
 
 def plan_file_path(task_id: str) -> Path:
-    """Ruta del archivo temporal ``download_plan_{task_id}.json`` (RF-1 paso 6)."""
-    return Path(tempfile.gettempdir()) / f"download_plan_{task_id}.json"
+    """Ruta persistente ``<raíz>/share/plans/download_plan_{task_id}.json`` (RF-1 paso 6)."""
+    return FinancesSettings().SHARE_DIR / "plans" / f"download_plan_{task_id}.json"
 
 
 def load_plan(task_id: str) -> DownloadPlan | None:
@@ -98,6 +97,7 @@ def load_plan(task_id: str) -> DownloadPlan | None:
 
 def _save_plan(plan: DownloadPlan) -> Path:
     path = plan_file_path(plan.task_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(plan.model_dump_json(indent=2), encoding="utf-8")
     return path
 
