@@ -1,0 +1,21 @@
+# AGENTS.md - Instrucciones de Contexto para Agentes de IA
+
+Este archivo define las reglas de comportamiento y restricciones técnicas que cualquier agente de IA (OpenCode, Claude, Copilot) **DEBE** acatar al interactuar con el código de `financial_tools`.
+
+## 1. Principios Técnicos Fundamentales (Constitución)
+*   **Dualidad Obligatoria**: Toda lógica implementada debe ser accesible mediante comandos de terminal de Typer y rutas asíncronas de FastAPI de forma simétrica.
+*   **Persistencia SQLite WAL**: El estado de procesamiento pesado nunca se deja solo en memoria. Se registra usando el `SQLTaskManager` en `share/tasks.db` con modo WAL activado para consultas concurrentes ultra veloz de tipo *polling*.
+*   **Aislamiento Cruzado**: Prohibido realizar imports directos entre módulos dentro de `src/ft_*`. El puente legítimo es exclusivamente `packages/finances-core`.
+
+## 2. Convenciones de Desarrollo
+*   **Configuraciones**: Las herramientas leen a través de `Pydantic Settings` respetando la jerarquía de prioridad (Variables de entorno `FINANCES_*` actúan con la máxima prioridad).
+*   **Logs**: Prohibido usar `print()` en modo servicio. Emplear única y exclusivamente `structlog` inyectando contextos estructurados en JSON.
+*   **Manipulación de Series Temporales**: Priorizar el uso de tipos nativos de `Polars` por encima de Pandas para optimizar el paso de datos en hilos.
+
+## 3. Flujo SDD Mandatorio (Estilo MoureDev)
+Antes de generar código de producción, el agente de IA está obligado a validar que exista el tridente de documentos en la carpeta de especificaciones de la herramienta (`specs/ft_<nombre>/`):
+1.  **`spec.md`**: Definición de Historias de usuario y Requisitos Funcionales bajo notación EARS formal (*DEBE*, *SI... ENTONCES*).
+2.  **`plan.md`**: Contratos de datos de Pydantic, rutas exactas de FastAPI y firmas de CLI.
+3.  **`tasks.md`**: Desglose de mini-tareas con casillas de verificación y su respectivo criterio técnico de **"Hecho cuando:"**.
+
+Cualquier prompt que solicite código sin una especificación previa debe ser rechazado educadamente, solicitando primero la redacción del tridente de diseño.

@@ -1,0 +1,83 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Data (local only - not committed)
+data/
+!data/.gitkeep
+
+# Temporary files
+*.tmp
+*.temp
+tmp/
+
+# Coverage
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+
+# MyPy
+.mypy_cache/
+dmypy.json
+dmypy.json
+
+# Ruff
+.ruff_cache/
+
+# pytest
+.pytest_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Local config
+.env
+.env.local
+.env.*.local
+
+# Parquet data (large files - not committed)
+data/parquet/
+
+# Download plans (temp files)
+/tmp/download_plan_*.json

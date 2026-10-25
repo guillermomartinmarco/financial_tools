@@ -1,0 +1,30 @@
+# Pre-commit hooks de la suite financial_tools (Art. 7 y 17 Constitución)
+# Instalación: pip install pre-commit && pre-commit install
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.2
+    hooks:
+      - id: ruff
+        args: [--fix]
+        files: ^packages/(finances-core|finances-downloader)/
+      - id: ruff-format
+        files: ^packages/(finances-core|finances-downloader)/
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.11.2
+    hooks:
+      - id: mypy
+        name: mypy --strict (finances-core)
+        args: [--strict]
+        files: ^packages/finances-core/src/
+        additional_dependencies:
+          - pydantic>=2.8
+          - pydantic-settings>=2.3
+          - typer>=0.12
+          - fastapi>=0.111
+          - structlog>=24.1
+          - rich>=13.7
+          - python-dotenv>=1.0
+          - uuid6>=1.11
+          - polars>=1.6
