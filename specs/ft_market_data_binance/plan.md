@@ -415,6 +415,7 @@ dev = ["pytest>=8.2", "pytest-asyncio>=0.23", "httpx>=0.27", "ruff>=0.5", "mypy>
 
 - Usa `FinancesSettings` para todas las `FT_*` settings
 - Usa `SQLTaskManager` de `finances-core` para persistencia de tareas
-- Usa `configure_logging` patrón compartido
-- Registra router en `ft_api_service` via `include_router(binance_router)`
+- Usa `finances_core.logging.configure_logging` y `finances_core.timeutils.parse_time_input`
+- Usa el núcleo de descarga compartido `finances_core.marketdata` (escritor Hive sin pérdida, inventario, planes, ciclo de vida de tareas, reintentos, TokenBucket, meses), extraído de esta herramienta para reutilizarlo en `ft_market_data_yfinance` sin violar el Art. 4
+- Su router lo monta `finances_api.create_app()` (`ft_serve`)
 - Declara variables en `ft_setup/env_list.conf` (Art. 16)

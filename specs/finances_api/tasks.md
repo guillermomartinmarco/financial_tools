@@ -12,3 +12,6 @@
 - [x] **T4**: Eliminar `ft_setup/serve.py` y actualizar README ("Inicio Rápido") con `ft_serve`
   - **Hecho cuando**: No quedan referencias a `ft_setup serve` ni a `finances-backtester serve` en el repo.
   - **Hecho**: `ft_setup/serve.py` eliminado (y extra `[service]` de finances-core); README usa `ft_serve`; solo quedan menciones históricas en ADRs/notas de auditoría.
+
+- [ ] **T5**: Montar router `/market-data/yfinance` (ver `specs/ft_market_data_yfinance` T5.2)
+  - **Hecho cuando**: `test_openapi_includes_all_tool_routers` incluye el prefijo `/market-data/yfinance/`.
