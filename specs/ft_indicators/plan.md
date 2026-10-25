@@ -275,6 +275,16 @@ def resolve(spec: IndicatorSpec, available_columns: set[str]) -> ResolvedIndicat
 `indicator_id` = `series_id(prefix="", name, params en orden, overrides)`; el espacio de nombres `ft_indicators`
 rechaza ids con prefijo `talib_`.
 
+**Implementado (Fase 2)**: `resolve(spec, available_columns=None)` (`None` = validación sin dataset) devuelve
+`ResolvedIndicator(definition, params, indicator_id, columns: {sufijo: columna}, inputs)`; errores
+`errors.IndicatorValidationError(indicator, param, value, valid)`. Los sufijos de salida usan `""` para la columna base
+(`adx_14` junto a `adx_14_plus_di`); en las claves publicadas (`f32_tolerance`, `talib_equivalent.outputs`) la columna
+base se nombra con el nombre del indicador. `IndicatorDef` añade `kind` (`recursive`/`windowed`/`non_decaying`) y
+`cross_check` (`macd.fast < slow`); la convención de `adx` es la de TA-Lib (semilla de las sumas en `period−1`, §3.11); `TalibEquivalent.outputs` mapea a `"FUNCION:salida"` (ADX usa `ADX`, `PLUS_DI`,
+`MINUS_DI`) y `compare_from` es función de los parámetros (publicado con los defaults: `stoch` → 17). Los enteros
+aceptan reales integrales (`14.0` → `14`); `bool` se rechaza. La petición CLI vive en `request.py` (`spec_from_token`,
+`build_request`, `load_request_file`, `dedupe_specs`).
+
 ### 3.2 Fuente — `finances_core.indicators_store.source` (compartido)
 - `dataset_dir(settings, ds)` vía `finances_core.marketdata.inventory.partition_base_dir`; `dataset_exists(ds)`;
   `available_columns(ds) -> set[str]` (lee solo el esquema de un archivo).
@@ -284,9 +294,18 @@ rechaza ids con prefijo `talib_`.
   único; `NaN/inf` → null; devuelve conteo de nulos por columna. Error → `InvalidSourceError`.
 
 ### 3.3 Kernels — `ft_indicators/kernels/` (expresiones Polars puras, cálculo `Float64`)
-Firma única: `Kernel = Callable[[pl.DataFrame, ResolvedParams], pl.DataFrame]` → salidas `Float64` alineadas 1:1.
-Las entradas `Float32` se convierten a `Float64` al entrar al kernel; el motor (§3.4) convierte a `Float32` antes de
-persistir. `Float64` no sale de `kernels/` + `engine.py` salvo hacia el paquete del oráculo (§3.10).
+Firma única (implementada): `kernel(program: Program, params, dtype=Float64) -> dict[sufijo, pl.Expr]`: expresiones
+`Float64` alineadas 1:1 sobre las columnas de entrada. `kernels/common.Program` liga los intermedios reutilizados a
+columnas temporales (`__ft_*`) que el motor añade por niveles de dependencia dentro de la misma consulta: sin ello los
+árboles crecen exponencialmente (`ewm_seeded` referencia su entrada 4 veces; ADX encadena 3 niveles: 2,3 M caracteres y
+~0,9 s solo de planificación). `kernels/common.evaluate(frame, kernel, params, dtype)` evalúa un kernel aislado (tests).
+Las entradas `Float32` se convierten a `Float64` al entrar al kernel (`Program.float_input`, no finitos → nulo); el motor
+(§3.4) convierte a `Float32` antes de persistir. `Float64` no sale de `kernels/` + `engine.py` salvo hacia el paquete del
+oráculo (§3.10). `dtype=Float32` solo lo usa el test de alcanzabilidad de la tabla §3.9 (T2.9).
+**División entre constantes**: Polars divide entre un escalar con resultado dependiente de la longitud del marco
+(división real en marcos pequeños, multiplicación por el recíproco en el resto), lo que rompe el prefijo estable bit a
+bit (RF-3); los kernels usan `scaled(x, n) = x · (1/n)`.
+**Ventana de `roc`**: `[t−period, t]` (`period+1` filas): una fila nula en ella anula la salida (RF-3).
 
 | Archivo | Indicadores | Técnica |
 |---|---|---|
@@ -298,8 +317,12 @@ Convenciones de división por cero (RF-2: RSI sin movimiento = 0 y Estocástico 
 `pl.when(...).then(...)`.
 
 ### 3.4 Motor — `ft_indicators/engine.py` (recálculo completo)
-- Un único `df.select(*expresiones de todos los indicadores pedidos)` sobre la serie completa: Polars paraleliza
-  columnas; determinista (misma entrada ⇒ misma salida), lo que da idempotencia por construcción (RF-8).
+- Una única consulta *lazy* sobre la serie completa: temporales del `Program` (`with_columns` por nivel) + `select`
+  de todas las salidas, y el `cast` único a `Float32` (`PERSIST_DTYPE`) dentro de la misma consulta; Polars paraleliza
+  columnas; determinista (misma entrada ⇒ misma salida), lo que da idempotencia por construcción (RF-8). API:
+  `compute(frame, resolved) -> EngineResult(frame Float32, outputs{indicator_id: IndicatorOutput(stability, warnings,
+  null_inputs)})` y `compute_float64(frame, resolved)` (solo oráculo y tests). `insufficient_history` ⇔ filas válidas ≤
+  calentamiento de alguna columna; `null_inputs=N` = filas con alguna entrada nula o no finita.
 - Garantías verificadas por tests: alineación 1:1 con la fuente, calentamiento nulo, sin anticipación (prefijo
   estable), cálculo `Float64` y salida `Float32` (`cast` único en la frontera).
 - Tras calcular, `convergence.stability(def, params, non_null_index_map)` (§3.9) produce `Stability` por columna.
@@ -378,7 +401,7 @@ def stability(defn, params, non_null_positions) -> Stability    # índice sobre 
 | `ema_20` | EMA α=2/21, semilla 19, k*=139 | 158 |
 | `rsi_14` | Wilder α=1/14 sobre G y L, semilla 14, k*=187 | 201 |
 | `atr_14` | Wilder α=1/14, semilla 14 | 201 |
-| `adx_14` | ±DI: Wilder semilla 14 → 201; ADX: max(27, 201) + 187 | ±DI 201; ADX 388 |
+| `adx_14` | ±DI: Wilder semilla 13 (convención TA-Lib) → 200; ADX: max(27, 200) + 187 | ±DI 200; ADX 387 |
 | `macd_12_26_9` | fast α=2/13 semilla 11, k*=83 → 94; slow α=2/27 semilla 25, k*=180 → 205; signal α=0,2, k*=62 | line 205; signal/hist 267 |
 | `obv` | acumulado, semilla volume₀ no decae | nulo (`non_decaying_seed`) |
 | no recursivos | — | primera fila no nula |
@@ -408,7 +431,8 @@ serie (o de `volume` acumulado en `obv`). Fuera de la tolerancia: nulos y conven
 | `roc` | 0 | 1e-4 (puntos %) | No | Cociente |
 | `obv` | 0 | 1e-6·Σ\|volume\| | No | Acumulado largo en `f32` |
 
-La tabla vive en `precision.py` (fuente única) y se publica en `GET /catalog` y en el paquete del oráculo.
+La tabla vive en `precision.py` (fuente única) y se publica en `GET /catalog` y en el paquete del oráculo como
+`{clave_salida: {"rtol", "atol", "atol_scaled"}}` (error admitido = `atol + atol_scaled·escala + rtol·|x|`).
 
 ### 3.10 Paquete de *fixtures* del oráculo — `ft_indicators/oracle.py` + `scripts/export_oracle_fixtures.py`
 Herramienta de desarrollo (no es funcionalidad de usuario; no requiere CLI/API, Art. 1 no aplica), generada a partir
@@ -425,6 +449,12 @@ Casos: paseo aleatorio 10.000 velas (semilla fija), serie plana, serie con nulos
 que el calentamiento, precios extremos (1e-6 y 1e6), ADX/estocástico con HH = LL. Parquet + CSV (valores `Float64`
 con `repr` de 17 dígitos) para que un test WGSL/CUDA/C++ los lea sin Python. Un test regenera el paquete y exige
 igualdad con lo versionado (detecta cambios de fórmula no versionados).
+**Implementado (Fase 3)**: casos `random_walk`, `flat`, `nulls_nan`, `short`, `extreme_low`, `extreme_high`,
+`hh_eq_ll`; los 12 indicadores con defaults; `export_oracle_pack(out_dir, version, *, commit)` escribe
+`{out_dir}/{version}`. CSV: `,`, cabecera, LF, nulo = vacío, `NaN`/`Infinity` literales y `%.17g` también en las
+entradas `Float32` (recuperables exactamente con `float()`/`strtod`). `manifest.json` por caso e indicador: rutas,
+columnas, `stable_from_index` (fila, o `null`), `stability_reason`, `warnings`; `files` con sha256. La regeneración
+exige CSV byte a byte y Parquet por contenido (los bytes Parquet llevan metadatos del escritor).
 
 ### 3.11 Contraste con TA-Lib en CI — `tests/ft_indicators/test_talib_parity.py`
 TA-Lib (`ta-lib`, ruedas binarias cp312 Windows/manylinux) es dependencia del extra `[dev]`; solo los **tests**
@@ -440,6 +470,12 @@ lo importan (test AST, T0.3). Para cada indicador con `talib` en su `IndicatorDe
 
 Ajustes explícitos (no tolerancia): `macd` y `stoch` según la tabla; `roc` con base 0 (TA-Lib 0, nosotros nulo) se
 excluye; máscaras de nulos comparadas solo en calentamiento. `vwap` no tiene equivalente (solo *fixtures* a mano).
+**Decisión del Tech Lead (Fase 2) — ADX con la semilla de TA-Lib**: TA-Lib 0.8 siembra las sumas de Wilder de
+`PLUS_DI`/`MINUS_DI`/`ADX` con la suma de los `period−1` primeros valores seguida de un paso de Wilder en `t=period`;
+`ft_indicators` adopta esa convención (`kernels.common.wilder_sum_seeded`; RF-2 actualizado), de modo que la paridad
+`Float64` rtol 1e-9 se cumple desde la primera fila no nula (error relativo medido ~2e-15). La hoja de StockCharts
+(semilla = Σ de los `period` primeros) pasa a ser un ajuste de convención documentado: se compara desde `stable_from`
+(±DI 200, ADX 387) con rtol 1e-6 sobre las 504 filas de la hoja.
 Los ejemplos publicados de StockCharts/Wilder siguen como *fixtures* adicionales en `fixtures/reference/`.
 
 ## 4. Estructura de Archivos Objetivo
@@ -459,8 +495,8 @@ packages/finances-analytics/
 │   ├── __init__.py  py.typed
 │   └── ft_indicators/
 │       ├── __init__.py  catalog.py  engine.py  planner.py  exporter.py  service.py  errors.py  api.py  cli.py
-│       ├── convergence.py  precision.py  oracle.py
-│       └── kernels/  __init__.py  windowed.py  recursive.py  cumulative.py
+│       ├── request.py  convergence.py  precision.py  oracle.py
+│       └── kernels/  __init__.py  common.py  windowed.py  recursive.py  cumulative.py
 └── tests/ft_indicators/
     ├── conftest.py                 # FT_PROJECT_ROOT temporal + fábrica de datasets Hive sintéticos
     ├── fixtures/reference/*.csv    # ejemplos publicados (StockCharts / Wilder) y cálculos a mano

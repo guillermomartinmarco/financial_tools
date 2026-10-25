@@ -1,0 +1,26 @@
+# Fuente: StockCharts ChartSchool, https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/rate-of-change-roc
+# Hoja publicada: cs-roc.xls (enlazada desde esa pagina; descargada 2026-10-25, sha256 76a40be41dc319bf500460e5eba1cdd83f3a1621d05fec4e7bf0f0093dda46c4)
+# Valores copiados sin modificar de las celdas de la hoja (doble precision de Excel; la pagina web
+# los muestra redondeados a 2 decimales). Tolerancia por redondeo de la publicacion: rtol=1e-9.
+# Indicador: roc(period=12) = 100*(x_t/x_{t-12} - 1).
+row,close,roc_12
+0,11045.27,
+1,11167.32,
+2,11008.61,
+3,11151.83,
+4,10926.77,
+5,10868.12,
+6,10520.32,
+7,10380.43,
+8,10785.14,
+9,10748.26,
+10,10896.91,
+11,10782.95,
+12,10620.16,-3.848796815288359
+13,10625.83,-4.848880483410521
+14,10510.95,-4.520643387312293
+15,10444.37,-6.343891540670896
+16,10068.01,-7.859230129306283
+17,10193.39,-6.2083414610806775
+18,10066.57,-4.313081731354179
+19,10043.75,-3.243410918430164

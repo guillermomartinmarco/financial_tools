@@ -1,0 +1,1745 @@
+{
+  "cases": {
+    "extreme_high": {
+      "description": "Precios extremos ~1e8",
+      "expected": {
+        "adx_14": {
+          "columns": [
+            "adx_14",
+            "adx_14_plus_di",
+            "adx_14_minus_di"
+          ],
+          "csv": "expected/extreme_high/adx_14.csv",
+          "parquet": "expected/extreme_high/adx_14.parquet",
+          "stability_reason": "converged",
+          "stable_from_index": {
+            "adx_14": 387,
+            "adx_14_minus_di": 200,
+            "adx_14_plus_di": 200
+          },
+          "warnings": []
+        },
+        "atr_14": {
+          "columns": [
+            "atr_14"
+          ],
+          "csv": "expected/extreme_high/atr_14.csv",
+          "parquet": "expected/extreme_high/atr_14.parquet",
+          "stability_reason": "converged",
+          "stable_from_index": {
+            "atr_14": 201
+          },
+          "warnings": []
+        },
+        "bb_20_2": {
+          "columns": [
+            "bb_20_2_middle",
+            "bb_20_2_upper",
+            "bb_20_2_lower"
+          ],
+          "csv": "expected/extreme_high/bb_20_2.csv",
+          "parquet": "expected/extreme_high/bb_20_2.parquet",
+          "stability_reason": "first_non_null",
+          "stable_from_index": {
+            "bb_20_2_lower": 19,
+            "bb_20_2_middle": 19,
+            "bb_20_2_upper": 19
+          },
+          "warnings": []
+        },
+        "ema_20": {
+          "columns": [
+            "ema_20"
+          ],
+          "csv": "expected/extreme_high/ema_20.csv",
+          "parquet": "expected/extreme_high/ema_20.parquet",
+          "stability_reason": "converged",
+          "stable_from_index": {
+            "ema_20": 158
+          },
+          "warnings": []
+        },
+        "macd_12_26_9": {
+          "columns": [
+            "macd_12_26_9_line",
+            "macd_12_26_9_signal",
+            "macd_12_26_9_hist"
+          ],
+          "csv": "expected/extreme_high/macd_12_26_9.csv",
+          "parquet": "expected/extreme_high/macd_12_26_9.parquet",
+          "stability_reason": "converged",
+          "stable_from_index": {
+            "macd_12_26_9_hist": 267,
+            "macd_12_26_9_line": 205,
+            "macd_12_26_9_signal": 267
+          },
+          "warnings": []
+        },
+        "obv": {
+          "columns": [
+            "obv"
+          ],
+          "csv": "expected/extreme_high/obv.csv",
+          "parquet": "expected/extreme_high/obv.parquet",
+          "stability_reason": "non_decaying_seed",
+          "stable_from_index": {
+            "obv": null
+          },
+          "warnings": []
+        },
+        "roc_12": {
+          "columns": [
+            "roc_12"
+          ],
+          "csv": "expected/extreme_high/roc_12.csv",
+          "parquet": "expected/extreme_high/roc_12.parquet",
+          "stability_reason": "first_non_null",
+          "stable_from_index": {
+            "roc_12": 12
+          },
+          "warnings": []
+        },
+        "rsi_14": {
+          "columns": [
+            "rsi_14"
+          ],
+          "csv": "expected/extreme_high/rsi_14.csv",
+          "parquet": "expected/extreme_high/rsi_14.parquet",
+          "stability_reason": "converged",
+          "stable_from_index": {
+            "rsi_14": 201
+          },
+          "warnings": []
+        },
+        "sma_20": {
+          "columns": [
+            "sma_20"
+          ],
+          "csv": "expected/extreme_high/sma_20.csv",
+          "parquet": "expected/extreme_high/sma_20.parquet",
+          "stability_reason": "first_non_null",
+          "stable_from_index": {
+            "sma_20": 19
+          },
+          "warnings": []
+        },
+        "stoch_14_3_3": {
+          "columns": [
+            "stoch_14_3_3_k",
+            "stoch_14_3_3_d"
+          ],
+          "csv": "expected/extreme_high/stoch_14_3_3.csv",
+          "parquet": "expected/extreme_high/stoch_14_3_3.parquet",
+          "stability_reason": "first_non_null",
+          "stable_from_index": {
+            "stoch_14_3_3_d": 17,
+            "stoch_14_3_3_k": 15
+          },
+          "warnings": []
+        },
+        "vwap_20": {
+          "columns": [
+            "vwap_20"
+          ],
+          "csv": "expected/extreme_high/vwap_20.csv",
+          "parquet": "expected/extreme_high/vwap_20.parquet",
+          "stability_reason": "first_non_null",
+          "stable_from_index": {
+            "vwap_20": 19
+          },
+          "warnings": []
+        },
+        "wma_20": {
+          "columns": [
+            "wma_20"
+          ],
+          "csv": "expected/extreme_high/wma_20.csv",
+          "parquet": "expected/extreme_high/wma_20.parquet",
+          "stability_reason": "first_non_null",
+          "stable_from_index": {
+            "wma_20": 19
+          },
+          "warnings": []
+        }
+      },
+      "inputs": {
+        "csv": "inputs/extreme_high.csv",
+        "parquet": "inputs/extreme_high.parquet"
+      },
+      "rows": 1000
+    },
+    "extreme_low": {
+      "description": "Precios extremos ~1e-6",
+      "expected": {
+        "adx_14": {
+          "columns": [
+            "adx_14",
+            "adx_14_plus_di",
+            "adx_14_minus_di"
+          ],
+          "csv": "expected/extreme_low/adx_14.csv",
+          "parquet": "expected/extreme_low/adx_14.parquet",
+          "stability_reason": "converged",
+          "stable_from_index": {
+            "adx_14": 387,
+            "adx_14_minus_di": 200,
+            "adx_14_plus_di": 200
+          },
+          "warnings": []
+        },
+        "atr_14": {
+          "columns": [
+            "atr_14"
+          ],
+          "csv": "expected/extreme_low/atr_14.csv",
+          "parquet": "expected/extreme_low/atr_14.parquet",
+          "stability_reason": "converged",
+          "stable_from_index": {
+            "atr_14": 201
+          },
+          "warnings": []
+        },
+        "bb_20_2": {
+          "columns": [
+            "bb_20_2_middle",
+            "bb_20_2_upper",
+            "bb_20_2_lower"
+          ],
+          "csv": "expected/extreme_low/bb_20_2.csv",
+          "parquet": "expected/extreme_low/bb_20_2.parquet",
+          "stability_reason": "first_non_null",
+          "stable_from_index": {
+            "bb_20_2_lower": 19,
+            "bb_20_2_middle": 19,
+            "bb_20_2_upper": 19
+          },
+          "warnings": []
+        },
+        "ema_20": {
+          "columns": [
+            "ema_20"
+          ],
+          "csv": "expected/extreme_low/ema_20.csv",
+          "parquet": "expected/extreme_low/ema_20.parquet",
+          "stability_reason": "converged",
+          "stable_from_index": {
+            "ema_20": 158
+          },
+          "warnings": []
+        },
+        "macd_12_26_9": {
+          "columns": [
+            "macd_12_26_9_line",
+            "macd_12_26_9_signal",
+            "macd_12_26_9_hist"
+          ],
+          "csv": "expected/extreme_low/macd_12_26_9.csv",
+          "parquet": "expected/extreme_low/macd_12_26_9.parquet",
+          "stability_reason": "converged",
+          "stable_from_index": {
+            "macd_12_26_9_hist": 267,
+            "macd_12_26_9_line": 205,
+            "macd_12_26_9_signal": 267
+          },
+          "warnings": []
+        },
+        "obv": {
+          "columns": [
+            "obv"
+          ],
+          "csv": "expected/extreme_low/obv.csv",
+          "parquet": "expected/extreme_low/obv.parquet",
+          "stability_reason": "non_decaying_seed",
+          "stable_from_index": {
+            "obv": null
+          },
+          "warnings": []
+        },
+        "roc_12": {
+          "columns": [
+            "roc_12"
+          ],
+          "csv": "expected/extreme_low/roc_12.csv",
+          "parquet": "expected/extreme_low/roc_12.parquet",
+          "stability_reason": "first_non_null",
+          "stable_from_index": {
+            "roc_12": 12
+          },
+          "warnings": []
+        },
+        "rsi_14": {
+          "columns": [
+            "rsi_14"
+          ],
+          "csv": "expected/extreme_low/rsi_14.csv",
+          "parquet": "expected/extreme_low/rsi_14.parquet",
+          "stability_reason": "converged",
+          "stable_from_index": {
+            "rsi_14": 201
+          },
+          "warnings": []
+        },
+        "sma_20": {
+          "columns": [
+            "sma_20"
+          ],
+          "csv": "expected/extreme_low/sma_20.csv",
+          "parquet": "expected/extreme_low/sma_20.parquet",
+          "stability_reason": "first_non_null",
+          "stable_from_index": {
+            "sma_20": 19
+          },
+          "warnings": []
+        },
+        "stoch_14_3_3": {
+          "columns": [
+            "stoch_14_3_3_k",
+            "stoch_14_3_3_d"
+          ],
+          "csv": "expected/extreme_low/stoch_14_3_3.csv",
+          "parquet": "expected/extreme_low/stoch_14_3_3.parquet",
+          "stability_reason": "first_non_null",
+          "stable_from_index": {
+            "stoch_14_3_3_d": 17,
+            "stoch_14_3_3_k": 15
+          },
+          "warnings": []
+        },
+        "vwap_20": {
+          "columns": [
+            "vwap_20"
+          ],
+          "csv": "expected/extreme_low/vwap_20.csv",
+          "parquet": "expected/extreme_low/vwap_20.parquet",
+          "stability_reason": "first_non_null",
+          "stable_from_index": {
+            "vwap_20": 19
+          },
+          "warnings": []
+        },
+        "wma_20": {
+          "columns": [
+            "wma_20"
+          ],
+          "csv": "expected/extreme_low/wma_20.csv",
+          "parquet": "expected/extreme_low/wma_20.parquet",
+          "stability_reason": "first_non_null",
+          "stable_from_index": {
+            "wma_20": 19
+          },
+          "warnings": []
+        }
+      },
+      "inputs": {
+        "csv": "inputs/extreme_low.csv",
+        "parquet": "inputs/extreme_low.parquet"
+      },
+      "rows": 1000
+    },
+    "flat": {
+      "description": "Serie plana O=H=L=C=100 (RSI/ADX/estocástico = 0)",
+      "expected": {
+        "adx_14": {
+          "columns": [
+            "adx_14",
+            "adx_14_plus_di",
+            "adx_14_minus_di"
+          ],
+          "csv": "expected/flat/adx_14.csv",
+          "parquet": "expected/flat/adx_14.parquet",
+          "stability_reason": "not_converged",
+          "stable_from_index": {
+            "adx_14": null,
+            "adx_14_minus_di": 200,
+            "adx_14_plus_di": 200
+          },
+          "warnings": [
+            "not_converged"
+          ]
+        },
+        "atr_14": {
+          "columns": [
+            "atr_14"
+          ],
+          "csv": "expected/flat/atr_14.csv",
+          "parquet": "expected/flat/atr_14.parquet",
+          "stability_reason": "converged",
+          "stable_from_index": {
+            "atr_14": 201
+          },
+          "warnings": []
+        },
+        "bb_20_2": {
+          "columns": [
+            "bb_20_2_middle",
+            "bb_20_2_upper",
+            "bb_20_2_lower"
+          ],
+          "csv": "expected/flat/bb_20_2.csv",
+          "parquet": "expected/flat/bb_20_2.parquet",
+          "stability_reason": "first_non_null",
+          "stable_from_index": {
+            "bb_20_2_lower": 19,
+            "bb_20_2_middle": 19,
+            "bb_20_2_upper": 19
+          },
+          "warnings": []
+        },
+        "ema_20": {
+          "columns": [
+            "ema_20"
+          ],
+          "csv": "expected/flat/ema_20.csv",
+          "parquet": "expected/flat/ema_20.parquet",
+          "stability_reason": "converged",
+          "stable_from_index": {
+            "ema_20": 158
+          },
+          "warnings": []
+        },
+        "macd_12_26_9": {
+          "columns": [
+            "macd_12_26_9_line",
+            "macd_12_26_9_signal",
+            "macd_12_26_9_hist"
+          ],
+          "csv": "expected/flat/macd_12_26_9.csv",
+          "parquet": "expected/flat/macd_12_26_9.parquet",
+          "stability_reason": "converged",
+          "stable_from_index": {
+            "macd_12_26_9_hist": 267,
+            "macd_12_26_9_line": 205,
+            "macd_12_26_9_signal": 267
+          },
+          "warnings": []
+        },
+        "obv": {
+          "columns": [
+            "obv"
+          ],
+          "csv": "expected/flat/obv.csv",
+          "parquet": "expected/flat/obv.parquet",
+          "stability_reason": "non_decaying_seed",
+          "stable_from_index": {
+            "obv": null
+          },
+          "warnings": []
+        },
+        "roc_12": {
+          "columns": [
+            "roc_12"
+          ],
+          "csv": "expected/flat/roc_12.csv",
+          "parquet": "expected/flat/roc_12.parquet",
+          "stability_reason": "first_non_null",
+          "stable_from_index": {
+            "roc_12": 12
+          },
+          "warnings": []
+        },
+        "rsi_14": {
+          "columns": [
+            "rsi_14"
+          ],
+          "csv": "expected/flat/rsi_14.csv",
+          "parquet": "expected/flat/rsi_14.parquet",
+          "stability_reason": "converged",
+          "stable_from_index": {
+            "rsi_14": 201
+          },
+          "warnings": []
+        },
+        "sma_20": {
+          "columns": [
+            "sma_20"
+          ],
+          "csv": "expected/flat/sma_20.csv",
+          "parquet": "expected/flat/sma_20.parquet",
+          "stability_reason": "first_non_null",
+          "stable_from_index": {
+            "sma_20": 19
+          },
+          "warnings": []
+        },
+        "stoch_14_3_3": {
+          "columns": [
+            "stoch_14_3_3_k",
+            "stoch_14_3_3_d"
+          ],
+          "csv": "expected/flat/stoch_14_3_3.csv",
+          "parquet": "expected/flat/stoch_14_3_3.parquet",
+          "stability_reason": "first_non_null",
+          "stable_from_index": {
+            "stoch_14_3_3_d": 17,
+            "stoch_14_3_3_k": 15
+          },
+          "warnings": []
+        },
+        "vwap_20": {
+          "columns": [
+            "vwap_20"
+          ],
+          "csv": "expected/flat/vwap_20.csv",
+          "parquet": "expected/flat/vwap_20.parquet",
+          "stability_reason": "first_non_null",
+          "stable_from_index": {
+            "vwap_20": 19
+          },
+          "warnings": []
+        },
+        "wma_20": {
+          "columns": [
+            "wma_20"
+          ],
+          "csv": "expected/flat/wma_20.csv",
+          "parquet": "expected/flat/wma_20.parquet",
+          "stability_reason": "first_non_null",
+          "stable_from_index": {
+            "wma_20": 19
+          },
+          "warnings": []
+        }
+      },
+      "inputs": {
+        "csv": "inputs/flat.csv",
+        "parquet": "inputs/flat.parquet"
+      },
+      "rows": 300
+    },
+    "hh_eq_ll": {
+      "description": "Tramo plano H=L=C de 70 velas (HH=LL)",
+      "expected": {
+        "adx_14": {
+          "columns": [
+            "adx_14",
+            "adx_14_plus_di",
+            "adx_14_minus_di"
+          ],
+          "csv": "expected/hh_eq_ll/adx_14.csv",
+          "parquet": "expected/hh_eq_ll/adx_14.parquet",
+          "stability_reason": "converged",
+          "stable_from_index": {
+            "adx_14": 387,
+            "adx_14_minus_di": 200,
+            "adx_14_plus_di": 200
+          },
+          "warnings": []
+        },
+        "atr_14": {
+          "columns": [
+            "atr_14"
+          ],
+          "csv": "expected/hh_eq_ll/atr_14.csv",
+          "parquet": "expected/hh_eq_ll/atr_14.parquet",
+          "stability_reason": "converged",
+          "stable_from_index": {
+            "atr_14": 201
+          },
+          "warnings": []
+        },
+        "bb_20_2": {
+          "columns": [
+            "bb_20_2_middle",
+            "bb_20_2_upper",
+            "bb_20_2_lower"
+          ],
+          "csv": "expected/hh_eq_ll/bb_20_2.csv",
+          "parquet": "expected/hh_eq_ll/bb_20_2.parquet",
+          "stability_reason": "first_non_null",
+          "stable_from_index": {
+            "bb_20_2_lower": 19,
+            "bb_20_2_middle": 19,
+            "bb_20_2_upper": 19
+          },
+          "warnings": []
+        },
+        "ema_20": {
+          "columns": [
+            "ema_20"
+          ],
+          "csv": "expected/hh_eq_ll/ema_20.csv",
+          "parquet": "expected/hh_eq_ll/ema_20.parquet",
+          "stability_reason": "converged",
+          "stable_from_index": {
+            "ema_20": 158
+          },
+          "warnings": []
+        },
+        "macd_12_26_9": {
+          "columns": [
+            "macd_12_26_9_line",
+            "macd_12_26_9_signal",
+            "macd_12_26_9_hist"
+          ],
+          "csv": "expected/hh_eq_ll/macd_12_26_9.csv",
+          "parquet": "expected/hh_eq_ll/macd_12_26_9.parquet",
+          "stability_reason": "converged",
+          "stable_from_index": {
+            "macd_12_26_9_hist": 267,
+            "macd_12_26_9_line": 205,
+            "macd_12_26_9_signal": 267
+          },
+          "warnings": []
+        },
+        "obv": {
+          "columns": [
+            "obv"
+          ],
+          "csv": "expected/hh_eq_ll/obv.csv",
+          "parquet": "expected/hh_eq_ll/obv.parquet",
+          "stability_reason": "non_decaying_seed",
+          "stable_from_index": {
+            "obv": null
+          },
+          "warnings": []
+        },
+        "roc_12": {
+          "columns": [
+            "roc_12"
+          ],
+          "csv": "expected/hh_eq_ll/roc_12.csv",
+          "parquet": "expected/hh_eq_ll/roc_12.parquet",
+          "stability_reason": "first_non_null",
+          "stable_from_index": {
+            "roc_12": 12
+          },
+          "warnings": []
+        },
+        "rsi_14": {
+          "columns": [
+            "rsi_14"
+          ],
+          "csv": "expected/hh_eq_ll/rsi_14.csv",
+          "parquet": "expected/hh_eq_ll/rsi_14.parquet",
+          "stability_reason": "converged",
+          "stable_from_index": {
+            "rsi_14": 201
+          },
+          "warnings": []
+        },
+        "sma_20": {
+          "columns": [
+            "sma_20"
+          ],
+          "csv": "expected/hh_eq_ll/sma_20.csv",
+          "parquet": "expected/hh_eq_ll/sma_20.parquet",
+          "stability_reason": "first_non_null",
+          "stable_from_index": {
+            "sma_20": 19
+          },
+          "warnings": []
+        },
+        "stoch_14_3_3": {
+          "columns": [
+            "stoch_14_3_3_k",
+            "stoch_14_3_3_d"
+          ],
+          "csv": "expected/hh_eq_ll/stoch_14_3_3.csv",
+          "parquet": "expected/hh_eq_ll/stoch_14_3_3.parquet",
+          "stability_reason": "first_non_null",
+          "stable_from_index": {
+            "stoch_14_3_3_d": 17,
+            "stoch_14_3_3_k": 15
+          },
+          "warnings": []
+        },
+        "vwap_20": {
+          "columns": [
+            "vwap_20"
+          ],
+          "csv": "expected/hh_eq_ll/vwap_20.csv",
+          "parquet": "expected/hh_eq_ll/vwap_20.parquet",
+          "stability_reason": "first_non_null",
+          "stable_from_index": {
+            "vwap_20": 19
+          },
+          "warnings": []
+        },
+        "wma_20": {
+          "columns": [
+            "wma_20"
+          ],
+          "csv": "expected/hh_eq_ll/wma_20.csv",
+          "parquet": "expected/hh_eq_ll/wma_20.parquet",
+          "stability_reason": "first_non_null",
+          "stable_from_index": {
+            "wma_20": 19
+          },
+          "warnings": []
+        }
+      },
+      "inputs": {
+        "csv": "inputs/hh_eq_ll.csv",
+        "parquet": "inputs/hh_eq_ll.parquet"
+      },
+      "rows": 400
+    },
+    "nulls_nan": {
+      "description": "Paseo aleatorio con nulos y NaN intercalados",
+      "expected": {
+        "adx_14": {
+          "columns": [
+            "adx_14",
+            "adx_14_plus_di",
+            "adx_14_minus_di"
+          ],
+          "csv": "expected/nulls_nan/adx_14.csv",
+          "parquet": "expected/nulls_nan/adx_14.parquet",
+          "stability_reason": "converged",
+          "stable_from_index": {
+            "adx_14": 411,
+            "adx_14_minus_di": 214,
+            "adx_14_plus_di": 214
+          },
+          "warnings": [
+            "null_inputs=33"
+          ]
+        },
+        "atr_14": {
+          "columns": [
+            "atr_14"
+          ],
+          "csv": "expected/nulls_nan/atr_14.csv",
+          "parquet": "expected/nulls_nan/atr_14.parquet",
+          "stability_reason": "converged",
+          "stable_from_index": {
+            "atr_14": 215
+          },
+          "warnings": [
+            "null_inputs=33"
+          ]
+        },
+        "bb_20_2": {
+          "columns": [
+            "bb_20_2_middle",
+            "bb_20_2_upper",
+            "bb_20_2_lower"
+          ],
+          "csv": "expected/nulls_nan/bb_20_2.csv",
+          "parquet": "expected/nulls_nan/bb_20_2.parquet",
+          "stability_reason": "first_non_null",
+          "stable_from_index": {
+            "bb_20_2_lower": 20,
+            "bb_20_2_middle": 20,
+            "bb_20_2_upper": 20
+          },
+          "warnings": [
+            "null_inputs=22"
+          ]
+        },
+        "ema_20": {
+          "columns": [
+            "ema_20"
+          ],
+          "csv": "expected/nulls_nan/ema_20.csv",
+          "parquet": "expected/nulls_nan/ema_20.parquet",
+          "stability_reason": "converged",
+          "stable_from_index": {
+            "ema_20": 163
+          },
+          "warnings": [
+            "null_inputs=22"
+          ]
+        },
+        "macd_12_26_9": {
+          "columns": [
+            "macd_12_26_9_line",
+            "macd_12_26_9_signal",
+            "macd_12_26_9_hist"
+          ],
+          "csv": "expected/nulls_nan/macd_12_26_9.csv",
+          "parquet": "expected/nulls_nan/macd_12_26_9.parquet",
+          "stability_reason": "converged",
+          "stable_from_index": {
+            "macd_12_26_9_hist": 280,
+            "macd_12_26_9_line": 216,
+            "macd_12_26_9_signal": 280
+          },
+          "warnings": [
+            "null_inputs=22"
+          ]
+        },
+        "obv": {
+          "columns": [
+            "obv"
+          ],
+          "csv": "expected/nulls_nan/obv.csv",
+          "parquet": "expected/nulls_nan/obv.parquet",
+          "stability_reason": "non_decaying_seed",
+          "stable_from_index": {
+            "obv": null
+          },
+          "warnings": [
+            "null_inputs=28"
+          ]
+        },
+        "roc_12": {
+          "columns": [
+            "roc_12"
+          ],
+          "csv": "expected/nulls_nan/roc_12.csv",
+          "parquet": "expected/nulls_nan/roc_12.parquet",
+          "stability_reason": "first_non_null",
+          "stable_from_index": {
+            "roc_12": 13
+          },
+          "warnings": [
+            "null_inputs=22"
+          ]
+        },
+        "rsi_14": {
+          "columns": [
+            "rsi_14"
+          ],
+          "csv": "expected/nulls_nan/rsi_14.csv",
+          "parquet": "expected/nulls_nan/rsi_14.parquet",
+          "stability_reason": "converged",
+          "stable_from_index": {
+            "rsi_14": 212
+          },
+          "warnings": [
+            "null_inputs=22"
+          ]
+        },
+        "sma_20": {
+          "columns": [
+            "sma_20"
+          ],
+          "csv": "expected/nulls_nan/sma_20.csv",
+          "parquet": "expected/nulls_nan/sma_20.parquet",
+          "stability_reason": "first_non_null",
+          "stable_from_index": {
+            "sma_20": 20
+          },
+          "warnings": [
+            "null_inputs=22"
+          ]
+        },
+        "stoch_14_3_3": {
+          "columns": [
+            "stoch_14_3_3_k",
+            "stoch_14_3_3_d"
+          ],
+          "csv": "expected/nulls_nan/stoch_14_3_3.csv",
+          "parquet": "expected/nulls_nan/stoch_14_3_3.parquet",
+          "stability_reason": "first_non_null",
+          "stable_from_index": {
+            "stoch_14_3_3_d": 23,
+            "stoch_14_3_3_k": 21
+          },
+          "warnings": [
+            "null_inputs=33"
+          ]
+        },
+        "vwap_20": {
+          "columns": [
+            "vwap_20"
+          ],
+          "csv": "expected/nulls_nan/vwap_20.csv",
+          "parquet": "expected/nulls_nan/vwap_20.parquet",
+          "stability_reason": "first_non_null",
+          "stable_from_index": {
+            "vwap_20": 31
+          },
+          "warnings": [
+            "null_inputs=39"
+          ]
+        },
+        "wma_20": {
+          "columns": [
+            "wma_20"
+          ],
+          "csv": "expected/nulls_nan/wma_20.csv",
+          "parquet": "expected/nulls_nan/wma_20.parquet",
+          "stability_reason": "first_non_null",
+          "stable_from_index": {
+            "wma_20": 20
+          },
+          "warnings": [
+            "null_inputs=22"
+          ]
+        }
+      },
+      "inputs": {
+        "csv": "inputs/nulls_nan.csv",
+        "parquet": "inputs/nulls_nan.parquet"
+      },
+      "rows": 600
+    },
+    "random_walk": {
+      "description": "Paseo aleatorio de 10.000 velas (semilla fija)",
+      "expected": {
+        "adx_14": {
+          "columns": [
+            "adx_14",
+            "adx_14_plus_di",
+            "adx_14_minus_di"
+          ],
+          "csv": "expected/random_walk/adx_14.csv",
+          "parquet": "expected/random_walk/adx_14.parquet",
+          "stability_reason": "converged",
+          "stable_from_index": {
+            "adx_14": 387,
+            "adx_14_minus_di": 200,
+            "adx_14_plus_di": 200
+          },
+          "warnings": []
+        },
+        "atr_14": {
+          "columns": [
+            "atr_14"
+          ],
+          "csv": "expected/random_walk/atr_14.csv",
+          "parquet": "expected/random_walk/atr_14.parquet",
+          "stability_reason": "converged",
+          "stable_from_index": {
+            "atr_14": 201
+          },
+          "warnings": []
+        },
+        "bb_20_2": {
+          "columns": [
+            "bb_20_2_middle",
+            "bb_20_2_upper",
+            "bb_20_2_lower"
+          ],
+          "csv": "expected/random_walk/bb_20_2.csv",
+          "parquet": "expected/random_walk/bb_20_2.parquet",
+          "stability_reason": "first_non_null",
+          "stable_from_index": {
+            "bb_20_2_lower": 19,
+            "bb_20_2_middle": 19,
+            "bb_20_2_upper": 19
+          },
+          "warnings": []
+        },
+        "ema_20": {
+          "columns": [
+            "ema_20"
+          ],
+          "csv": "expected/random_walk/ema_20.csv",
+          "parquet": "expected/random_walk/ema_20.parquet",
+          "stability_reason": "converged",
+          "stable_from_index": {
+            "ema_20": 158
+          },
+          "warnings": []
+        },
+        "macd_12_26_9": {
+          "columns": [
+            "macd_12_26_9_line",
+            "macd_12_26_9_signal",
+            "macd_12_26_9_hist"
+          ],
+          "csv": "expected/random_walk/macd_12_26_9.csv",
+          "parquet": "expected/random_walk/macd_12_26_9.parquet",
+          "stability_reason": "converged",
+          "stable_from_index": {
+            "macd_12_26_9_hist": 267,
+            "macd_12_26_9_line": 205,
+            "macd_12_26_9_signal": 267
+          },
+          "warnings": []
+        },
+        "obv": {
+          "columns": [
+            "obv"
+          ],
+          "csv": "expected/random_walk/obv.csv",
+          "parquet": "expected/random_walk/obv.parquet",
+          "stability_reason": "non_decaying_seed",
+          "stable_from_index": {
+            "obv": null
+          },
+          "warnings": []
+        },
+        "roc_12": {
+          "columns": [
+            "roc_12"
+          ],
+          "csv": "expected/random_walk/roc_12.csv",
+          "parquet": "expected/random_walk/roc_12.parquet",
+          "stability_reason": "first_non_null",
+          "stable_from_index": {
+            "roc_12": 12
+          },
+          "warnings": []
+        },
+        "rsi_14": {
+          "columns": [
+            "rsi_14"
+          ],
+          "csv": "expected/random_walk/rsi_14.csv",
+          "parquet": "expected/random_walk/rsi_14.parquet",
+          "stability_reason": "converged",
+          "stable_from_index": {
+            "rsi_14": 201
+          },
+          "warnings": []
+        },
+        "sma_20": {
+          "columns": [
+            "sma_20"
+          ],
+          "csv": "expected/random_walk/sma_20.csv",
+          "parquet": "expected/random_walk/sma_20.parquet",
+          "stability_reason": "first_non_null",
+          "stable_from_index": {
+            "sma_20": 19
+          },
+          "warnings": []
+        },
+        "stoch_14_3_3": {
+          "columns": [
+            "stoch_14_3_3_k",
+            "stoch_14_3_3_d"
+          ],
+          "csv": "expected/random_walk/stoch_14_3_3.csv",
+          "parquet": "expected/random_walk/stoch_14_3_3.parquet",
+          "stability_reason": "first_non_null",
+          "stable_from_index": {
+            "stoch_14_3_3_d": 17,
+            "stoch_14_3_3_k": 15
+          },
+          "warnings": []
+        },
+        "vwap_20": {
+          "columns": [
+            "vwap_20"
+          ],
+          "csv": "expected/random_walk/vwap_20.csv",
+          "parquet": "expected/random_walk/vwap_20.parquet",
+          "stability_reason": "first_non_null",
+          "stable_from_index": {
+            "vwap_20": 19
+          },
+          "warnings": []
+        },
+        "wma_20": {
+          "columns": [
+            "wma_20"
+          ],
+          "csv": "expected/random_walk/wma_20.csv",
+          "parquet": "expected/random_walk/wma_20.parquet",
+          "stability_reason": "first_non_null",
+          "stable_from_index": {
+            "wma_20": 19
+          },
+          "warnings": []
+        }
+      },
+      "inputs": {
+        "csv": "inputs/random_walk.csv",
+        "parquet": "inputs/random_walk.parquet"
+      },
+      "rows": 10000
+    },
+    "short": {
+      "description": "Serie más corta que el calentamiento (10 velas)",
+      "expected": {
+        "adx_14": {
+          "columns": [
+            "adx_14",
+            "adx_14_plus_di",
+            "adx_14_minus_di"
+          ],
+          "csv": "expected/short/adx_14.csv",
+          "parquet": "expected/short/adx_14.parquet",
+          "stability_reason": "not_converged",
+          "stable_from_index": {
+            "adx_14": null,
+            "adx_14_minus_di": null,
+            "adx_14_plus_di": null
+          },
+          "warnings": [
+            "insufficient_history",
+            "not_converged"
+          ]
+        },
+        "atr_14": {
+          "columns": [
+            "atr_14"
+          ],
+          "csv": "expected/short/atr_14.csv",
+          "parquet": "expected/short/atr_14.parquet",
+          "stability_reason": "not_converged",
+          "stable_from_index": {
+            "atr_14": null
+          },
+          "warnings": [
+            "insufficient_history",
+            "not_converged"
+          ]
+        },
+        "bb_20_2": {
+          "columns": [
+            "bb_20_2_middle",
+            "bb_20_2_upper",
+            "bb_20_2_lower"
+          ],
+          "csv": "expected/short/bb_20_2.csv",
+          "parquet": "expected/short/bb_20_2.parquet",
+          "stability_reason": "not_converged",
+          "stable_from_index": {
+            "bb_20_2_lower": null,
+            "bb_20_2_middle": null,
+            "bb_20_2_upper": null
+          },
+          "warnings": [
+            "insufficient_history",
+            "not_converged"
+          ]
+        },
+        "ema_20": {
+          "columns": [
+            "ema_20"
+          ],
+          "csv": "expected/short/ema_20.csv",
+          "parquet": "expected/short/ema_20.parquet",
+          "stability_reason": "not_converged",
+          "stable_from_index": {
+            "ema_20": null
+          },
+          "warnings": [
+            "insufficient_history",
+            "not_converged"
+          ]
+        },
+        "macd_12_26_9": {
+          "columns": [
+            "macd_12_26_9_line",
+            "macd_12_26_9_signal",
+            "macd_12_26_9_hist"
+          ],
+          "csv": "expected/short/macd_12_26_9.csv",
+          "parquet": "expected/short/macd_12_26_9.parquet",
+          "stability_reason": "not_converged",
+          "stable_from_index": {
+            "macd_12_26_9_hist": null,
+            "macd_12_26_9_line": null,
+            "macd_12_26_9_signal": null
+          },
+          "warnings": [
+            "insufficient_history",
+            "not_converged"
+          ]
+        },
+        "obv": {
+          "columns": [
+            "obv"
+          ],
+          "csv": "expected/short/obv.csv",
+          "parquet": "expected/short/obv.parquet",
+          "stability_reason": "non_decaying_seed",
+          "stable_from_index": {
+            "obv": null
+          },
+          "warnings": []
+        },
+        "roc_12": {
+          "columns": [
+            "roc_12"
+          ],
+          "csv": "expected/short/roc_12.csv",
+          "parquet": "expected/short/roc_12.parquet",
+          "stability_reason": "not_converged",
+          "stable_from_index": {
+            "roc_12": null
+          },
+          "warnings": [
+            "insufficient_history",
+            "not_converged"
+          ]
+        },
+        "rsi_14": {
+          "columns": [
+            "rsi_14"
+          ],
+          "csv": "expected/short/rsi_14.csv",
+          "parquet": "expected/short/rsi_14.parquet",
+          "stability_reason": "not_converged",
+          "stable_from_index": {
+            "rsi_14": null
+          },
+          "warnings": [
+            "insufficient_history",
+            "not_converged"
+          ]
+        },
+        "sma_20": {
+          "columns": [
+            "sma_20"
+          ],
+          "csv": "expected/short/sma_20.csv",
+          "parquet": "expected/short/sma_20.parquet",
+          "stability_reason": "not_converged",
+          "stable_from_index": {
+            "sma_20": null
+          },
+          "warnings": [
+            "insufficient_history",
+            "not_converged"
+          ]
+        },
+        "stoch_14_3_3": {
+          "columns": [
+            "stoch_14_3_3_k",
+            "stoch_14_3_3_d"
+          ],
+          "csv": "expected/short/stoch_14_3_3.csv",
+          "parquet": "expected/short/stoch_14_3_3.parquet",
+          "stability_reason": "not_converged",
+          "stable_from_index": {
+            "stoch_14_3_3_d": null,
+            "stoch_14_3_3_k": null
+          },
+          "warnings": [
+            "insufficient_history",
+            "not_converged"
+          ]
+        },
+        "vwap_20": {
+          "columns": [
+            "vwap_20"
+          ],
+          "csv": "expected/short/vwap_20.csv",
+          "parquet": "expected/short/vwap_20.parquet",
+          "stability_reason": "not_converged",
+          "stable_from_index": {
+            "vwap_20": null
+          },
+          "warnings": [
+            "insufficient_history",
+            "not_converged"
+          ]
+        },
+        "wma_20": {
+          "columns": [
+            "wma_20"
+          ],
+          "csv": "expected/short/wma_20.csv",
+          "parquet": "expected/short/wma_20.parquet",
+          "stability_reason": "not_converged",
+          "stable_from_index": {
+            "wma_20": null
+          },
+          "warnings": [
+            "insufficient_history",
+            "not_converged"
+          ]
+        }
+      },
+      "inputs": {
+        "csv": "inputs/short.csv",
+        "parquet": "inputs/short.parquet"
+      },
+      "rows": 10
+    }
+  },
+  "comparison": "Solo filas >= stable_from_index (o primera no nula si es null y no hay semilla); |x_f32 - x_oraculo| <= atol + atol_scaled*escala + rtol*|x_oraculo|; escala = media de |close| (|source|) o sum|volume| en obv; nulos y divisiones por cero exactos",
+  "conventions": {
+    "adx": "Wilder con la semilla de TA-Lib: +DM/-DM y TR desde t=1; S = suma de los primeros period-1 valores y un paso de Wilder en t=period (S_p = S*(1-1/p) + x_p), luego S_t = S_{t-1} - S_{t-1}/period + x_t; ±DI = 100*S_DM/S_TR (S_TR = 0 -> 0); DX = 100*|+DI - -DI|/(+DI + -DI) (suma 0 -> 0); ADX semilla = media de los primeros period DX, luego Wilder",
+    "atr": "TR_t = max(H-L, |H-C_{t-1}|, |L-C_{t-1}|) desde t=1; semilla = media de TR[1..period] en t=period; luego Wilder (como TA-Lib)",
+    "bb": "middle = SMA; sigma poblacional (ddof=0); upper/lower = middle ± std*sigma",
+    "ema": "alpha = 2/(period+1); semilla = SMA de las primeras period filas; y_t = y_{t-1} + alpha*(x_t - y_{t-1}) (TA-Lib classic / StockCharts)",
+    "macd": "line = EMA(fast) - EMA(slow), cada EMA con su propia semilla SMA (Appel / StockCharts; TA-Lib alinea las semillas); signal = EMA(signal) de line con semilla SMA; hist = line - signal",
+    "obv": "OBV_0 = volume_0 (TA-Lib); OBV_t = OBV_{t-1} ± volume_t según C_t >/< C_{t-1}; igual si C_t = C_{t-1}",
+    "roc": "100*(x_t / x_{t-period} - 1); base 0 -> nulo",
+    "rsi": "Wilder (1978): G, L = media simple de las primeras period ganancias/pérdidas (semilla en t=period), luego Wilder alpha=1/period; RSI = 100*G/(G+L); G+L = 0 -> 0 (TA-Lib)",
+    "sma": "Media aritmética de las últimas period filas",
+    "stoch": "%K rápido = 100*(C - LL_k)/(HH_k - LL_k) (HH = LL -> 0, TA-Lib); %K = SMA(%K rápido, smooth_k); %D = SMA(%K, d) (Full Stochastic de StockCharts)",
+    "vwap": "VWAP móvil: sum(TP*V)/sum(V) en period filas, TP = (H+L+C)/3; sum(V) = 0 -> nulo",
+    "wma": "Pesos lineales 1..period (el más reciente pesa period) / suma de pesos"
+  },
+  "engine_versions": {
+    "ft_indicators": 1
+  },
+  "epsilon": 1e-06,
+  "files": {
+    "expected/extreme_high/adx_14.csv": "cc1ca5bdf1fe98fcc35f680b2e3a9ee0781858a72a8af193072e4d6cb14dd4f1",
+    "expected/extreme_high/adx_14.parquet": "fb34a23c6c143feb3c9db82c0a283805a71557fa511c7b5d32381ecb67703b8f",
+    "expected/extreme_high/atr_14.csv": "cd37ffae1f103f93d1d3d1c0526ec3260d23bfca569f728cba4a43da7e4ba22a",
+    "expected/extreme_high/atr_14.parquet": "80a52f61e44c71eaa809826d1ed93c32b21c6cf42c4da651dfd2996c94471fa9",
+    "expected/extreme_high/bb_20_2.csv": "ee2c9c4853caebab859bdbe61626bd46a2a90c912e3eb77543923945f9969484",
+    "expected/extreme_high/bb_20_2.parquet": "d62f778d52bd4ed51dc4bdce1616980af6005d442c92b09f0c862fc7d5faf3c0",
+    "expected/extreme_high/ema_20.csv": "f7f4a7dd4dd85b54dea68279f156a0a561bc742d1bb1bda22b4648a3486be7d4",
+    "expected/extreme_high/ema_20.parquet": "6805280e846d6eb8648d8e1d5f8e3a1b22fc9c969b0061833b5771d8b20c24cc",
+    "expected/extreme_high/macd_12_26_9.csv": "1591456a4edb5e3cccd1529d179d23ae40c54b982538a2934e29030cf20eb0a3",
+    "expected/extreme_high/macd_12_26_9.parquet": "ddb9ac71a5f691aa3a764a9ba025d336c9a4c2a4ab4fc6c3401030cd33faf34b",
+    "expected/extreme_high/obv.csv": "db06e926dd01daafd549918a014c9139239987af91b2d41f80e3839be303ef70",
+    "expected/extreme_high/obv.parquet": "9e61ad00014aab46b3bf4156a824036a1e9fd3ec18adbe5f0be8fc078575bcfc",
+    "expected/extreme_high/roc_12.csv": "d31da45da9b696873a4e3c4c267f5539aa9b54cbb5ba462fd11a4422cfca272d",
+    "expected/extreme_high/roc_12.parquet": "c51c16b356af110445825e7f84671e87c8e5f672d501cc2397f13c8f4ca17647",
+    "expected/extreme_high/rsi_14.csv": "749a9a599702f3eba464bc59f97c64de837f58ceac799950a1203d35810cb741",
+    "expected/extreme_high/rsi_14.parquet": "157066e6c50c79bbf97b13fef68a3e591ab461291d7a1e8f552ccaa52d6df10f",
+    "expected/extreme_high/sma_20.csv": "50511bfc317000843902ab50f50e2df71abed50ced8a998525bc08b9e4a05a45",
+    "expected/extreme_high/sma_20.parquet": "7f8b958f70e71a8cd7e9bdaaaf1e2669d15878520e84159d1f0b6c1a71951893",
+    "expected/extreme_high/stoch_14_3_3.csv": "b2d215bded6c5142fa9ae1107bd8f7da6332abf551b7250a3371d0071e8b38df",
+    "expected/extreme_high/stoch_14_3_3.parquet": "7e70a4bc8733d248c23eab35f4290c2ec6e57fbd8f88a5ecf8115772d9b1c759",
+    "expected/extreme_high/vwap_20.csv": "cedbbc8f09fbe97ea5f105783ef427648f7853b41acff3ccf2da96048116f56d",
+    "expected/extreme_high/vwap_20.parquet": "01305a66bc57e97f9162c22760976bffc7eb078cba6ccef1f7b743e2d5a65506",
+    "expected/extreme_high/wma_20.csv": "50ef67183305e4b87c706e39dd6106e2ab0f29752195d4f7c1a18a384280581d",
+    "expected/extreme_high/wma_20.parquet": "df2b577e3776517c04933ae8129ca118407ef42f8fca90feed7985e26e56ee20",
+    "expected/extreme_low/adx_14.csv": "ff6259ae75b4d5de3dd793cc429c599edcf98f9082f37a7a1d4c30a28ce2f98d",
+    "expected/extreme_low/adx_14.parquet": "c230d0b43bf656c1d51dcd43291a9a574aa0092df93aca697a00260b5d75f9de",
+    "expected/extreme_low/atr_14.csv": "0476e5b935f5cbaa677dfbf07f7497c708d556fc8d931efc451160998af4d0b4",
+    "expected/extreme_low/atr_14.parquet": "7c5e54268c65de67323407354482b879cecd0b2664916ed2002ca85355407252",
+    "expected/extreme_low/bb_20_2.csv": "53455350c9235e7d2d9b51db941b7c8cbf66e9ffc3adf762a09cb67c6b0a9211",
+    "expected/extreme_low/bb_20_2.parquet": "e0d71614ff634f458e4afd18111843a11c5fb89a8bc3c0f1b1c3878b5d586162",
+    "expected/extreme_low/ema_20.csv": "5a1e273a3f83d1c7c7aca68f1ed27608c6a3668feb02420c6a258e0eb7a18e0b",
+    "expected/extreme_low/ema_20.parquet": "6f9eb971eb83e08dc56475ce0e5fc1ddcebdd0d5f6f3ae2dd06361be87e5fa3f",
+    "expected/extreme_low/macd_12_26_9.csv": "1e54ec151c9b7631f8de9abd0931a12d09c36d30c8aacad6a01b43d7054ff89c",
+    "expected/extreme_low/macd_12_26_9.parquet": "ebace1007e2467c6c0eff5daccbc84c9395a8ce107e08f78b259326c798d6949",
+    "expected/extreme_low/obv.csv": "1feb91e4992abf9d0488a3cb36d959aaee34d9724bc28fee250a081292a8c49c",
+    "expected/extreme_low/obv.parquet": "e2597969472055dd449c40fb7c7b2c96d911b74e4ce4282997c7ea45510f72db",
+    "expected/extreme_low/roc_12.csv": "e397e42bae2def0541ef047b651fd5979927ed23ec2bcc88402a61c0abfd78b9",
+    "expected/extreme_low/roc_12.parquet": "65b0a6ad603a49c56314b6164c553fea9c811b87169f0fe75aaa4f50a3165861",
+    "expected/extreme_low/rsi_14.csv": "eb428d45ea9a881823a828f2da6d90b6f87dbb201e67acc139eb503fd805071c",
+    "expected/extreme_low/rsi_14.parquet": "3f5fe1cfa944f5143837824029294e65bdf6761f120d234322727faabb3e59d1",
+    "expected/extreme_low/sma_20.csv": "987fa1bab64058837767fd76bf5202cb942d5c1286ef2cc1b98de1bb9e2d409f",
+    "expected/extreme_low/sma_20.parquet": "5fbf7a3e93033472348fae6d2d0d61a35e108541092b73f9cbea7dd0480aad85",
+    "expected/extreme_low/stoch_14_3_3.csv": "2dc852e68eed0fc4318360686a9d3076c8f3e618c030ef2863ada9e3ff6138af",
+    "expected/extreme_low/stoch_14_3_3.parquet": "16704fe3730cc785beff0e171594b7559368842f6f16fd639e6f41ab147e7828",
+    "expected/extreme_low/vwap_20.csv": "921176fe95b7f55ce2a1038ed94f170058f9d15a63fcac8274f742b40cdea7a4",
+    "expected/extreme_low/vwap_20.parquet": "23ac64085ee6a8486251591309e6cfb6c05434280ee449f728e3cd097a800f79",
+    "expected/extreme_low/wma_20.csv": "4cd3bd24fdccf22cfb0105bc443041f548bbd307c2250b8f6306af5721ea26a6",
+    "expected/extreme_low/wma_20.parquet": "91f5df161ea570738b39a687da5cbbe42e991dc92ac4fabc89669acdfc0c3b95",
+    "expected/flat/adx_14.csv": "14e782c48c12e787125e49cbb7b59b9bd0af72129f9c7f481ce443a5d914928e",
+    "expected/flat/adx_14.parquet": "1183b175bdb9cbd05ec1714bcf968550116d7fd644b8999c2c2c249ac7dc88f4",
+    "expected/flat/atr_14.csv": "2200bfcd61a68a84c667d088f54912c5ab802d7ccd4a706d2d81219ad0033611",
+    "expected/flat/atr_14.parquet": "e349df094067670242b8f9b0ade3adc0afe423de5d8605c6cdab05e9686a9a05",
+    "expected/flat/bb_20_2.csv": "8a9d8dc86337c84be676be591d8ab9819d646dbf9196278f55660066986ce940",
+    "expected/flat/bb_20_2.parquet": "69f00f7ed0393c583dd1b283eb760ce149e15fe1bd4374098c57f937c1849ce9",
+    "expected/flat/ema_20.csv": "5944572db90ae20d50099a1be118d10e2d36458115e4c16a04bcbe86114e7f52",
+    "expected/flat/ema_20.parquet": "661ba2b78ed8fc4d53e81598f7e1c243b252df531b7f13257a1d83fe5e2890aa",
+    "expected/flat/macd_12_26_9.csv": "61415eded791d6bfbd290a5d90a7d8f133067be3b815e3c5a4024b75fdffa757",
+    "expected/flat/macd_12_26_9.parquet": "4515436d682368ab420736940b4cec2cd292440e38d9868d3e35e639955842e2",
+    "expected/flat/obv.csv": "df6c797b9a2f21bac6063e01e577b0edc39b63b1dfafc1a5e395e49ba024b915",
+    "expected/flat/obv.parquet": "31f6063a69b28ae9e5d6e0184e2b6368f6b525ff6c2dea1a198e44bc544974e2",
+    "expected/flat/roc_12.csv": "19b9083fb5a7687ee0d8d6f20a305d9aa17d14d87241791f819b81d41ca41b8d",
+    "expected/flat/roc_12.parquet": "cb02a3ba72eaf1c10736ec72d198a266dbcb69857ac7cf1c0a26ccdb08f7e7bd",
+    "expected/flat/rsi_14.csv": "105e67290a2b2afdff0a2a81e15826a9921bd8fd3e250f032f2f104736315185",
+    "expected/flat/rsi_14.parquet": "7f68a5b003accace6e5a2c985b9505de523c96001328ea5b88b2aaf5be223c6b",
+    "expected/flat/sma_20.csv": "79879f696ad90c9750ccdf7929d559bdeb800b6291da74eb4c9b864242f14e50",
+    "expected/flat/sma_20.parquet": "9b5b4dde36fa43ba0aec4d5de72e677aaf5a082f80e3c3f0b828ba2ff4a3322c",
+    "expected/flat/stoch_14_3_3.csv": "ef3ef7f0520de9a6966cbcdc60c0d7d9e770bb9be8b47b7bf779cffddc642211",
+    "expected/flat/stoch_14_3_3.parquet": "a76c5eca4c05ddb4b80ab32e52c090a76f3deadbdaefd8a00250aa59ccedfbc4",
+    "expected/flat/vwap_20.csv": "1a6ae5c84f5deeb681daea1f39de822ce893a14958761409fdb1484839570f9b",
+    "expected/flat/vwap_20.parquet": "7598ba041da14d224c173dbee6a8c252e39eead147e85f4ce6db76b0cd5e0182",
+    "expected/flat/wma_20.csv": "b096870be62cde41281ef32c86ab95226744fb86e3e661a3da0f36f8447d098e",
+    "expected/flat/wma_20.parquet": "be385b81572f9b3c967a96a999ceb58d002312b99193359657d70829306f865a",
+    "expected/hh_eq_ll/adx_14.csv": "b2a659af3f917a5c4b545acd0e4f1350120101313a4462cf3a3789b8977c0fc2",
+    "expected/hh_eq_ll/adx_14.parquet": "29c4b698ba7e07a8ad59d1c41755c0163a16c42272d232013efedad38e6bd503",
+    "expected/hh_eq_ll/atr_14.csv": "626f5ef9fc4d8c5d0c6436ac3b952495e59925b63598da3b187ecdfc6c30b59a",
+    "expected/hh_eq_ll/atr_14.parquet": "8a6ac5efffa5bcbcbbdbd0ea7dd0a597ae5214fa5869fad32f39fbe7af3c45d0",
+    "expected/hh_eq_ll/bb_20_2.csv": "976d96be802e8705751ecbe8386a1fd6bb52f57fa47c3dfd89e892a251746166",
+    "expected/hh_eq_ll/bb_20_2.parquet": "37ffdc2e756c5b0a2ffe29118318fd5c55444b4305d99b89df4116e100b47414",
+    "expected/hh_eq_ll/ema_20.csv": "b2dec5198d7b073132bc03dd7798cf372f1e8403764b4c82d0cd9d9f850d994f",
+    "expected/hh_eq_ll/ema_20.parquet": "7e593b5a13e2a5941f72cef6bdc08ece558641d1feb6007d975c1e85763dccd4",
+    "expected/hh_eq_ll/macd_12_26_9.csv": "c855c05bf35429e4556011b9d5551ce7dd9c5cb0d334b334da15934dc2abb867",
+    "expected/hh_eq_ll/macd_12_26_9.parquet": "b6656ccfa0c8fe3fc9fa62e2c8a7fab09c89e471c9218267f69fdb168e9b1428",
+    "expected/hh_eq_ll/obv.csv": "4b38e16b1f5a517bdebb00e720a05e3aadf40e7452148aad63d0bfaaa31b5afe",
+    "expected/hh_eq_ll/obv.parquet": "018d4456b44dee1c3c4f06d9c95c01d2876da71e7ccbcd6c8a4e27da18278cdd",
+    "expected/hh_eq_ll/roc_12.csv": "a11f84b8f53856496a7b07c744dbf9ba9f49d3a5d4265761d82c0a10ab151d90",
+    "expected/hh_eq_ll/roc_12.parquet": "71cef49ae071f6edbdce703e4a857852803e6330badc66799b337cbee802c71c",
+    "expected/hh_eq_ll/rsi_14.csv": "e70a5442fc364721f32d98b5b0d39a14fad1b791d2aa97e0b20c2eaa4e3838dc",
+    "expected/hh_eq_ll/rsi_14.parquet": "10eb97276a7263ccf69f9aeb0c73d8f7bce0371a027c7973fb647ce12e5212f4",
+    "expected/hh_eq_ll/sma_20.csv": "5bffe737a5278045e487236e877f98fbe65153b0b5a9779c4fdbc66c3784eb04",
+    "expected/hh_eq_ll/sma_20.parquet": "aff6ed04b8897b95d16d14be4db9c320a5ba3575618706eb39fcd6d916829e83",
+    "expected/hh_eq_ll/stoch_14_3_3.csv": "9f75f96d81c5c67addd1fdc6a4d3a48cbdd2aa24d9b7ba29e28cef9299e4a085",
+    "expected/hh_eq_ll/stoch_14_3_3.parquet": "b152679199202aa88cd400acda396792209deffea839fcfb4d5b78ef8b71f957",
+    "expected/hh_eq_ll/vwap_20.csv": "6559998c688587a307f99e71048cffbca993bc6ed7d9794ddbfd8f2db5c45a40",
+    "expected/hh_eq_ll/vwap_20.parquet": "0d90263a18de65cfeffef891ebe688f396f7401f5e784b4f258279583194ef77",
+    "expected/hh_eq_ll/wma_20.csv": "92960b3ea16b6588743fa7160954e3c4b5f274509dd43a13e3ebd1e131d2f212",
+    "expected/hh_eq_ll/wma_20.parquet": "441f0c02b6f4817e77db57074a23d7fe28bf187f8ed126fcbb1b1bd3b9c39009",
+    "expected/nulls_nan/adx_14.csv": "f6cd29289a2c08b7511e87cec92de60346d1f58766f482ad1bfc534225c9f778",
+    "expected/nulls_nan/adx_14.parquet": "f08ce5abb962b6a20abe92948d998aa0743b1845d56d8fada634c55ffd55d158",
+    "expected/nulls_nan/atr_14.csv": "4350593a1050834f1bb659e022e6ba3726dad38b9a92ba2ad271e5efe6e908c3",
+    "expected/nulls_nan/atr_14.parquet": "3c741fefac387e447deaed5d2f32681dd0d971f3acc9d9adeeeec10e4c6b4306",
+    "expected/nulls_nan/bb_20_2.csv": "27317001dc1cc5a899964f4dae7c771290de43e84a395c9071007aa3ce324635",
+    "expected/nulls_nan/bb_20_2.parquet": "7435008c802f95cfdfbe88e2f4c68297d6f6c71556049aa8d497afc5e3919d43",
+    "expected/nulls_nan/ema_20.csv": "fb780e0743b6e7474eff47aba84abdb590e334190d76ffc22aba0d44feefdd4f",
+    "expected/nulls_nan/ema_20.parquet": "69f3c0965bc14262753a7260c7610a2937cb3ba587992f247776b615d65047c4",
+    "expected/nulls_nan/macd_12_26_9.csv": "4f03b21915337372ce88a97765e898650a6961a2edd7f65a08e8ddd84ae36cca",
+    "expected/nulls_nan/macd_12_26_9.parquet": "8c84eef282e31c21fcc95dc040b9e08fc5fb563941e2c83c5e1b7fa98d5bb60b",
+    "expected/nulls_nan/obv.csv": "1b3a70d5d0aa41dc3e8e58c5ccdad77ed0fb3f7f8d44da6f8ba9dcdb00b4930e",
+    "expected/nulls_nan/obv.parquet": "b906ef7062733d625c3eea6493e895fa7ec08facef9c9d8b379270df5ddc0f82",
+    "expected/nulls_nan/roc_12.csv": "f65c1669f8e1a8cbb3d05f51f4ce4b87895e734a19017a7cdfc5b724d341f7b6",
+    "expected/nulls_nan/roc_12.parquet": "21188cd09570959dc8eacdb7bd19377e1a02fa3f714242db648fbb659aa482ac",
+    "expected/nulls_nan/rsi_14.csv": "cebce6dfeec451ea88d77485ffaff246bde2f586711fbd0e5814575caa5a4e3f",
+    "expected/nulls_nan/rsi_14.parquet": "aa427179a4d394592fea4d5eba39b07358dda5a2a4ca4c4c0c6e81cfb94e6069",
+    "expected/nulls_nan/sma_20.csv": "fc640dca11c533cc0b48d9327a761601cd622a093e96aaf844ffeee42bd10047",
+    "expected/nulls_nan/sma_20.parquet": "1dd639018fb05e3ca61e2e30d3b3f1ec4f9c225f19b4e7c02b38d678268383f2",
+    "expected/nulls_nan/stoch_14_3_3.csv": "f6fa4d9455d1a012dfc29a5a5711240fa96088da8a632b09758d05cd0edbe3b6",
+    "expected/nulls_nan/stoch_14_3_3.parquet": "abd4789f668247a8016e9e73ce6c20d9f04e5cce0c94e710b5b3a7ca9a18852e",
+    "expected/nulls_nan/vwap_20.csv": "22d791912c7570c2dbd557e179849f7ab2acd1417712c160283e9887e27b4e1a",
+    "expected/nulls_nan/vwap_20.parquet": "2ea3f458668fb138b8375d88d22a61f83fcb2602af038e7846499718231f224c",
+    "expected/nulls_nan/wma_20.csv": "4d94232b2862d6f76faf84f138fba7ea50df8c05be5e8dd779a3221fc0f080c1",
+    "expected/nulls_nan/wma_20.parquet": "e194149ccda9ae7517e4b58656dbbe9ef27bf480104f35476a82fe0e40b85daf",
+    "expected/random_walk/adx_14.csv": "dc3b7433ac86da99d325afa9b66b319e6740062eda75bd6d39a4ebfe2dff33a2",
+    "expected/random_walk/adx_14.parquet": "90aee0e437555b4d60f8f7a0b65ea70fdaf7267fe0f846176c0445ed51a01382",
+    "expected/random_walk/atr_14.csv": "7f4bc89cba3840e08167a8e08571831aa1f12f7109d80fdb312bedd4297ad880",
+    "expected/random_walk/atr_14.parquet": "472686d9f5ede79559c737f6fa5df2109e7d78e8ab51ef85d4ff3063a4fceabd",
+    "expected/random_walk/bb_20_2.csv": "97b1a12dd7521e03e0fe5473ae808dcd29f0d1e687336cf25c3f72a8bb2bd98c",
+    "expected/random_walk/bb_20_2.parquet": "c9f3b04cbb2074698965aca3a046785e93696c7bb104cb57b00c240a5c9039ec",
+    "expected/random_walk/ema_20.csv": "43828a29794f1a50149fe717a6f40c510fe7667763c7b89546696e7687815e07",
+    "expected/random_walk/ema_20.parquet": "285bf94ecbeab6912a421e729eaaaa8be69217e4d1e86946af45cadeeca62e0f",
+    "expected/random_walk/macd_12_26_9.csv": "306d9c7cbec9bc4bdc05a9cfb6491f11882bad2d08c04b398a4e0911c49a7251",
+    "expected/random_walk/macd_12_26_9.parquet": "cea95423e979241469634056c68857302ea21e1bc920bbd498735fca81ddb721",
+    "expected/random_walk/obv.csv": "594026e418d11c5a6e0266c327545bb691292170fd703bdafa07c7000f0b9ae7",
+    "expected/random_walk/obv.parquet": "864641b296c8268b8c476b03ff184c911d47ea657c2ec8b28ada9729f4c53028",
+    "expected/random_walk/roc_12.csv": "1415d70cfb6a58cea9712fdedb0311e184b7afc5ca1997f20d1b1a8467d322fd",
+    "expected/random_walk/roc_12.parquet": "be401682fd00b75592e213f71d6f66bada9271c37cc212ddf6274d6686a55c36",
+    "expected/random_walk/rsi_14.csv": "4722dc214dadb092f44f6338e5b57e7125f4ea126bf789402fc37df02c47bc13",
+    "expected/random_walk/rsi_14.parquet": "105f4f898f849a632a4bc5e08b053857ef4cc2250ccbdcd01b472f766e49cf7f",
+    "expected/random_walk/sma_20.csv": "c176ce5fcbd4518fa021146033b6738880374739015c6b86030d62432aad0755",
+    "expected/random_walk/sma_20.parquet": "408ecec06bdf24bd4b82f79f5434a51b6506e2be19d1958fafef6b0376dde131",
+    "expected/random_walk/stoch_14_3_3.csv": "885cd76d4b7c8b15530edef51768d58effe1f0bc311632d4e4d74357216672fd",
+    "expected/random_walk/stoch_14_3_3.parquet": "908e5dd7a4097fe9937e1105cc88cb6a08a495db1b0e9f4c040ee4835b2dc51c",
+    "expected/random_walk/vwap_20.csv": "1d54cd2270ab612ffaa976cbdecec38095a9740d06188b9f03e6c675e1c12d84",
+    "expected/random_walk/vwap_20.parquet": "dfb04f35c1163558d8a9a80763b4f5197d136cb5d831de8b6b84ff7fed650a83",
+    "expected/random_walk/wma_20.csv": "351cb3b2741fed301ba93cdfa597d35d607706fbe6ce0d25fb0dba6c08469a23",
+    "expected/random_walk/wma_20.parquet": "fa21374bb0f8dca77d0a3a5a6b7584da64a71780ed8a7c3d6827a789d86fca53",
+    "expected/short/adx_14.csv": "cd85185d23eec5dd9b429160a526be39a1cc0c315b70f9f8ba52f75f23bbdd30",
+    "expected/short/adx_14.parquet": "f92cc801aafcac6a1e95f9c79be4666048971f0c8f682a6bc88583dd8fbfc50d",
+    "expected/short/atr_14.csv": "8544086e291f0cd774093e4843e7a07079580df36633838b9545d03bff5a90db",
+    "expected/short/atr_14.parquet": "850faf05cc21c1a6852a3a26adc71113f27ca6e1b7ccac2de147a9f0b3e8c0cb",
+    "expected/short/bb_20_2.csv": "47c34f5e73ebc9e977e0efa9074eb81a10de3558e80c4d557dae580a7072442b",
+    "expected/short/bb_20_2.parquet": "1339cc5a5c00ed962fb53fae8b6118848fee1585b2df27f1aed50b386ecc2e80",
+    "expected/short/ema_20.csv": "6ea9c961ebee4f41e2e99d91b558670ba4d547159c72acebbc0f349faab67b41",
+    "expected/short/ema_20.parquet": "b45116595d3ddd97d0a122618247c1004244fb88629448117ba620f0ae0b930c",
+    "expected/short/macd_12_26_9.csv": "43f665f11ad8df3648e63b3956891f0e99ebb17ffb16fc0390db61810cfede3c",
+    "expected/short/macd_12_26_9.parquet": "629a44213ba8d5c2c802c552a193859373f92fc8cd257a442730670b7bcfddc2",
+    "expected/short/obv.csv": "93f2a992afc1b59d890c0280f9e8baedc8f002ac5453915ccf42873d943d557e",
+    "expected/short/obv.parquet": "2dc414dbf23ae6d88702c6f0aa2d3c9157442c31e4af03aaf6958899102ffe6b",
+    "expected/short/roc_12.csv": "ed1e7914950cb7451ca6075c3bd45f91f3caa1266306538426d8e43dd3b3c0fa",
+    "expected/short/roc_12.parquet": "0f318884dbca85504080ecb7c7d7e7e56d99fef19adc3eb3cd0860c1b3c59408",
+    "expected/short/rsi_14.csv": "c602083b0d0c47e59ab1d38588651cd805748408dc90575815cbc321eb7c4905",
+    "expected/short/rsi_14.parquet": "caa8d38572bd0db4d1d469c3bfe4ae43470c2f7e08a8e8162985fc333f53d298",
+    "expected/short/sma_20.csv": "7791e95ae9c55a5fb1f4db3cca7f40e95e632e48066b6b2c62b937a0c5636608",
+    "expected/short/sma_20.parquet": "534cd5556c7cdbc9edceec5c9ca15f0fe270cfda970b4f90d8363a1be1d0660e",
+    "expected/short/stoch_14_3_3.csv": "735c144948d8d150ce4784bfb35d6a3a5e687477f21de43d115558df829593bb",
+    "expected/short/stoch_14_3_3.parquet": "c7ec5cd746ea5acc875e0028c6b8adf16b403bb2ecc387f5a953ce1f59c56b12",
+    "expected/short/vwap_20.csv": "49c48af7714467db25fe6301c955e2ecc08ccd1867f15033563012bc44b37370",
+    "expected/short/vwap_20.parquet": "cf218b5d05ed84763fd9ad1c4050a21fe60160d786a6bb0d642592e14a73522b",
+    "expected/short/wma_20.csv": "358ffc8cfc0309f0ab3c1234980aa35aab6e48d8d38cf4c028740d1fbfcb11eb",
+    "expected/short/wma_20.parquet": "8f11e9fa8376b7c0021ed61a03b0f7148a7cccdab081fba9b5170dccd37899e4",
+    "inputs/extreme_high.csv": "8f8b74f45df84c752b52e2c4fe0cff5147b8f0a1dbe8670158be3036845150f7",
+    "inputs/extreme_high.parquet": "45d24ffb9d314492921ba6c67d6c81405c22f9ae77f86f121796c788d9d42963",
+    "inputs/extreme_low.csv": "e22fa2bec45cfbc2f91261bd27d2eb0444b6e3abd6d6d455a74bd1538f642ea2",
+    "inputs/extreme_low.parquet": "eaa3d2f9086eaedb175442a5fa30090699da8280945180a578e0aac61003a67b",
+    "inputs/flat.csv": "60277d504c2de7f3c45f05be099aafe68e93aac1100df199c655fe732cfc6eaa",
+    "inputs/flat.parquet": "473e40c5c185871ce8ff8ddd70272a0a5db01d1b9c44debad7de81d1b37887bf",
+    "inputs/hh_eq_ll.csv": "cc3ad613ae5dc089cf447fe1882d68e227fcbf8c11956cceddcd132417706c8a",
+    "inputs/hh_eq_ll.parquet": "b36df609f6a14f0a7f97733f62162ab8e56fe7b7f97fe107e90cc9f9d6fac41c",
+    "inputs/nulls_nan.csv": "f2ff1d0615db7c3f91a24520cfef111a2fa0c37065657ca168f45d75f3e9a7e8",
+    "inputs/nulls_nan.parquet": "0b1fe6668bb7a45b646adff78f81cfcd23050023ee4968a2ad262645260387f0",
+    "inputs/random_walk.csv": "2ec983df4b65a3b596f5375b149782de85ed72bce4a28cd338d9b15ecc4ee9d6",
+    "inputs/random_walk.parquet": "6ed96185530af0d8bc73ea035ee4adeea449281c9c1daa442f42504847d1a55a",
+    "inputs/short.csv": "cec12827b98eb430ce953c84228d6f351494eb2254640dd5ed77e20b2ca34ca4",
+    "inputs/short.parquet": "5ccca7bdc101c6bfd4512d0963e69a9ca2fd3f6962da02532ae32b9ae05bc4b8"
+  },
+  "formats": {
+    "csv": "UTF-8, ',' , LF, cabecera; nulo = vacío; NaN/Infinity literales; reales %.17g",
+    "parquet": "open_time_ms Int64; entradas Float32 (canónico); salidas Float64"
+  },
+  "generator": {
+    "commit": "2b4ccaa1491f-dirty",
+    "script": "packages/finances-analytics/scripts/export_oracle_fixtures.py",
+    "seed": 20261025,
+    "tool": "ft_indicators"
+  },
+  "indicators": {
+    "adx_14": {
+      "columns": [
+        "adx_14",
+        "adx_14_plus_di",
+        "adx_14_minus_di"
+      ],
+      "name": "adx",
+      "params": {
+        "period": 14
+      },
+      "warmup": {
+        "adx_14": 27,
+        "adx_14_minus_di": 14,
+        "adx_14_plus_di": 14
+      }
+    },
+    "atr_14": {
+      "columns": [
+        "atr_14"
+      ],
+      "name": "atr",
+      "params": {
+        "period": 14
+      },
+      "warmup": {
+        "atr_14": 14
+      }
+    },
+    "bb_20_2": {
+      "columns": [
+        "bb_20_2_middle",
+        "bb_20_2_upper",
+        "bb_20_2_lower"
+      ],
+      "name": "bb",
+      "params": {
+        "period": 20,
+        "source": "close",
+        "std": 2.0
+      },
+      "warmup": {
+        "bb_20_2_lower": 19,
+        "bb_20_2_middle": 19,
+        "bb_20_2_upper": 19
+      }
+    },
+    "ema_20": {
+      "columns": [
+        "ema_20"
+      ],
+      "name": "ema",
+      "params": {
+        "period": 20,
+        "source": "close"
+      },
+      "warmup": {
+        "ema_20": 19
+      }
+    },
+    "macd_12_26_9": {
+      "columns": [
+        "macd_12_26_9_line",
+        "macd_12_26_9_signal",
+        "macd_12_26_9_hist"
+      ],
+      "name": "macd",
+      "params": {
+        "fast": 12,
+        "signal": 9,
+        "slow": 26,
+        "source": "close"
+      },
+      "warmup": {
+        "macd_12_26_9_hist": 33,
+        "macd_12_26_9_line": 25,
+        "macd_12_26_9_signal": 33
+      }
+    },
+    "obv": {
+      "columns": [
+        "obv"
+      ],
+      "name": "obv",
+      "params": {},
+      "warmup": {
+        "obv": 0
+      }
+    },
+    "roc_12": {
+      "columns": [
+        "roc_12"
+      ],
+      "name": "roc",
+      "params": {
+        "period": 12,
+        "source": "close"
+      },
+      "warmup": {
+        "roc_12": 12
+      }
+    },
+    "rsi_14": {
+      "columns": [
+        "rsi_14"
+      ],
+      "name": "rsi",
+      "params": {
+        "period": 14,
+        "source": "close"
+      },
+      "warmup": {
+        "rsi_14": 14
+      }
+    },
+    "sma_20": {
+      "columns": [
+        "sma_20"
+      ],
+      "name": "sma",
+      "params": {
+        "period": 20,
+        "source": "close"
+      },
+      "warmup": {
+        "sma_20": 19
+      }
+    },
+    "stoch_14_3_3": {
+      "columns": [
+        "stoch_14_3_3_k",
+        "stoch_14_3_3_d"
+      ],
+      "name": "stoch",
+      "params": {
+        "d": 3,
+        "k": 14,
+        "smooth_k": 3
+      },
+      "warmup": {
+        "stoch_14_3_3_d": 17,
+        "stoch_14_3_3_k": 15
+      }
+    },
+    "vwap_20": {
+      "columns": [
+        "vwap_20"
+      ],
+      "name": "vwap",
+      "params": {
+        "period": 20
+      },
+      "warmup": {
+        "vwap_20": 19
+      }
+    },
+    "wma_20": {
+      "columns": [
+        "wma_20"
+      ],
+      "name": "wma",
+      "params": {
+        "period": 20,
+        "source": "close"
+      },
+      "warmup": {
+        "wma_20": 19
+      }
+    }
+  },
+  "pack_version": "v1",
+  "schema_version": 1,
+  "tolerances": {
+    "adx": {
+      "adx": {
+        "atol": 0.01,
+        "atol_scaled": 0.0,
+        "rtol": 0.0
+      },
+      "minus_di": {
+        "atol": 0.01,
+        "atol_scaled": 0.0,
+        "rtol": 0.0
+      },
+      "plus_di": {
+        "atol": 0.01,
+        "atol_scaled": 0.0,
+        "rtol": 0.0
+      }
+    },
+    "atr": {
+      "atr": {
+        "atol": 0.0,
+        "atol_scaled": 0.0,
+        "rtol": 1e-05
+      }
+    },
+    "bb": {
+      "lower": {
+        "atol": 0.0,
+        "atol_scaled": 1e-05,
+        "rtol": 1e-05
+      },
+      "middle": {
+        "atol": 0.0,
+        "atol_scaled": 0.0,
+        "rtol": 1e-05
+      },
+      "upper": {
+        "atol": 0.0,
+        "atol_scaled": 1e-05,
+        "rtol": 1e-05
+      }
+    },
+    "ema": {
+      "ema": {
+        "atol": 0.0,
+        "atol_scaled": 0.0,
+        "rtol": 1e-05
+      }
+    },
+    "macd": {
+      "hist": {
+        "atol": 0.0,
+        "atol_scaled": 1e-05,
+        "rtol": 0.0
+      },
+      "line": {
+        "atol": 0.0,
+        "atol_scaled": 1e-05,
+        "rtol": 0.0
+      },
+      "signal": {
+        "atol": 0.0,
+        "atol_scaled": 1e-05,
+        "rtol": 0.0
+      }
+    },
+    "obv": {
+      "obv": {
+        "atol": 0.0,
+        "atol_scaled": 1e-06,
+        "rtol": 0.0
+      }
+    },
+    "roc": {
+      "roc": {
+        "atol": 0.0001,
+        "atol_scaled": 0.0,
+        "rtol": 0.0
+      }
+    },
+    "rsi": {
+      "rsi": {
+        "atol": 0.001,
+        "atol_scaled": 0.0,
+        "rtol": 0.0
+      }
+    },
+    "sma": {
+      "sma": {
+        "atol": 0.0,
+        "atol_scaled": 0.0,
+        "rtol": 1e-05
+      }
+    },
+    "stoch": {
+      "d": {
+        "atol": 0.001,
+        "atol_scaled": 0.0,
+        "rtol": 0.0
+      },
+      "k": {
+        "atol": 0.001,
+        "atol_scaled": 0.0,
+        "rtol": 0.0
+      }
+    },
+    "vwap": {
+      "vwap": {
+        "atol": 0.0,
+        "atol_scaled": 0.0,
+        "rtol": 1e-05
+      }
+    },
+    "wma": {
+      "wma": {
+        "atol": 0.0,
+        "atol_scaled": 0.0,
+        "rtol": 1e-05
+      }
+    }
+  }
+}

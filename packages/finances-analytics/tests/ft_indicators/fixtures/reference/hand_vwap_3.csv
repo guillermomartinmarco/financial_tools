@@ -1,0 +1,13 @@
+# Fuente: calculado a mano a partir de la definicion RF-2 (VWAP movil, TP = (H+L+C)/3, sum(TP*V)/sum(V) en 3 filas).
+# Valores exactos como fracciones racionales; tolerancia de la publicacion: 0 (se compara con rtol=1e-12).
+# Fila 2: (10*1 + 12*2 + 12*1)/4 = 23/2; fila 7: ventana con sum(V) = 0 -> nulo (RF-2).
+row,high,low,close,volume,vwap_3
+0,11,9,10,1,
+1,13,11,12,2,
+2,12,12,12,1,23/2
+3,15,9,12,0,12
+4,21,15,18,3,33/2
+5,10,8,9,0,18
+6,10,8,9,0,18
+7,10,8,9,0,
+8,7,5,6,2,6
