@@ -4,6 +4,16 @@
 # since_version: versión de la tool que la requirió
 
 [[vars]]
+name = "FT_PROJECT_ROOT"
+description = "Raíz del proyecto; base de todas las rutas relativas (por defecto: ancestro con .ft_root)"
+example = "C:/P/financial_tools"
+required = false
+var_type = "path"
+secret = false
+source_tool = "ft_setup"
+since_version = "0.2.0"
+
+[[vars]]
 name = "FT_DATA_DIR"
 description = "Directorio raíz de datos de mercado"
 example = "./data"

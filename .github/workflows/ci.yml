@@ -1,0 +1,47 @@
+# CI de financial_tools (Art. 7, 17 y 20 de la Constitución).
+# Cada paquete se verifica desde su propio directorio porque tiene su pyproject.toml.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  checks:
+    name: ${{ matrix.os }} / py${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+        python: ["3.12"]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+
+      - name: Install packages (editable, core first)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e "packages/finances-core[dev]"
+          python -m pip install -e "packages/finances-downloader[dev]"
+          python -m pip install -e "packages/finances-api[service,dev]"
+
+      - name: Ruff (lint + format)
+        run: |
+          python -m ruff check packages
+          python -m ruff format --check packages
+
+      - name: Mypy --strict and pytest per package
+        run: |
+          for pkg in finances-core finances-downloader finances-api; do
+            echo "::group::$pkg"
+            (cd "packages/$pkg" && python -m mypy --strict src && python -m pytest -q)
+            echo "::endgroup::"
+          done

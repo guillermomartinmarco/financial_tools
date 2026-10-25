@@ -195,9 +195,7 @@ def test_run_init_dry_run_writes_nothing(tmp_path: Path) -> None:
     assert not (tmp_path / "data").exists()
 
 
-def test_run_init_persists_failure(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_run_init_persists_failure(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     manager = SQLTaskManager(tmp_path / "share" / "tasks.db")
 
     def _boom(*_args: object, **_kwargs: object) -> list[EnvVarSpec]:

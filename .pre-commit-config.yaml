@@ -7,24 +7,29 @@ repos:
     hooks:
       - id: ruff
         args: [--fix]
-        files: ^packages/(finances-core|finances-downloader)/
+        files: ^packages/(finances-core|finances-downloader|finances-api)/
       - id: ruff-format
-        files: ^packages/(finances-core|finances-downloader)/
+        files: ^packages/(finances-core|finances-downloader|finances-api)/
 
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.11.2
+  # mypy local (sistema): cada paquete importa a los demás, por eso usa el .venv del repo
+  # en lugar del entorno aislado de mirrors-mypy.
+  - repo: local
     hooks:
-      - id: mypy
+      - id: mypy-finances-core
         name: mypy --strict (finances-core)
-        args: [--strict]
+        language: system
+        entry: python -m mypy --strict --config-file packages/finances-core/pyproject.toml packages/finances-core/src
         files: ^packages/finances-core/src/
-        additional_dependencies:
-          - pydantic>=2.8
-          - pydantic-settings>=2.3
-          - typer>=0.12
-          - fastapi>=0.111
-          - structlog>=24.1
-          - rich>=13.7
-          - python-dotenv>=1.0
-          - uuid6>=1.11
-          - polars>=1.6
+        pass_filenames: false
+      - id: mypy-finances-downloader
+        name: mypy --strict (finances-downloader)
+        language: system
+        entry: python -m mypy --strict --config-file packages/finances-downloader/pyproject.toml packages/finances-downloader/src
+        files: ^packages/finances-downloader/src/
+        pass_filenames: false
+      - id: mypy-finances-api
+        name: mypy --strict (finances-api)
+        language: system
+        entry: python -m mypy --strict --config-file packages/finances-api/pyproject.toml packages/finances-api/src
+        files: ^packages/finances-api/src/
+        pass_filenames: false

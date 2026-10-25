@@ -7,16 +7,17 @@ from pathlib import Path
 
 import httpx
 import pytest
+from fastapi import FastAPI
 
-from ft_setup.api import create_app
+from ft_setup.api import router
 
-UUID7_RE = re.compile(
-    r"^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-)
+UUID7_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
 
 
 def _client() -> httpx.AsyncClient:
-    transport = httpx.ASGITransport(app=create_app())
+    app = FastAPI()
+    app.include_router(router)
+    transport = httpx.ASGITransport(app=app)
     return httpx.AsyncClient(transport=transport, base_url="http://testserver")
 
 

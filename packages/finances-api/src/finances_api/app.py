@@ -1,0 +1,65 @@
+"""App FastAPI única que monta los routers de todas las herramientas (RF-1, RF-3, RF-4).
+
+No es una herramienta ``ft_*``: puede importar los ``router`` públicos de todas sin
+violar el Art. 4. Ninguna herramienta debe importar de este paquete (RF-5).
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+from collections.abc import AsyncIterator, Callable
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from typing import Literal
+
+from fastapi import FastAPI
+from fastapi.concurrency import run_in_threadpool
+from finances_core.config import FinancesSettings
+from finances_core.logging import configure_logging
+from finances_downloader.ft_data_viewer.api import router as viewer_router
+from finances_downloader.ft_market_data_binance.api import router as binance_router
+from ft_setup.api import router as setup_router
+from pydantic import BaseModel
+
+from finances_api import __version__
+
+_COMPONENT = "finances_api"
+
+
+class HealthResponse(BaseModel):
+    status: Literal["ok"]
+    version: str
+    parquet_dir_accessible: bool
+
+
+def _parquet_dir_accessible() -> bool:
+    parquet_dir = FinancesSettings().PARQUET_DIR
+    return parquet_dir.is_dir() and os.access(parquet_dir, os.R_OK)
+
+
+def _build_lifespan(level: int) -> Callable[[FastAPI], AbstractAsyncContextManager[None]]:
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        configure_logging("api", level, component=_COMPONENT)
+        yield
+
+    return lifespan
+
+
+def create_app(log_level: int = logging.INFO) -> FastAPI:
+    """Crea la app con ``/health`` y los routers de setup, binance y data viewer."""
+    app = FastAPI(
+        title="financial_tools",
+        version=__version__,
+        lifespan=_build_lifespan(log_level),
+    )
+
+    @app.get("/health", response_model=HealthResponse, tags=["health"])
+    async def health() -> HealthResponse:
+        accessible = await run_in_threadpool(_parquet_dir_accessible)
+        return HealthResponse(status="ok", version=__version__, parquet_dir_accessible=accessible)
+
+    app.include_router(setup_router)
+    app.include_router(binance_router)
+    app.include_router(viewer_router)
+    return app

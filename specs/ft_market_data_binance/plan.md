@@ -87,6 +87,7 @@ class DownloadResult(BaseModel):
     status: Literal["COMPLETED", "FAILED"]
     parquet_paths: List[str]
     stats: dict  # per symbol/timeframe: candles, bytes, source breakdown
+    errors: List[str] = []  # errores por item (RF-9)
     gaps_unfillable: List[dict] = []
 ```
 
@@ -140,102 +141,90 @@ FT_SHARE_DIR: pathlib.Path = pathlib.Path("./share")
 
 ## 2. Mapeo de Interfaces
 
-### 2.1 CLI (Typer) — `packages/finances-downloader/src/ft_market_data_binance/cli.py`
+### 2.1 CLI (Typer) — `packages/finances-downloader/src/finances_downloader/ft_market_data_binance/cli.py`
+
+Adaptador delgado sobre `service.py` (Art. 1). `status`/`plan`/`result` imprimen en *stdout*
+el mismo JSON que devuelve la API; logs y barras Rich van a *stderr* (Art. 9.2).
 
 ```python
-import typer
-from typing import Optional, List
-from pathlib import Path
-
-app = typer.Typer(
-    name="ft_market_data_binance",
-    help="Descarga OHLCV histórica de Binance (Public Data + REST fallback)",
-    rich_markup_mode="rich",
-    no_args_is_help=True,
-)
-
-@app.command()
-def download(
-    symbols: List[str] = typer.Option(..., "--symbol", "-s", help="Símbolos (ej. BTCUSDT ETHUSDT)"),
-    timeframes: List[str] = typer.Option(..., "--timeframe", "-t", help="Timeframes (ej. 1h 5m 1d)"),
-    start: str = typer.Option(..., "--start", help="Inicio (ISO 8601 o ms epoch): 2024-01-01 o 1704067200000"),
-    end: Optional[str] = typer.Option(None, "--end", help="Fin (ISO 8601 o ms epoch), default=ahora"),
-    market_type: str = typer.Option("spot", "--market", "-m", help="spot | futures"),
-    max_concurrent: Optional[int] = typer.Option(None, "--max-concurrent", "-c", help="Descargas simultáneas (default: FT_DOWNLOAD_MAX_CONCURRENT=5)"),
-    limit: int = typer.Option(1000, "--limit", "-l", help="Velas por request REST (1-1000)"),
-    force: bool = typer.Option(False, "--force", "-f", help="Re-descargar particiones existentes"),
-    dry_run: bool = typer.Option(False, "--dry-run", help="Solo generar plan, no ejecutar"),
-    verbose: bool = typer.Option(False, "--verbose", "-v"),
-    quiet: bool = typer.Option(False, "--quiet", "-q"),
-    log_format: str = typer.Option("rich", "--log-format", help="rich | json"),
-) -> None:
-    """Descarga OHLCV determinística: Public Data prioritario, REST fallback."""
-
-@app.command()
-def plan(
-    task_id: str = typer.Argument(..., help="UUID de tarea previa"),
-    format: str = typer.Option("json", "--format", "-f", help="json | yaml"),
-) -> None:
-    """Muestra plan de descarga guardado para task_id."""
-
-@app.command()
-def status(
-    task_id: str = typer.Argument(..., help="UUID de tarea"),
-) -> None:
-    """Consulta estado de tarea (polling local)."""
+app = typer.Typer(name="ft_market_data_binance", no_args_is_help=True, rich_markup_mode="rich")
 
 @app.callback()
 def main(
     ctx: typer.Context,
     verbose: bool = typer.Option(False, "--verbose", "-v"),
     quiet: bool = typer.Option(False, "--quiet", "-q"),
-    log_format: str = typer.Option("rich", "--log-format"),
+    log_format: str = typer.Option("rich", "--log-format"),   # rich | json (otro valor -> exit 2)
 ) -> None:
-    """Configura logging dual (Art. 9 Constitución)."""
+    """configure_logging("cli", level_from_flags(v, q), log_format, component="ft_market_data_binance")."""
+
+@app.command()
+def download(
+    ctx: typer.Context,
+    symbols: List[str] = typer.Option(..., "--symbol", "-s"),
+    timeframes: List[str] = typer.Option(..., "--timeframe", "-t"),
+    start: str = typer.Option(..., "--start"),             # finances_core.timeutils.parse_time_input
+    end: Optional[str] = typer.Option(None, "--end"),
+    market_type: str = typer.Option("spot", "--market", "-m"),
+    max_concurrent: Optional[int] = typer.Option(None, "--max-concurrent", "-c"),
+    limit: int = typer.Option(1000, "--limit", "-l"),
+    dry_run: bool = typer.Option(False, "--dry-run"),       # imprime el DownloadPlan JSON y sale
+    verbose: bool = typer.Option(False, "--verbose", "-v"), # sobrescriben los flags globales
+    quiet: bool = typer.Option(False, "--quiet", "-q"),
+    log_format: Optional[str] = typer.Option(None, "--log-format"),
+) -> None: ...
+
+@app.command()
+def plan(task_id: str) -> None:    # DownloadPlan JSON (== GET /plan); no existe -> exit 1
+@app.command()
+def status(task_id: str) -> None:  # DownloadProgress JSON (== GET /status); no existe -> exit 1
+@app.command()
+def result(task_id: str) -> None:  # DownloadResult JSON (== GET /result); no existe / no terminada -> exit 1
 ```
 
-### 2.2 API (FastAPI) — `packages/finances-downloader/src/ft_market_data_binance/api.py`
+- `--force` **no se implementa**: el spec lo declara "RFC futuro" (Casos Límite / No-Go).
+- Salida YAML eliminada (no figura en el spec y requeriría `pyyaml`): `plan` sólo emite JSON.
+- Exit codes: `0` OK, `1` genérico (incl. tarea/plan no encontrado), `2` validación
+  (`ValueError`/`ValidationError`, p. ej. "Cannot download future data"), `3` tarea `FAILED`,
+  `4` `OSError` (IO/permisos).
+
+### 2.2 API (FastAPI) — `packages/finances-downloader/src/finances_downloader/ft_market_data_binance/api.py`
+
+Sólo se exporta `router`; la app y el comando `serve` viven en el paquete `finances-api`.
 
 ```python
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Path, status
-from typing import Optional, List
-
 router = APIRouter(prefix="/market-data/binance", tags=["market-data-binance"])
 
-@router.post("/download", status_code=status.HTTP_202_ACCEPTED)
-async def download_endpoint(
-    background_tasks: BackgroundTasks,
-    symbols: List[str] = Query(..., min_length=1),
-    timeframes: List[str] = Query(..., min_length=1),
-    start_ms: int = Query(..., gt=0),
-    end_ms: Optional[int] = Query(None, gt=0),
-    market_type: str = Query("spot", pattern="^(spot|futures)$"),
-    max_concurrent: Optional[int] = Query(None, ge=1, le=50),
-    limit_per_request: int = Query(1000, ge=1, le=1000),
-) -> dict:
-    """
-    Inicia descarga en background.
-    Retorna: {"task_id": "<uuid-v7>", "status": "ACCEPTED", "poll_url": "/market-data/binance/status/<task_id>"}
-    """
+class DispatchResponse(BaseModel):
+    task_id: str; status: Literal["ACCEPTED"]; poll_url: str; plan_url: str; result_url: str  # URLs absolutas
 
-@router.get("/status/{task_id}")
-async def status_endpoint(task_id: str = Path(..., pattern=r"^[0-9a-f-]{36}$")) -> DownloadProgress:
-    """Progreso granular de descarga."""
+@router.post("/download", status_code=202, response_model=DispatchResponse)
+async def download_endpoint(request: Request, background_tasks: BackgroundTasks,
+                            symbols: List[str] = Query(...), timeframes: List[str] = Query(...),
+                            start_ms: int = Query(..., gt=0), end_ms: Optional[int] = Query(None, gt=0),
+                            market_type: str = Query("spot", pattern="^(spot|futures)$"),
+                            max_concurrent: Optional[int] = Query(None, ge=1, le=50),
+                            limit_per_request: int = Query(1000, ge=1, le=1000)) -> DispatchResponse:
+    """Valida sin red (400 si inválido) -> create_download_task (PENDING, en threadpool)
+    -> background_tasks.add_task(run_download_sync) -> 202 inmediato.
+    La planificación (exchangeInfo, inventario, HEAD Public Data) ocurre en background."""
 
-@router.get("/plan/{task_id}")
-async def plan_endpoint(task_id: str = Path(..., pattern=r"^[0-9a-f-]{36}$")) -> DownloadPlan:
-    """Plan de descarga generado (para debug/inspección)."""
-
-@router.get("/result/{task_id}")
-async def result_endpoint(task_id: str = Path(..., pattern=r"^[0-9a-f-]{36}$")) -> DownloadResult:
-    """Resultado final con rutas Parquet y stats."""
+@router.get("/status/{task_id}")  -> DownloadProgress   # 404 si no existe
+@router.get("/plan/{task_id}")    -> DownloadPlan       # 404 si no existe
+@router.get("/result/{task_id}")  -> DownloadResult     # 404 si no existe, 409 si no terminada
 ```
+
+Las lecturas SQLite/disco de los `GET` se ejecutan con `run_in_threadpool` (Art. 3).
+`DownloadResult.stats` contiene una entrada por `"SYMBOL/tf/market"` más la clave `"errors"`
+(lista de errores de la tarea), ya que el contrato `DownloadResult` no tiene campo `errors`.
 
 ---
 
 ## 3. Algoritmos Clave
 
 ### 3.1 `parse_time_input(s: str) -> int` — Parse flexible a ms UTC
+Implementado en `finances_core.timeutils` (compartido por todas las herramientas, Art. 4);
+`planner.py` ya no lo define.
 ```python
 # Acepta: "2024-01-01", "2024-01-01T00:00:00Z", "1704067200000", "now"
 # Retorna: int64 ms UTC
@@ -243,9 +232,12 @@ async def result_endpoint(task_id: str = Path(..., pattern=r"^[0-9a-f-]{36}$")) 
 
 ### 3.2 `inventory_local_parquet(parquet_dir: Path, symbol: str, tf: str, market: str) -> List[Tuple[int, int]]`
 ```python
-# Escanea particiones Hive existentes
+# Escanea {parquet_dir}/binance/market_type={m}/symbol={S}/timeframe={tf}/year=*/month=*/*.parquet
 # Retorna lista de rangos (min_open_time_ms, max_open_time_ms) por partición año/mes
-# Usa Polars scan_parquet para leer solo metadatos (statistics) sin cargar datos
+# Una sola consulta lazy: scan_parquet(files, include_file_paths=...).group_by(file).agg(min, max)
+# (proyecta sólo open_time_ms). Archivos con footer ilegible se omiten con warning.
+# El planificador considera cubierta cada partición hasta max + 1 vela, para que el
+# borde entre meses consecutivos no genere un gap espurio.
 ```
 
 ### 3.3 `compute_gaps(requested_start: int, requested_end: int, local_ranges: List[Tuple[int, int]]) -> List[Tuple[int, int]]`
@@ -256,19 +248,21 @@ async def result_endpoint(task_id: str = Path(..., pattern=r"^[0-9a-f-]{36}$")) 
 # 3. Recorrer desde requested_start hasta requested_end, emitir gaps
 ```
 
-### 3.4 `check_public_data_availability(gaps: List[Tuple[int, int]], symbol: str, tf: str, market: str) -> List[DownloadPlanItem]`
+### 3.4 `check_public_data_availability(gaps, symbol, tf, market, client) -> Tuple[List[DownloadPlanItem], List[Tuple[int, int]]]`
 ```python
 # Para cada gap:
 #   - Determinar meses cubiertos (gap_start_ms -> gap_end_ms)
 #   - Para cada mes: construir URL Public Data mensual
 #     spot:   https://data.binance.vision/data/spot/monthly/klines/{SYMBOL}/{TF}/{SYMBOL}-{TF}-{YYYY-MM}.zip
 #     futures: https://data.binance.vision/data/futures/um/monthly/klines/{SYMBOL}/{TF}/{SYMBOL}-{TF}-{YYYY-MM}.zip
-#   - HEAD request para verificar existencia + obtener checksum (si disponible en headers)
+#   - HEAD request para verificar existencia; si existe, GET <url>.CHECKSUM
+#     ("<hex>  <archivo>") -> expected_checksum = "sha256:<hex>" (None si no se publica)
 #   - Agregar items source="public_data" para archivos existentes
-#   - Sub-rangos sin archivo -> marcar para REST fallback
+#   - CADA mes sin archivo (p. ej. el mes en curso) -> sub-rango residual para REST;
+#     sub-rangos contiguos se fusionan
 ```
 
-### 3.5 `plan_rest_fallback(uncovered_gaps: List[Tuple[int, int]], symbol: str, tf: str, market: str, limit: int) -> List[DownloadPlanItem]`
+### 3.5 `plan_rest_fallback(uncovered_gaps, symbol, tf, market, limit, client) -> List[DownloadPlanItem]`
 ```python
 # Para cada gap no cubierto:
 #   - Paginar con limit=1000 (máx Binance)
@@ -276,7 +270,10 @@ async def result_endpoint(task_id: str = Path(..., pattern=r"^[0-9a-f-]{36}$")) 
 #   - Generar items source="rest_api" con endpoint y params
 ```
 
-### 3.6 `normalize_binance_klines(df: pl.DataFrame, source: Literal["public_data", "rest_api"]) -> pl.DataFrame`
+### 3.6 `normalize_binance_klines(df, source, *, symbol, timeframe, market_type, start_ms, end_ms) -> pl.DataFrame`
+Los parámetros keyword-only aportan las columnas constantes y el rango a filtrar.
+Lectores: `read_public_data_zip(zip_path, ...)` (lee el CSV dentro del .zip sin extraer;
+detecta cabecera: Futures la trae, Spot no) y `normalize_rest_json(rows, ...)`.
 ```python
 # Public Data CSV columns: open_time, open, high, low, close, volume, close_time, quote_asset_volume, number_of_trades, taker_buy_base_asset_volume, taker_buy_quote_asset_volume, ignore
 # REST JSON array: [open_time, open, high, low, close, volume, close_time, quote_asset_volume, number_of_trades, taker_buy_base_asset_volume, taker_buy_quote_asset_volume, ignore]
@@ -284,40 +281,60 @@ async def result_endpoint(task_id: str = Path(..., pattern=r"^[0-9a-f-]{36}$")) 
 # Transformaciones:
 # 1. Renombrar columnas a esquema canónico
 # 2. Cast: open_time -> open_time_ms (Int64), precios/volúmenes -> Float32, trades -> Int64
+#    Timestamps >= 1e14 (microsegundos, Spot Public Data desde 2025) se dividen entre 1000
 # 3. Agregar columnas: symbol, timeframe, market_type, year, month (derivadas de open_time_ms)
 # 4. Filtrar: open_time_ms dentro del rango solicitado (por si CSV trae extra)
-# 5. Ordenar por open_time_ms, unique (dedup por open_time_ms)
+# 5. Ordenar por open_time_ms, unique (dedup por open_time_ms, gana la última)
 # 6. Validar schema Arrow vs OHLCV_SCHEMA
 ```
 
 ### 3.7 `write_parquet_partitioned(df: pl.DataFrame, parquet_dir: Path) -> List[str]`
 ```python
-# df.partition_by(OHLCV_PARTITION_COLS).write_parquet(
-#     parquet_dir / "binance",
-#     partition_by=OHLCV_PARTITION_COLS,
-#     compression="zstd",
-#     statistics=True,
-# )
+# Para cada grupo (market_type, symbol, timeframe, year, month):
+#   path = parquet_dir / "binance" / f"market_type={m}" / f"symbol={s}" / f"timeframe={tf}"
+#          / f"year={y}" / f"month={mm:02d}" / "data.parquet"
+#   SI path existe: df = concat([read_parquet(path), df]).unique("open_time_ms", keep="last")
+#   df.sort("open_time_ms").write_parquet(tmp, compression="zstd", statistics=True)
+#   (las claves Hive no se guardan como columnas: se infieren de la ruta)
+#   os.replace(tmp, path)   # reemplazo atómico
 # Retorna lista de rutas de archivos escritos
 ```
 
-### 3.8 Orquestador Principal — `execute_download_plan(plan: DownloadPlan, settings, semaphore) -> DownloadResult`
+### 3.8 Orquestador Principal — `service.py`
 ```python
-async def execute_download_plan(plan: DownloadPlan):
-    1. task_id = plan.task_id
-    2. UPDATE task status=PLANNING
-    3. Agrupar plan.items por source (public_data vs rest_api)
-    4. Para cada grupo:
-         - UPDATE status=DOWNLOADING_PUBLIC / DOWNLOADING_REST
-         - Crear tasks asyncio con semáforo (max_concurrent)
-         - Cada task: download -> validate checksum -> normalize -> collect DataFrames
-    5. UPDATE status=NORMALIZING
-    6. Concatenar todos los DataFrames normalizados por (symbol, timeframe, market_type)
-    7. UPDATE status=WRITING_PARQUET
-    8. write_parquet_partitioned por grupo
-    9. UPDATE status=COMPLETED con stats y parquet_paths
-    10. RETURN DownloadResult
+def create_download_task(task_id, request, *, settings=None) -> None
+    # INSERT tarea PENDING (en el despacho, antes de planificar) -> GET /status nunca 404
+
+async def run_download(request, task_id, *, settings=None, transport=None, on_phase=None) -> DownloadResult
+    # PLANNING: build_download_plan (pasos 1-6). Error de red/validación -> FAILED + error.
+    # Símbolos ausentes de exchangeInfo -> se omiten y se registran en errors_json (RF-9).
+
+async def execute_download_plan(plan, max_concurrent=None, *, settings=None, transport=None,
+                                on_phase=None) -> DownloadResult
+    1. DOWNLOADING_PUBLIC: items public_data con asyncio.Semaphore(max_concurrent);
+       checksum mismatch -> 1 reintento -> fallback REST; 404/zip/CSV corrupto -> fallback REST
+    2. DOWNLOADING_REST: items rest_api + fallbacks; respuesta vacía -> gaps_unfillable (warning)
+    3. NORMALIZING: concat por (symbol, tf, market), dedup, sort (en hilo)
+    4. WRITING_PARQUET: write_parquet_partitioned por par (en hilo)
+    5. COMPLETED, o FAILED si algún item agotó reintentos de red/HTTP (lo escrito persiste)
+
+def run_download_sync(request, task_id, settings=None) -> None   # entrada BackgroundTasks
+def get_progress(task_id, *, settings=None) -> DownloadProgress | None
+def get_result(task_id, *, settings=None) -> DownloadResult | None   # TaskNotFinishedError
+def resolve_max_concurrent(override, settings) -> int                 # RF-2
 ```
+Las fases sólo avanzan (`PENDING → PLANNING → DOWNLOADING_PUBLIC → DOWNLOADING_REST →
+NORMALIZING → WRITING_PARQUET → COMPLETED/FAILED`); todas las escrituras SQLite, lecturas
+Polars y zip se ejecutan con `asyncio.to_thread` (Art. 3). El progreso por par
+(`pairs_total`/`pairs_done`), la petición y `gaps_unfillable` se guardan en
+`result_summary_json`.
+
+### 3.9 Reintentos (`client.py`)
+`tenacity.AsyncRetrying`: 1 intento + `FT_BINANCE_MAX_RETRIES` reintentos, espera
+`wait_exponential_jitter(multiplier=FT_BINANCE_BASE_BACKOFF_MS/1000, jitter=base, max=60s)`,
+sólo ante `418`/`429`/`5xx` o `httpx.TransportError` (nunca otros `4xx`); cada reintento
+emite el evento structlog `binance_http_retry`. Aplica a REST y a Public Data (HEAD,
+.CHECKSUM y descarga en streaming).
 
 ---
 
@@ -334,17 +351,17 @@ packages/finances-downloader/
 │           ├── cli.py              # Typer app
 │           ├── api.py              # FastAPI router
 │           ├── service.py          # Orquestador principal
-│           ├── client.py           # Cliente HTTP dual (Public Data + REST) + TokenBucket
+│           ├── client.py           # Cliente HTTP dual (Public Data + REST), reintentos, checksums
+│           ├── rate_limiter.py     # TokenBucket / DualTokenBucket
 │           ├── planner.py          # Lógica pasos 1-6 (inventory, gaps, plan)
 │           ├── normalizer.py       # normalize_binance_klines
 │           ├── writer.py           # write_parquet_partitioned
 │           ├── inventory.py        # inventory_local_parquet, compute_gaps
 │           ├── public_data.py      # check_public_data_availability
 │           ├── rest_api.py         # plan_rest_fallback, REST client
-│           ├── logging.py          # configure_logging (reutiliza patrón)
-│           └── models.py           # Pydantic models (DownloadRequest, Plan, etc.)
-└── share/
-    └── tasks.db                   # SQLite WAL (compartido con finances-core)
+│           └── models.py           # Re-export de los contratos de finances_core.schemas.market_data
+│   (sin logging.py propio: se usa finances_core.logging)
+(la base de tareas NO vive en este paquete: es la única `<raíz del proyecto>/share/tasks.db`, Art. 2)
 ```
 
 ---
@@ -388,7 +405,7 @@ dev = ["pytest>=8.2", "pytest-asyncio>=0.23", "httpx>=0.27", "ruff>=0.5", "mypy>
 | ADR-B05 | Token Bucket dual (generoso Public Data, estricto REST) | Respeta límites reales de cada fuente |
 | ADR-B06 | Normalización inmediata a esquema canónico float32/int64 (Art. 5) | Garantiza contrato downstream; evita conversiones tardías |
 | ADR-B07 | Particionado Hive por symbol/timeframe/market_type/year/month | Lecturas eficientes en backtesting (partition pruning) |
-| ADR-B08 | Sobrescribir partición completa (año/mes) vs append | Idempotencia simple; evita duplicados por re-ejecución |
+| ADR-B08 | Reescritura atómica de la partición (año/mes) combinando filas existentes + nuevas (dedup por `open_time_ms`, gana la nueva) | Idempotencia sin pérdida (RF-4); evita duplicados y no descarta filas fuera del rango descargado |
 | ADR-B09 | `finances-downloader` package separado de `finances-core` | Ciclo SemVer independiente; aislamiento de deps pesadas (httpx, polars) |
 | ADR-B10 | Auto-registro de variables `FT_*` no declaradas (Art. 16 Constitución) | `FT_DOWNLOAD_MAX_CONCURRENT` se crea si no existe |
 

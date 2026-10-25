@@ -16,12 +16,12 @@
 ### RF-1 — Pipeline de Descarga Determinista de 7 Pasos (Ubícuo)
 **EL SISTEMA DEBE** ejecutar **en orden estricto** el siguiente pipeline para cada par `(symbol, timeframe, market_type)` solicitado:
 
-1. **Validar Petición**: Verificar que `start_ms` ≤ `now_ms - 1 vela`, `end_ms` ≥ `start_ms`, símbolos existen en exchangeInfo, timeframes válidos Binance. **SI** inválido, **ENTONCES** rechazo inmediato (exit 2 / HTTP 400) con detalle.
+1. **Validar Petición**: Verificar que `start_ms` ≤ `now_ms - 1 vela`, `end_ms` ≥ `start_ms`, timeframes válidos Binance. **SI** inválido, **ENTONCES** rechazo inmediato (exit 2 / HTTP 400) con detalle. La existencia de cada símbolo se verifica contra exchangeInfo durante la planificación: un símbolo inexistente no rechaza la petición, se trata según RF-9 (warning, se omite y se registra en `errors`).
 2. **Inventario Local**: Escanear `FT_PARQUET_DIR/binance/{spot|futures}/{symbol}/timeframe={tf}/` y construir mapa de rangos cubiertos por partición (min/max `open_time_ms` por archivo Parquet).
 3. **Determinar Huecos (Gaps)**: Comparar rango solicitado `[start_ms, end_ms]` vs rangos locales → lista de intervalos faltantes `[(gap_start_ms, gap_end_ms), ...]`.
 4. **Verificar Binance Public Data**: Para cada gap, consultar índice público `https://data.binance.vision/?prefix=data/spot/monthly/klines/{SYMBOL}/{TF}/` (o `data/futures/um/monthly/klines/...`) y determinar **qué archivos .zip mensuales existen** y cubren el gap.
 5. **Planificar Fallback REST**: Para sub-rangos de gaps **no cubiertos** por Public Data, planear requests a REST API (`GET /api/v3/klines` spot, `GET /fapi/v1/klines` futures) con paginación `limit=1000`.
-6. **Generar Plan de Descarga**: Escribir archivo temporal `download_plan_{task_id}.json` con estructura:
+6. **Generar Plan de Descarga**: Persistir `<raíz del proyecto>/share/plans/download_plan_{task_id}.json` (persistente, para que `GET /plan` lo encuentre después) con estructura:
    ```json
    {
      "task_id": "uuid-v7",
@@ -84,26 +84,26 @@
 ```
 {FT_PARQUET_DIR}/
   binance/
-    spot/
-      BTCUSDT/
+    market_type=spot/
+      symbol=BTCUSDT/
         timeframe=1h/
           year=2024/
             month=01/
               data.parquet
-    futures/
-      ETHUSDT/
+    market_type=futures/
+      symbol=ETHUSDT/
         timeframe=5m/
           ...
 ```
-- Usar `partition_by=["symbol", "timeframe", "market_type", "year", "month"]` en Polars
+- Particionado Hive completo (`clave=valor` en todos los niveles bajo `binance/`), de modo que `pl.scan_parquet(..., hive_partitioning=True)` infiera `market_type`, `symbol`, `timeframe`, `year` y `month`. El inventario local (paso 2 de RF-1) y `ft_data_viewer` **DEBEN** leer exactamente este layout.
 - Cada archivo Parquet **DEBE** tener schema Arrow: `Float32` para precios/volúmenes, `Int64` para timestamps/counts
-- **Idempotencia**: Sobrescribir partición completa (año/mes) si ya existe; no append row-a-row (evita duplicados)
+- **Idempotencia sin pérdida**: **SI** la partición (año/mes) ya existe, **ENTONCES** el sistema **DEBE** combinar las filas existentes con las nuevas, deduplicar por `open_time_ms` (prevalece la fila nueva), ordenar por `open_time_ms` y reescribir la partición de forma atómica (archivo temporal + reemplazo). Nunca append row-a-row y nunca descartar filas existentes fuera del rango descargado.
 
 ### RF-5 — Rate-Limiting Diferenciado por Fuente (Ubícuo)
 | Fuente | Algoritmo | Configuración (`FT_` settings) |
 |--------|-----------|--------------------------------|
 | **Binance Public Data** | Token Bucket **generoso** (descarga masiva sin API key) | `FT_BINANCE_PUBLIC_DATA_RATE_CAPACITY` (default 50), `FT_BINANCE_PUBLIC_DATA_RATE_REFILL` (default 10/s) |
-| **Binance REST API** | Token Bucket **estricto** (límites oficiales) | `FT_BINANCE_REST_RATE_CAPACITY` (default 1200 weight/min), `FT_BINANCE_REST_RATE_REFILL` (default 20/s), `FT_BINANCE_MAX_RETRIES` (default 3), `FT_BINANCE_BASE_BACKOFF_MS` (default 1000) |
+| **Binance REST API** | Token Bucket **estricto** (límites oficiales) | `FT_BINANCE_REST_RATE_CAPACITY` (default 1200 weight/min), `FT_BINANCE_REST_RATE_REFILL` (default 20/s), `FT_BINANCE_MAX_RETRIES` (default 3; reintentos adicionales tras el primer intento, solo ante `418`/`429`/`5xx`/red), `FT_BINANCE_BASE_BACKOFF_MS` (default 1000) |
 
 **Backoff exponencial + jitter** para ambas ante `429`/`418`/`5xx`. Log estructurado por retry (Art. 9).
 
@@ -133,7 +133,8 @@
 | Archivo Public Data corrupto (checksum mismatch) | Reintentar 1 vez; si falla → marcar gap para REST fallback |
 | REST API `429`/`418` | Backoff exponencial + jitter, retry hasta `FT_BINANCE_MAX_RETRIES` |
 | Gap sin cobertura ni en Public Data ni en REST (datos no existen en Binance) | Log warning, registrar en `gaps_unfillable` en resultado, continuar |
-| Red/Timeout agotado retries | Marcar task `FAILED` con error detallado; datos ya escritos en Parquet persisten (idempotencia) |
+| Red/Timeout/HTTP agotado retries | Marcar task `FAILED` con error detallado; datos ya escritos en Parquet persisten (idempotencia). Un gap para el que Binance no devuelve datos **no** es `FAILED`: va a `gaps_unfillable` y la tarea termina `COMPLETED` |
+| Errores por item (cualquier fila de esta tabla) | Se acumulan en `DownloadResult.errors` (y en `DownloadProgress.errors` durante la ejecución) |
 
 ### RF-10 — Configuración vía `FT_` Settings (Ubícuo) — **Nuevas Variables**
 **EL SISTEMA DEBE** leer de `FinancesSettings` (prefijo `FT_`):

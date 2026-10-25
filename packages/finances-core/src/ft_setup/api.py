@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-import logging
-
 import structlog
-from fastapi import APIRouter, BackgroundTasks, FastAPI, HTTPException, Path, Request, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Path, Request, status
 from fastapi.concurrency import run_in_threadpool
 
 from finances_core.schemas.setup import InitTaskResult, SetupDoctorResponse
-from ft_setup.logging import configure_logging
 from ft_setup.service import diagnose, get_init_result, run_init, start_init_task
 
 router = APIRouter(prefix="/setup", tags=["setup"])
@@ -60,15 +57,3 @@ async def init_status(task_id: str = Path(..., pattern=TASK_ID_PATTERN)) -> Init
     if result is None:
         raise HTTPException(status_code=404, detail="Task not found")
     return result
-
-
-def configure_api_logging(level: int = logging.INFO) -> None:
-    """Configura logging JSON (usado por el entrypoint del servicio)."""
-    configure_logging("api", level)
-
-
-def create_app() -> FastAPI:
-    """Crea una app FastAPI mínima con el router de ``ft_setup``."""
-    app = FastAPI(title="ft_setup", version="0.1.0")
-    app.include_router(router)
-    return app

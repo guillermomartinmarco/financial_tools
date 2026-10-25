@@ -263,6 +263,11 @@ def doctor(
 ) -> None:
     """Diagnostica variables de entorno FT_* frente a env_list.conf."""
 
+@app.command()
+def status(task_id: str = typer.Argument(...)) -> None:
+    """Estado de una tarea de init (simetría con GET /setup/status/{task_id}, Art. 1).
+    Imprime InitTaskResult en JSON; exit 1 si la tarea no existe."""
+
 @app.callback()
 def main(
     ctx: typer.Context,
@@ -349,12 +354,17 @@ FUNCTION run_init(force: bool, dry_run: bool) -> InitTaskResult:
 ### 3.3 Logging Dual Setup (Entry Points)
 
 ```python
-# packages/finances-core/src/ft_setup/logging.py
+# packages/finances-core/src/finances_core/logging.py  (compartido por todas las herramientas)
 import structlog
 from rich.logging import RichHandler
 import logging
 
-def configure_logging(mode: Literal["cli", "api"], level: int = logging.INFO) -> None:
+def configure_logging(
+    mode: Literal["cli", "api"],
+    level: int = logging.INFO,
+    log_format: Literal["rich", "json"] | None = None,  # default: rich en CLI, json en API
+    component: str = "financial_tools",
+) -> None:
     shared_processors = [
         structlog.contextvars.merge_contextvars,
         structlog.processors.add_log_level,
@@ -411,7 +421,6 @@ packages/finances-core/
 │           ├── cli.py             # Typer app
 │           ├── api.py             # FastAPI router
 │           ├── service.py         # Lógica compartida (diagnose, run_init)
-│           ├── logging.py         # configure_logging(mode, level)
 │           ├── env_list.conf      # TOML fuente de verdad
 │           └── templates/
 │               ├── .env.template.j2

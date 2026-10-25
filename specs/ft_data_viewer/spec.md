@@ -22,7 +22,7 @@
 
 ### RF-2 — Resumen Estadístico de Dataset (Ubícuo)
 **EL SISTEMA DEBE** proveer una operación `summary` (CLI) / `GET /data/datasets/{exchange}/{market_type}/{symbol}/{timeframe}/summary` (API) que:
-- Lea solo metadatos (statistics de Parquet) sin cargar datos completos.
+- Obtenga `row_count`, min/max y `null_count` de los metadatos del footer Parquet (sin leer filas) y calcule el resto (mean, distinct_count, gaps, duplicados, outliers) con una única agregación lazy proyectada solo sobre las columnas necesarias; nunca cargue el dataset completo en memoria.
 - Retorne: `row_count`, `date_range` (min/max open_time_ms), `columns` con stats por columna (min, max, mean, null_count, distinct_count para numéricas).
 - Detecte y reporte: `gaps_detected` (intervalos temporales faltantes), `duplicate_timestamps` (conteo), `outlier_count` (precios > 3 std devs de media).
 - **SI** el dataset no existe, **ENTONCES** error 404 / CLI exit 1.
@@ -55,7 +55,7 @@
 - Permita filtrar por rango temporal (`--start-ms`, `--end-ms`), símbolos, timeframes.
 - Exporte a: Parquet (default), CSV, JSON Lines.
 - Escriba en directorio especificado (`--output-dir`) o stdout (`-`).
-- **SI** el rango solicitado no tiene datos, **ENTONCES** error 400 / CLI exit 2 con mensaje claro.
+- **SI** el rango solicitado no tiene datos, **ENTONCES** error 400 / CLI exit 3 con mensaje claro (exit 2 queda reservado para argumentos inválidos, ver T5.4).
 
 ### RF-7 — Comparación de Datasets (Ubícuo)
 **EL SISTEMA DEBE** proveer una operación `compare` (CLI) / `POST /data/compare` (API) que:
@@ -66,7 +66,7 @@
 ### RF-8 — Logging Dual y Métricas (Ubícuo)
 **EL SISTEMA DEBE** usar `structlog` configurado según modo (Art. 9 Constitución):
 - **CLI**: Rich tables, progress bars para escaneos grandes, output JSON opcional (`--format json`).
-- **API**: JSON estructurado con `task_id`, `component="ft_data_viewer"`, `dataset_id`, `duration_ms`.
+- **API**: JSON estructurado con `task_id`, `component="ft_data_viewer"`, `dataset_id`, `duration_ms`. Como los endpoints del viewer son síncronos y no crean tareas en `tasks.db`, el `task_id` es un identificador generado por petición.
 - Métricas: `scan_duration_ms`, `rows_scanned`, `bytes_read`.
 
 ### RF-9 — Configuración vía `FT_` Settings (Ubícuo)

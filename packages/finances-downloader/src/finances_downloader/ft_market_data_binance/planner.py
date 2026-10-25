@@ -1,14 +1,20 @@
-import tempfile
+"""Pasos 1-6 del pipeline determinista (RF-1): validar, inventariar, gaps y plan."""
+
+from __future__ import annotations
+
+import asyncio
 import time
-from datetime import UTC, datetime
+from dataclasses import dataclass, field
 from pathlib import Path
 
+import httpx
 import structlog
 import uuid6
-from finances_core.config import settings
+from finances_core.config import FinancesSettings
 from finances_core.schemas.market_data import (
     TF_MS_MAP,
     DownloadPlan,
+    DownloadPlanItem,
     DownloadRequest,
 )
 
@@ -26,137 +32,171 @@ from finances_downloader.ft_market_data_binance.rest_api import plan_rest_fallba
 
 logger = structlog.get_logger(__name__)
 
-
-def parse_time_input(s: str) -> int:
-    """
-    Parsea entrada de tiempo flexible a ms UTC.
-    Acepta: "2024-01-01", "2024-01-01T00:00:00Z", "1704067200000", "now"
-    """
-    s = s.strip()
-    if s.lower() == "now":
-        return int(time.time() * 1000)
-
-    # Intentar como timestamp ms (número grande)
-    if s.isdigit() and len(s) >= 10:
-        return int(s)
-
-    # Intentar como ISO 8601
-    try:
-        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=UTC)
-        return int(dt.timestamp() * 1000)
-    except ValueError:
-        pass
-
-    # Intentar formatos comunes
-    for fmt in ["%Y-%m-%d", "%Y-%m-%d %H:%M:%S", "%Y/%m/%d"]:
-        try:
-            dt = datetime.strptime(s, fmt).replace(tzinfo=UTC)
-            return int(dt.timestamp() * 1000)
-        except ValueError:
-            continue
-
-    raise ValueError(f"Formato de tiempo no reconocido: {s}. Use ISO 8601, ms epoch, o 'now'")
+#: Mensaje exigido por RF-9 para peticiones de datos futuros.
+FUTURE_DATA_MESSAGE = "Cannot download future data"
 
 
-def validate_request(request: DownloadRequest) -> None:
-    """Valida la request completa antes de proceder."""
-    now_ms = int(time.time() * 1000)
-
-    if request.start_ms > now_ms:
-        raise ValueError(f"start_ms ({request.start_ms}) no puede ser en el futuro")
-
-    if request.end_ms and request.end_ms > now_ms:
-        logger.warning("end_ms en el futuro, ajustando a ahora", end_ms=request.end_ms, now_ms=now_ms)
-        request.end_ms = now_ms
-
-    # Validar timeframes válidos
-    valid_tfs = set(TF_MS_MAP.keys())
-    for tf in request.timeframes:
-        if tf.value not in valid_tfs:
-            raise ValueError(f"Timeframe inválido: {tf}. Válidos: {sorted(valid_tfs)}")
-
-    # Validar símbolos (básico - validación real via exchangeInfo sería en paso 1 completo)
-    for symbol in request.symbols:
-        if not symbol or len(symbol) < 6:
-            raise ValueError(f"Símbolo inválido: {symbol}")
+def current_ms() -> int:
+    return int(time.time() * 1000)
 
 
-async def generate_download_plan(request: DownloadRequest) -> DownloadPlan:
-    """
-    Orquesta pasos 1-6 del pipeline determinista:
-    1. Validar petición
-    2. Inventario local
-    3. Determinar gaps
-    4. Verificar Public Data
-    5. Planificar REST fallback
-    6. Generar plan JSON
-    """
-    task_id = str(uuid6.uuid7())
-    created_at_ms = int(time.time() * 1000)
+def new_task_id() -> str:
+    """``task_id`` UUID v7 (RF-6, Art. 18)."""
+    return str(uuid6.uuid7())
 
-    validate_request(request)
 
-    end_ms = request.end_ms or int(time.time() * 1000)
-
-    all_items = []
-
-    # Create rate limiter from settings
-    rate_limiter = DualTokenBucket(
+def build_rate_limiter(settings: FinancesSettings) -> DualTokenBucket:
+    """Token Buckets diferenciados por fuente (RF-5)."""
+    return DualTokenBucket(
         settings.BINANCE_PUBLIC_DATA_RATE_CAPACITY,
         settings.BINANCE_PUBLIC_DATA_RATE_REFILL_RATE,
         settings.BINANCE_REST_RATE_CAPACITY,
         settings.BINANCE_REST_RATE_REFILL_RATE,
     )
 
-    async with BinancePublicDataClient(rate_limiter) as public_client, \
-               BinanceRestClient(rate_limiter) as rest_client:
 
-        for symbol in request.symbols:
+def validate_request(request: DownloadRequest, now_ms: int | None = None) -> int:
+    """RF-1 paso 1 (parte local, sin red). Retorna el ``end_ms`` efectivo.
+
+    - **SI** ``start_ms > now_ms - 1 vela`` (para cualquier timeframe pedido)
+      **ENTONCES** ``ValueError("Cannot download future data")`` (RF-9).
+    - ``end_ms`` ausente o futuro se acota a ``now_ms``.
+    - Timeframes y ``end_ms > start_ms`` ya los garantiza ``DownloadRequest``.
+    """
+    now = now_ms if now_ms is not None else current_ms()
+    for tf in request.timeframes:
+        if request.start_ms > now - TF_MS_MAP[tf.value]:
+            msg = (
+                f"{FUTURE_DATA_MESSAGE}: start_ms={request.start_ms} > now_ms - 1 vela "
+                f"({tf.value}) = {now - TF_MS_MAP[tf.value]}"
+            )
+            raise ValueError(msg)
+
+    end_ms = request.end_ms if request.end_ms is not None else now
+    if end_ms > now:
+        logger.warning("end_ms_in_future_clamped", end_ms=end_ms, now_ms=now)
+        end_ms = now
+    if end_ms < request.start_ms:
+        msg = f"end_ms ({end_ms}) debe ser >= start_ms ({request.start_ms})"
+        raise ValueError(msg)
+    return end_ms
+
+
+def plan_file_path(task_id: str) -> Path:
+    """Ruta persistente ``<raíz>/share/plans/download_plan_{task_id}.json`` (RF-1 paso 6)."""
+    return FinancesSettings().SHARE_DIR / "plans" / f"download_plan_{task_id}.json"
+
+
+def load_plan(task_id: str) -> DownloadPlan | None:
+    """Plan persistido de ``task_id`` o ``None`` si no existe."""
+    path = plan_file_path(task_id)
+    if not path.is_file():
+        return None
+    return DownloadPlan.model_validate_json(path.read_text(encoding="utf-8"))
+
+
+def _save_plan(plan: DownloadPlan) -> Path:
+    path = plan_file_path(plan.task_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(plan.model_dump_json(indent=2), encoding="utf-8")
+    return path
+
+
+@dataclass(frozen=True)
+class PlanOutcome:
+    """Plan + metadatos de planificación necesarios para el progreso (RF-6)."""
+
+    plan: DownloadPlan
+    gaps_found: int = 0
+    skipped_symbols: list[str] = field(default_factory=list)
+
+
+async def build_download_plan(
+    request: DownloadRequest,
+    *,
+    task_id: str | None = None,
+    settings: FinancesSettings | None = None,
+    transport: httpx.AsyncBaseTransport | None = None,
+    now_ms: int | None = None,
+) -> PlanOutcome:
+    """Orquesta los pasos 1-6 del pipeline y persiste el plan JSON."""
+    settings = settings or FinancesSettings()
+    task_id = task_id or new_task_id()
+    end_ms = validate_request(request, now_ms)
+    market = request.market_type.value
+    rate_limiter = build_rate_limiter(settings)
+
+    items: list[DownloadPlanItem] = []
+    gaps_found = 0
+    skipped: list[str] = []
+
+    async with (
+        BinancePublicDataClient(
+            rate_limiter, settings=settings, transport=transport
+        ) as public_client,
+        BinanceRestClient(rate_limiter, settings=settings, transport=transport) as rest_client,
+    ):
+        # Paso 1 (red): símbolos en exchangeInfo. RF-9: desconocido -> warning y se omite.
+        listed = await rest_client.fetch_symbols(market)
+        symbols: list[str] = []
+        for raw in request.symbols:
+            symbol = raw.upper()
+            if symbol in listed:
+                symbols.append(symbol)
+            else:
+                logger.warning("symbol_not_in_exchange_info", symbol=symbol, market=market)
+                skipped.append(symbol)
+
+        for symbol in symbols:
             for tf_enum in request.timeframes:
                 tf = tf_enum.value
-                market = request.market_type.value
+                tf_ms = TF_MS_MAP[tf]
+                log = logger.bind(symbol=symbol, timeframe=tf, market=market)
 
-                logger.info("planning_symbol_tf", symbol=symbol, timeframe=tf, market=market)
-
-                # Paso 2: Inventario local
-                local_ranges = inventory_local_parquet(
-                    settings.PARQUET_DIR, symbol, tf, market
+                # Paso 2: inventario local (I/O Polars fuera del event loop, Art. 3)
+                local = await asyncio.to_thread(
+                    inventory_local_parquet, settings.PARQUET_DIR, symbol, tf, market
                 )
+                # Cada partición cubre hasta el cierre de su última vela.
+                covered = [(lo, hi + tf_ms) for lo, hi in local]
 
-                # Paso 3: Gaps
-                gaps = compute_gaps(request.start_ms, end_ms, local_ranges)
-                logger.info("gaps_computed", symbol=symbol, tf=tf, gaps_count=len(gaps))
-
+                # Paso 3: gaps
+                gaps = compute_gaps(request.start_ms, end_ms, covered)
+                gaps_found += len(gaps)
+                log.info("gaps_computed", gaps=len(gaps), local_partitions=len(local))
                 if not gaps:
                     continue
 
-                # Paso 4: Public Data
+                # Paso 4: Public Data (mes a mes)
                 public_items, uncovered = await check_public_data_availability(
                     gaps, symbol, tf, market, public_client
                 )
-                logger.info("public_data_checked", symbol=symbol, tf=tf,
-                          public_items=len(public_items), uncovered_gaps=len(uncovered))
-
-                # Paso 5: REST fallback
+                # Paso 5: fallback REST para cada sub-rango no publicado
                 rest_items = plan_rest_fallback(
                     uncovered, symbol, tf, market, request.limit_per_request, rest_client
                 )
-                logger.info("rest_fallback_planned", symbol=symbol, tf=tf, rest_items=len(rest_items))
+                log.info(
+                    "plan_pair_ready", public_items=len(public_items), rest_items=len(rest_items)
+                )
+                items.extend(public_items)
+                items.extend(rest_items)
 
-                all_items.extend(public_items)
-                all_items.extend(rest_items)
+    plan = DownloadPlan(task_id=task_id, created_at_ms=current_ms(), items=items)
+    # Paso 6: persistir plan
+    path = await asyncio.to_thread(_save_plan, plan)
+    logger.info("plan_saved", task_id=task_id, path=str(path), items=len(items))
+    return PlanOutcome(plan=plan, gaps_found=gaps_found, skipped_symbols=skipped)
 
-    plan = DownloadPlan(
-        task_id=task_id,
-        created_at_ms=created_at_ms,
-        items=all_items,
+
+async def generate_download_plan(
+    request: DownloadRequest,
+    *,
+    task_id: str | None = None,
+    settings: FinancesSettings | None = None,
+    transport: httpx.AsyncBaseTransport | None = None,
+) -> DownloadPlan:
+    """Pasos 1-6 del pipeline; retorna sólo el :class:`DownloadPlan`."""
+    outcome = await build_download_plan(
+        request, task_id=task_id, settings=settings, transport=transport
     )
-
-    # Paso 6: Persistir plan a archivo temporal
-    plan_file = Path(tempfile.gettempdir()) / f"download_plan_{task_id}.json"
-    plan_file.write_text(plan.model_dump_json(indent=2))
-    logger.info("plan_saved", path=str(plan_file), items=len(all_items))
-
-    return plan
+    return outcome.plan

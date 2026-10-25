@@ -95,6 +95,7 @@ class DownloadResult(BaseModel):
     status: Literal["COMPLETED", "FAILED"]
     parquet_paths: list[str]
     stats: dict[str, object]
+    errors: list[str] = Field(default_factory=list)
     gaps_unfillable: list[dict[str, object]] = []
 
 

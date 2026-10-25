@@ -1,26 +1,51 @@
-import json
+"""Router FastAPI ``/market-data/binance`` (montado por el paquete ``finances-api``).
 
-import structlog
+- ``POST /download`` valida (sin red), registra la tarea ``PENDING`` y responde
+  ``202`` de inmediato; planificación y descarga corren en ``BackgroundTasks``
+  dentro del *threadpool* con su propio event loop (Art. 3, Art. 18).
+- Las lecturas SQLite / disco de los ``GET`` se delegan a ``run_in_threadpool``.
+"""
+
+from __future__ import annotations
+
+from typing import Literal
+
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Path, Query, Request, status
-from finances_core.config import settings
 from finances_core.schemas.market_data import (
     DownloadPlan,
     DownloadProgress,
     DownloadRequest,
     DownloadResult,
-    MarketType,
-    Timeframe,
 )
-from finances_core.tasks import SQLTaskManager
+from pydantic import BaseModel
+from starlette.concurrency import run_in_threadpool
 
-from finances_downloader.ft_market_data_binance.planner import generate_download_plan
-from finances_downloader.ft_market_data_binance.service import execute_download_plan
+from finances_downloader.ft_market_data_binance.planner import load_plan, validate_request
+from finances_downloader.ft_market_data_binance.service import (
+    TaskNotFinishedError,
+    create_download_task,
+    get_progress,
+    get_result,
+    new_task_id,
+    run_download_sync,
+)
 
 router = APIRouter(prefix="/market-data/binance", tags=["market-data-binance"])
-logger = structlog.get_logger(__name__)
+
+TASK_ID_PATTERN = r"^[0-9a-f-]{36}$"
 
 
-@router.post("/download", status_code=status.HTTP_202_ACCEPTED)
+class DispatchResponse(BaseModel):
+    """Contrato de despacho asíncrono (Art. 18)."""
+
+    task_id: str
+    status: Literal["ACCEPTED"] = "ACCEPTED"
+    poll_url: str
+    plan_url: str
+    result_url: str
+
+
+@router.post("/download", status_code=status.HTTP_202_ACCEPTED, response_model=DispatchResponse)
 async def download_endpoint(
     request: Request,
     background_tasks: BackgroundTasks,
@@ -31,114 +56,62 @@ async def download_endpoint(
     market_type: str = Query("spot", pattern="^(spot|futures)$"),
     max_concurrent: int | None = Query(None, ge=1, le=50),
     limit_per_request: int = Query(1000, ge=1, le=1000),
-) -> dict[str, str]:
-    """
-    Inicia descarga en background.
-    Retorna: {"task_id": "<uuid-v7>", "status": "ACCEPTED", "poll_url": "/market-data/binance/status/<task_id>"}
-    """
+) -> DispatchResponse:
+    """Despacha la descarga y retorna ``task_id`` + ``poll_url`` sin esperar."""
     try:
-        tf_enums = [Timeframe(tf) for tf in timeframes]
-        market_enum = MarketType(market_type)
-
-        concurrent = max_concurrent or settings.DOWNLOAD_MAX_CONCURRENT
-
-        request_obj = DownloadRequest(
-            symbols=symbols,
-            timeframes=tf_enums,
-            start_ms=start_ms,
-            end_ms=end_ms,
-            market_type=market_enum,
-            limit_per_request=limit_per_request,
-            max_concurrent=concurrent,
+        download_request = DownloadRequest.model_validate(
+            {
+                "symbols": [s.upper() for s in symbols],
+                "timeframes": timeframes,
+                "start_ms": start_ms,
+                "end_ms": end_ms,
+                "market_type": market_type,
+                "limit_per_request": limit_per_request,
+                "max_concurrent": max_concurrent,
+            }
         )
+        validate_request(download_request)
+    except ValueError as exc:  # incluye pydantic.ValidationError (RF-1 paso 1 -> 400)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
-        # Generar plan primero (síncrono, rápido)
-        plan = await generate_download_plan(request_obj)
-
-        # Ejecutar en background
-        async def run_download() -> None:
-            try:
-                await execute_download_plan(plan, concurrent)
-            except Exception as e:
-                logger.error("background_download_failed", task_id=plan.task_id, error=str(e))
-
-        background_tasks.add_task(run_download)
-
-        return {
-            "task_id": plan.task_id,
-            "status": "ACCEPTED",
-            "poll_url": str(request.url_for("status_endpoint", task_id=plan.task_id)),
-            "plan_url": str(request.url_for("plan_endpoint", task_id=plan.task_id)),
-        }
-
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error("download_endpoint_failed", error=str(e), exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error")
+    task_id = new_task_id()
+    await run_in_threadpool(create_download_task, task_id, download_request)
+    background_tasks.add_task(run_download_sync, download_request, task_id)
+    return DispatchResponse(
+        task_id=task_id,
+        poll_url=str(request.url_for("status_endpoint", task_id=task_id)),
+        plan_url=str(request.url_for("plan_endpoint", task_id=task_id)),
+        result_url=str(request.url_for("result_endpoint", task_id=task_id)),
+    )
 
 
 @router.get("/status/{task_id}", response_model=DownloadProgress)
-async def status_endpoint(
-    task_id: str = Path(..., pattern=r"^[0-9a-f-]{36}$"),
-) -> DownloadProgress:
-    """Progreso granular de descarga."""
-    task_manager = SQLTaskManager(settings.TASKS_DB_PATH)
-    task = task_manager.get_task(task_id)
-
-    if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
-
-    return DownloadProgress(
-        task_id=task["task_id"],
-        status=task["status"],
-        phase=task["phase"] or task["status"],
-        symbols_total=len(set(k.split("/")[0] for k in json.loads(task.get("stats_json", "{}")).keys())) if task.get("stats_json") else 0,
-        symbols_done=0,
-        timeframes_total=len(set(k.split("/")[1] for k in json.loads(task.get("stats_json", "{}")).keys())) if task.get("stats_json") else 0,
-        timeframes_done=0,
-        downloaded_bytes=task.get("downloaded_bytes", 0),
-        processed_candles=task.get("processed_candles", 0),
-        gaps_found=task.get("gaps_found", 0),
-        gaps_filled_public=task.get("gaps_filled_public", 0),
-        gaps_filled_rest=task.get("gaps_filled_rest", 0),
-        errors=json.loads(task.get("errors_json", "[]")) if task.get("errors_json") else [],
-        current_symbol=task.get("current_symbol"),
-        current_timeframe=task.get("current_timeframe"),
-    )
+async def status_endpoint(task_id: str = Path(..., pattern=TASK_ID_PATTERN)) -> DownloadProgress:
+    """Progreso granular por fase (RF-6)."""
+    progress = await run_in_threadpool(get_progress, task_id)
+    if progress is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+    return progress
 
 
 @router.get("/plan/{task_id}", response_model=DownloadPlan)
-async def plan_endpoint(
-    task_id: str = Path(..., pattern=r"^[0-9a-f-]{36}$"),
-) -> DownloadPlan:
-    """Plan de descarga generado (para debug/inspección)."""
-    import tempfile
-    from pathlib import Path
-    plan_file = Path(tempfile.gettempdir()) / f"download_plan_{task_id}.json"
-    if not plan_file.exists():
-        raise HTTPException(status_code=404, detail="Plan not found")
-    return DownloadPlan.model_validate_json(plan_file.read_text())
+async def plan_endpoint(task_id: str = Path(..., pattern=TASK_ID_PATTERN)) -> DownloadPlan:
+    """Plan de descarga generado (debug/inspección)."""
+    plan = await run_in_threadpool(load_plan, task_id)
+    if plan is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found")
+    return plan
 
 
 @router.get("/result/{task_id}", response_model=DownloadResult)
-async def result_endpoint(
-    task_id: str = Path(..., pattern=r"^[0-9a-f-]{36}$"),
-) -> DownloadResult:
-    """Resultado final con rutas Parquet y stats."""
-    task_manager = SQLTaskManager(settings.TASKS_DB_PATH)
-    task = task_manager.get_task(task_id)
-
-    if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
-
-    if task["status"] not in ("COMPLETED", "FAILED"):
-        raise HTTPException(status_code=409, detail=f"Task not finished: {task['status']}")
-
-    return DownloadResult(
-        task_id=task["task_id"],
-        status=task["status"],
-        parquet_paths=json.loads(task.get("parquet_paths_json", "[]")),
-        stats=json.loads(task.get("stats_json", "{}")),
-        gaps_unfillable=[],  # TODO: persistir en task manager
-    )
+async def result_endpoint(task_id: str = Path(..., pattern=TASK_ID_PATTERN)) -> DownloadResult:
+    """Resultado final: rutas Parquet, stats (incl. ``errors``) y ``gaps_unfillable``."""
+    try:
+        result = await run_in_threadpool(get_result, task_id)
+    except TaskNotFinishedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=f"Task not finished: {exc.status}"
+        ) from exc
+    if result is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+    return result

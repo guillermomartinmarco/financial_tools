@@ -18,6 +18,7 @@
 - Cree la estructura de directorios canónica: `data/{raw,processed,parquet}`, `logs/`, `strategies/`, `results/`, `share/` (para `tasks.db`).
 - Genere un archivo `.env.template` en la raíz del proyecto con **todas** las variables `FT_*` documentadas (nombre, descripción, ejemplo, requerido: true/false).
 - Genere `env_list.conf` en `packages/finances-core/src/ft_setup/` listando las variables canónicas (fuente de verdad para RF-2/RF-3).
+- Cree el archivo marcador `.ft_root` en la raíz del proyecto si no existe. Toda ruta relativa de `FinancesSettings` se resuelve contra el primer ancestro con `.ft_root` (o `FT_PROJECT_ROOT`), nunca contra el directorio actual (Art. 2).
 - Sea **idempotente**: re-ejecutar no duplica ni corrompe (Art. 12 Constitución).
 
 ### RF-2 — Diagnóstico de Variables (Ubícuo)

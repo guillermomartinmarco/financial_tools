@@ -15,7 +15,7 @@ from typing import Any
 
 import structlog
 
-from finances_core.config import settings
+from finances_core.config import FinancesSettings
 
 logger = structlog.get_logger(__name__)
 
@@ -79,7 +79,8 @@ class SQLTaskManager:
     """Persistencia de tareas en ``share/tasks.db`` con modo WAL."""
 
     def __init__(self, db_path: Path | None = None) -> None:
-        self.db_path = Path(db_path) if db_path is not None else Path(settings.TASKS_DB_PATH)
+        # Settings frescos: la raíz se resuelve en el momento de uso, no al importar.
+        self.db_path = Path(db_path) if db_path is not None else FinancesSettings().TASKS_DB_PATH
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
 
