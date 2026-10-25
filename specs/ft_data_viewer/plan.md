@@ -314,7 +314,7 @@ async def compare_datasets(request: CompareRequest) -> CompareResult: ...
 | `read_dataset_metadata(dataset_path)` | Estadísticas de footer Parquet agregadas por row group (`min`, `max`, `null_count`) → `dict[str, ColumnStats]`; `mean/std/distinct_count` no existen en las estadísticas y quedan `None` (los completa `compute_summary` con una única agregación lazy) |
 | `detect_gaps(lf, timeframe_ms, min_gap_candles=1, gap_threshold_ms=0)` | `lf.select(ts).unique().sort(ts)` + `shift(1)` + `filter(diff > 1.5·tf)` totalmente lazy; filtra `missing >= min_gap_candles` y `missing_ms >= FT_DATA_VIEWER_GAP_THRESHOLD_MS` |
 | `detect_anomalies(lf)` | Null check, `duplicated()`, Z-score `(x - mean) / std > 3`, IQR `Q1 - 1.5*IQR / Q3 + 1.5*IQR`, volumen == 0 |
-| `stream_export(lf, fmt, output: Path \| IO[bytes])` | `lf.sink_parquet()/sink_csv()/sink_ndjson()` streaming sin cargar en memoria |
+| `finances_core.export.stream_export(lf, fmt, output: Path \| IO[bytes])` | `lf.sink_parquet()/sink_csv()/sink_ndjson()` streaming sin cargar en memoria |
 | `compare_datasets(lf_a, lf_b, identifier_a, identifier_b)` | Join on `open_time_ms`, diff en `close`, `volume`; `gaps_only_in_a/b` = diferencia de intervalos de gaps recortada al solape (el rango `start/end` lo aplica `service`) |
 | `sample_rows(lf, n, mode, cols, *, seed)` | `head/tail`: `sort + limit` y proyección posterior; `sample`: índices por reservoir sampling (Algorithm L, familia Vitter R) sobre `pl.len()` + `with_row_index().filter(is_in)`; solo materializa `n` filas, acotado por `FT_DATA_VIEWER_SAMPLE_MAX_ROWS` |
 | `service.export_data(request: ExportRequest, *, stream=None)` | Exactamente un destino (`output_dir` o `stream`); rechaza `output_dir` dentro de `PARQUET_DIR` (DV-01); API exporta a directorio temporal y lo sirve con `StreamingResponse` + `BackgroundTask` de limpieza |
@@ -332,11 +332,13 @@ packages/finances-downloader/
 │   ├── service.py          # Orquestador compartido
 │   ├── scanner.py          # scan_parquet_partitions, metadata
 │   ├── analyzer.py         # gaps, anomalies, stats
-│   ├── exporter.py         # stream_export (sink_*)
 │   ├── comparator.py       # compare_datasets
 │   ├── errors.py           # Errores tipados → exit codes / HTTP
 │   └── models.py           # Re-exports desde finances_core
 ```
+
+`stream_export`, `ExportFormat` y `MEDIA_TYPES` (antes `ft_data_viewer/exporter.py`) viven en
+`finances_core/export.py` desde `ft_indicators` T1.3: los comparten `ft_data_viewer`, `ft_indicators` y `ft_ta_lib` (Art. 4).
 
 ---
 

@@ -6,6 +6,10 @@ Layout (``exchange`` lo fija cada herramienta: ``binance``, ``yfinance``, ...)::
 
 Contrato (binance RF-4, yfinance RF-5): merge con lo existente, dedupe por
 ``open_time_ms`` prevaleciendo la fila nueva, orden ascendente y reemplazo atómico.
+
+``ft_indicators``/``ft_ta_lib`` (T1.1) reutilizan el escritor con otro nombre de archivo
+(``file_name="{series_id}.parquet"``) y ``mode="replace"``: cada mes se sustituye por
+completo por las filas recibidas (recálculo completo), sin combinar con lo previo.
 """
 
 from __future__ import annotations
@@ -13,6 +17,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Mapping
 from pathlib import Path
+from typing import Literal
 
 import polars as pl
 import structlog
@@ -25,6 +30,11 @@ HIVE_KEYS = ["market_type", "symbol", "timeframe", "year", "month"]
 #: Esquema canónico ``{columna: dtype Polars}`` (incluye las claves Hive de la ruta).
 ColumnSchema = Mapping[str, pl.DataType | type[pl.DataType]]
 PartitionKeys = tuple[str, str, str, int, int]
+WriteMode = Literal["merge", "replace"]
+
+#: Nombre del archivo de cada partición de los descargadores.
+DEFAULT_FILE_NAME = "data.parquet"
+_WRITE_MODES: tuple[WriteMode, ...] = ("merge", "replace")
 
 
 def data_columns(schema: ColumnSchema) -> list[str]:
@@ -67,6 +77,11 @@ def merge_partition(
     )
 
 
+def replace_partition(new_rows: pl.DataFrame, schema: ColumnSchema) -> pl.DataFrame:
+    """Contenido completo del mes en modo ``replace``: solo las filas nuevas, ordenadas."""
+    return _cast_data(new_rows, schema).sort("open_time_ms")
+
+
 def atomic_write(df: pl.DataFrame, output_file: Path) -> None:
     """Escribe en un temporal del mismo directorio y lo sustituye con ``os.replace``."""
     tmp = output_file.with_name(f".{output_file.name}.{uuid.uuid4().hex}.tmp")
@@ -78,16 +93,32 @@ def atomic_write(df: pl.DataFrame, output_file: Path) -> None:
 
 
 def write_parquet_partitioned(
-    df: pl.DataFrame, parquet_dir: Path, *, exchange: str, schema: ColumnSchema
+    df: pl.DataFrame,
+    parquet_dir: Path,
+    *,
+    exchange: str,
+    schema: ColumnSchema,
+    file_name: str = DEFAULT_FILE_NAME,
+    mode: WriteMode = "merge",
 ) -> list[str]:
     """Escribe ``df`` (canónico + ``year``/``month``) en particiones Hive año/mes.
 
-    Para cada partición existente combina sus filas con las nuevas sin descartar
-    ninguna fuera del rango descargado, y la reemplaza de forma atómica.
+    - ``mode="merge"`` (descargadores): combina las filas existentes de cada partición
+      con las nuevas sin descartar ninguna fuera del rango descargado.
+    - ``mode="replace"`` (indicadores): el archivo del mes contiene exactamente las
+      filas recibidas para ese mes; las previas se descartan.
+
+    En ambos modos cada archivo se reemplaza de forma atómica.
 
     Returns:
-        Rutas de los ``data.parquet`` escritos.
+        Rutas de los ``file_name`` escritos.
+
+    Raises:
+        ValueError: SI ``mode`` no es ``merge`` ni ``replace``.
     """
+    if mode not in _WRITE_MODES:
+        msg = f"mode inválido: {mode!r} (merge|replace)"
+        raise ValueError(msg)
     if df.height == 0:
         logger.warning("write_parquet_empty_dataframe")
         return []
@@ -101,11 +132,14 @@ def write_parquet_partitioned(
             (str(market_type), str(symbol), str(timeframe), int(str(year)), int(str(month))),
         )
         target_dir.mkdir(parents=True, exist_ok=True)
-        output_file = target_dir / "data.parquet"
-        merged = merge_partition(output_file, group, schema)
-        atomic_write(merged, output_file)
+        output_file = target_dir / file_name
+        if mode == "merge":
+            content = merge_partition(output_file, group, schema)
+        else:
+            content = replace_partition(group, schema)
+        atomic_write(content, output_file)
         written.append(str(output_file))
-        logger.debug("parquet_partition_written", path=str(output_file), rows=merged.height)
+        logger.debug("parquet_partition_written", path=str(output_file), rows=content.height)
 
     logger.info(
         "parquet_written", files=len(written), rows=df.height, base=str(parquet_dir / exchange)

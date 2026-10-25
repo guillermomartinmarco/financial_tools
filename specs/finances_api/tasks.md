@@ -16,3 +16,7 @@
 - [x] **T5**: Montar router `/market-data/yfinance` (ver `specs/ft_market_data_yfinance` T5.2)
   - **Hecho cuando**: `test_openapi_includes_all_tool_routers` incluye el prefijo `/market-data/yfinance/`.
   - **Hecho**: `create_app()` incluye `finances_downloader.ft_market_data_yfinance.api.router`; `test_openapi_includes_all_tool_routers` incluye `/market-data/yfinance/` y `test_openapi_includes_the_four_yfinance_routes` fija las 4 rutas; ruff/format/mypy limpios, `9 passed`.
+
+- [x] **T6**: Montar router `/indicators` y depender de `finances-analytics` (ver `specs/ft_indicators` T7.1)
+  - **Hecho cuando**: `test_openapi_includes_all_tool_routers` incluye el prefijo `/indicators/` y un test fija las 7 rutas de `specs/ft_indicators/plan.md` §2.2.
+  - **Hecho**: `pyproject.toml` añade `finances-analytics`; `create_app()` incluye `finances_analytics.ft_indicators.api.router`; `test_openapi_includes_all_tool_routers` incluye `/indicators/`, `test_openapi_includes_the_seven_indicators_routes` fija las 7 rutas y `test_mounted_indicators_router_answers` obtiene las 12 entradas de `GET /indicators/catalog`. `GET /health` no cambia (`indicators_dir_accessible` es opcional en el plan de `ft_indicators` §7 y RF-4 no lo exige).

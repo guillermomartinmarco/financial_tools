@@ -148,3 +148,90 @@ def test_failed_atomic_write_keeps_previous_file(
 def test_empty_frame_writes_nothing(tmp_path: Path) -> None:
     assert write_parquet_partitioned(frame(0, 0), tmp_path, exchange="x", schema=SCHEMA) == []
     assert list(tmp_path.iterdir()) == []
+
+
+# --- T1.1 (ft_indicators): ``file_name`` y ``mode`` retrocompatibles -------------------
+
+#: Esquema de una serie de indicador: ``open_time_ms`` + salidas (sin columnas de identidad).
+SERIES_SCHEMA: dict[str, type[pl.DataType]] = {
+    "market_type": pl.Utf8,
+    "symbol": pl.Utf8,
+    "timeframe": pl.Utf8,
+    "open_time_ms": pl.Int64,
+    "rsi_14": pl.Float32,
+}
+
+
+def series_frame(start_ms: int, rows: int, value: float) -> pl.DataFrame:
+    base = frame(start_ms, rows)
+    return base.select(
+        "market_type", "symbol", "timeframe", "open_time_ms", "year", "month"
+    ).with_columns(pl.lit(value).alias("rsi_14"))
+
+
+def test_custom_file_name(tmp_path: Path) -> None:
+    written = write_parquet_partitioned(
+        series_frame(ms(2024, 1, 1), 3, 50.0),
+        tmp_path,
+        exchange="binance",
+        schema=SERIES_SCHEMA,
+        file_name="rsi_14.parquet",
+    )
+    part = partition_dir(tmp_path, "binance", ("equity", "AAPL", "1h", 2024, 1))
+    assert written == [str(part / "rsi_14.parquet")]
+    assert not (part / "data.parquet").exists()
+    df = pl.read_parquet(part / "rsi_14.parquet")
+    assert df.columns == ["open_time_ms", "rsi_14"]
+    assert df.schema["rsi_14"] == pl.Float32
+
+
+def test_replace_mode_discards_previous_month_rows(tmp_path: Path) -> None:
+    kwargs = {"exchange": "binance", "schema": SERIES_SCHEMA, "file_name": "rsi_14.parquet"}
+    write_parquet_partitioned(series_frame(ms(2024, 1, 1), 10, 1.0), tmp_path, **kwargs)
+    write_parquet_partitioned(
+        series_frame(ms(2024, 1, 1, 5), 2, 2.0),
+        tmp_path,
+        mode="replace",
+        **kwargs,
+    )
+    part = partition_dir(tmp_path, "binance", ("equity", "AAPL", "1h", 2024, 1))
+    df = pl.read_parquet(part / "rsi_14.parquet")
+    assert df["open_time_ms"].to_list() == [ms(2024, 1, 1, 5), ms(2024, 1, 1, 6)]
+    assert df["rsi_14"].to_list() == [2.0, 2.0]
+
+
+def test_replace_mode_sorts_rows(tmp_path: Path) -> None:
+    df = series_frame(ms(2024, 1, 1), 4, 1.0).reverse()
+    write_parquet_partitioned(
+        df,
+        tmp_path,
+        exchange="binance",
+        schema=SERIES_SCHEMA,
+        file_name="x.parquet",
+        mode="replace",
+    )
+    part = partition_dir(tmp_path, "binance", ("equity", "AAPL", "1h", 2024, 1))
+    times = pl.read_parquet(part / "x.parquet")["open_time_ms"].to_list()
+    assert times == sorted(times)
+
+
+def test_merge_is_default_mode(tmp_path: Path) -> None:
+    write_parquet_partitioned(
+        frame(ms(2024, 1, 1), 3), tmp_path, exchange="yfinance", schema=SCHEMA
+    )
+    write_parquet_partitioned(
+        frame(ms(2024, 1, 1, 3), 2), tmp_path, exchange="yfinance", schema=SCHEMA
+    )
+    part = partition_dir(tmp_path, "yfinance", ("equity", "AAPL", "1h", 2024, 1))
+    assert pl.read_parquet(part / "data.parquet").height == 5
+
+
+def test_unknown_mode_rejected(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="mode"):
+        write_parquet_partitioned(
+            frame(ms(2024, 1, 1), 1),
+            tmp_path,
+            exchange="x",
+            schema=SCHEMA,
+            mode="append",
+        )

@@ -8,10 +8,10 @@ from pathlib import Path
 
 import polars as pl
 import pytest
+from finances_core.export import stream_export
 from finances_core.schemas.data_viewer import DatasetIdentifier, GapInfo
 
 from finances_downloader.ft_data_viewer.comparator import compare_datasets, subtract_gaps
-from finances_downloader.ft_data_viewer.exporter import stream_export
 
 from .conftest import HOUR_MS, JAN_2024_MS, make_ohlcv
 

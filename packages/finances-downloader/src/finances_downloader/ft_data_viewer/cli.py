@@ -17,6 +17,7 @@ from typing import Any, Literal, NoReturn
 import polars as pl
 import structlog
 import typer
+from finances_core.export import ExportFormat
 from finances_core.logging import configure_logging, level_from_flags
 from finances_core.schemas.data_viewer import DatasetIdentifier, ExportRequest
 from finances_core.timeutils import parse_time_input
@@ -32,7 +33,6 @@ from finances_downloader.ft_data_viewer.errors import (
     InvalidArgumentError,
     NoDataInRangeError,
 )
-from finances_downloader.ft_data_viewer.exporter import ExportFormat
 from finances_downloader.ft_data_viewer.scanner import MARKET_HELP, dataset_label
 
 COMPONENT = "ft_data_viewer"

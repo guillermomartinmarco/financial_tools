@@ -1,0 +1,13 @@
+{
+  "description": "Umbrales RF-14 de ft_indicators (unica fuente; T6.3 los calibra con la primera ejecucion en ubuntu-latest)",
+  "status": "provisional",
+  "rows": 1000000,
+  "timeframe": "1m",
+  "seed": 20241025,
+  "repeats": 5,
+  "scenarios": {
+    "B1": {"max_median_s": 2.0, "description": "Motor en memoria (sin IO), 12 indicadores por defecto"},
+    "B2": {"max_median_s": 8.0, "description": "Tarea extremo a extremo: leer Parquet + calcular + reescribir particiones y manifiesto"}
+  },
+  "calibration": null
+}

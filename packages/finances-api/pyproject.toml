@@ -6,6 +6,7 @@ requires-python = ">=3.11"
 dependencies = [
     "finances-core",
     "finances-downloader",
+    "finances-analytics",
     "fastapi>=0.111",
     "typer>=0.12",
 ]

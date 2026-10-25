@@ -21,6 +21,7 @@ Antes de generar código de producción, el agente de IA está obligado a valida
 Cualquier prompt que solicite código sin una especificación previa debe ser rechazado educadamente, solicitando primero la redacción del tridente de diseño.
 
 ## 4. Decisiones de Arquitectura
+*   **Tipos Numéricos (Constitución v1.1.0, Art. 5)**: `float32` para magnitudes e `int64` (ms UTC) para tiempos; columnas categóricas como `int8`/`int16` con dominio documentado (Art. 5.1 bis); `float64` solo en excepciones aprobadas por RFC y aisladas (Art. 5.3/5.4, ver `docs/rfc/`).
 *   **Motor Híbrido**: Python + C++ (PyBind11) + CUDA (`ft_backtestopt_spectre`). No reescribir código C++ salvo que la asignación de memoria o la ejecución paralela exijan optimización explícita.
 *   **Formato de Datos**: Los datos históricos de mercado se almacenan y distribuyen exclusivamente en Apache Parquet.
 *   **Calidad Estricta**: Ruff para linting, MyPy en modo strict para tipado y Pytest para regresión.

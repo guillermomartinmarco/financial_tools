@@ -1,9 +1,16 @@
-from typing import Any, Literal
+from typing import Any, Literal, Self
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
+
+#: Formato textual de un dataset (CLI de ``ft_indicators``/``ft_ta_lib``).
+DATASET_PATH_FORMAT = "exchange/market_type/symbol/timeframe"
+_DATASET_SEGMENTS = 4
 
 
 class DatasetIdentifier(BaseModel):
+    # Inmutable y *hashable*: clave de ``items_by_dataset`` en ``indicators_store.runner``.
+    model_config = ConfigDict(frozen=True)
+
     exchange: str = "binance"
     # Binance usa spot/futures; Yahoo Finance (ft_market_data_yfinance) el resto.
     market_type: Literal[
@@ -11,6 +18,32 @@ class DatasetIdentifier(BaseModel):
     ]
     symbol: str
     timeframe: str
+
+    @classmethod
+    def parse(cls, text: str) -> Self:
+        """Construye el identificador desde ``"exchange/market_type/symbol/timeframe"``.
+
+        Raises:
+            ValueError: SI faltan segmentos, alguno está vacío o ``market_type`` no es
+                válido (``pydantic.ValidationError`` es un ``ValueError``).
+        """
+        parts = text.strip().split("/")
+        if len(parts) != _DATASET_SEGMENTS or not all(parts):
+            msg = f"Dataset inválido {text!r}: se espera {DATASET_PATH_FORMAT}"
+            raise ValueError(msg)
+        exchange, market_type, symbol, timeframe = parts
+        return cls.model_validate(
+            {
+                "exchange": exchange,
+                "market_type": market_type,
+                "symbol": symbol,
+                "timeframe": timeframe,
+            }
+        )
+
+    def path_segment(self) -> str:
+        """Inverso de :meth:`parse`: ``"exchange/market_type/symbol/timeframe"``."""
+        return f"{self.exchange}/{self.market_type}/{self.symbol}/{self.timeframe}"
 
 
 class DatasetInfo(BaseModel):

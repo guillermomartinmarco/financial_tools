@@ -8,7 +8,11 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+import polars as pl
 import pytest
+from finances_core.config import FinancesSettings
+from finances_core.marketdata.hive_writer import write_parquet_partitioned
+from finances_core.schemas.market_data import OHLCV_SCHEMA
 from typer.testing import CliRunner
 
 from finances_api import __version__, cli
@@ -46,7 +50,13 @@ async def test_openapi_includes_all_tool_routers() -> None:
     transport = httpx.ASGITransport(app=create_app())
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         paths = (await client.get("/openapi.json")).json()["paths"]
-    prefixes = ("/setup/", "/market-data/binance/", "/market-data/yfinance/", "/data/")
+    prefixes = (
+        "/setup/",
+        "/market-data/binance/",
+        "/market-data/yfinance/",
+        "/data/",
+        "/indicators/",
+    )
     for prefix in prefixes:
         assert any(path.startswith(prefix) for path in paths), prefix
 
@@ -64,6 +74,95 @@ async def test_openapi_includes_the_four_yfinance_routes() -> None:
         "/market-data/yfinance/plan/{task_id}": {"get"},
         "/market-data/yfinance/result/{task_id}": {"get"},
     }
+
+
+async def test_openapi_includes_the_seven_indicators_routes() -> None:
+    """``ft_indicators`` (plan §2.2) queda montado con sus 7 rutas bajo ``/indicators``."""
+    transport = httpx.ASGITransport(app=create_app())
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        paths = (await client.get("/openapi.json")).json()["paths"]
+    indicators = {path: set(ops) for path, ops in paths.items() if path.startswith("/indicators/")}
+    dataset = "/indicators/datasets/{exchange}/{market_type}/{symbol}/{timeframe}"
+    assert indicators == {
+        "/indicators/catalog": {"get"},
+        "/indicators/compute": {"post"},
+        "/indicators/status/{task_id}": {"get"},
+        "/indicators/plan/{task_id}": {"get"},
+        "/indicators/result/{task_id}": {"get"},
+        dataset: {"get"},
+        f"{dataset}/export": {"post"},
+    }
+
+
+async def test_mounted_indicators_router_answers() -> None:
+    transport = httpx.ASGITransport(app=create_app())
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/indicators/catalog")
+    assert response.status_code == 200
+    names = [entry["name"] for entry in response.json()]
+    assert len(names) == 12
+    assert {"rsi", "macd", "vwap"} <= set(names)
+
+
+def _write_binance_dataset(rows: int = 60) -> None:
+    """Dataset Hive canónico mínimo ``binance/spot/BTCUSDT/1h`` bajo ``FT_PARQUET_DIR``."""
+    start = 1_704_067_200_000
+    prices = [100.0 + i for i in range(rows)]
+    frame = pl.DataFrame(
+        {
+            "symbol": "BTCUSDT",
+            "timeframe": "1h",
+            "market_type": "spot",
+            "open_time_ms": [start + i * 3_600_000 for i in range(rows)],
+            "open": prices,
+            "high": [p + 1 for p in prices],
+            "low": [p - 1 for p in prices],
+            "close": prices,
+            "volume": [10.0] * rows,
+            "quote_volume": [1000.0] * rows,
+            "trades_count": [5] * rows,
+            "taker_buy_base_volume": [5.0] * rows,
+            "taker_buy_quote_volume": [500.0] * rows,
+        }
+    )
+    dt = pl.from_epoch(pl.col("open_time_ms"), time_unit="ms")
+    frame = frame.select([pl.col(c).cast(t) for c, t in OHLCV_SCHEMA.items()]).with_columns(
+        dt.dt.year().alias("year"), dt.dt.month().alias("month")
+    )
+    write_parquet_partitioned(
+        frame, FinancesSettings().PARQUET_DIR, exchange="binance", schema=dict(OHLCV_SCHEMA)
+    )
+
+
+async def test_indicators_dispatch_urls_point_to_indicators_routes() -> None:
+    """En la app compuesta, ``poll_url``/``plan_url``/``result_url`` de ``POST /indicators/compute``
+    apuntan a ``/indicators`` (los nombres de ruta no colisionan con los de otros routers)."""
+    _write_binance_dataset()
+    transport = httpx.ASGITransport(app=create_app())
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            "/indicators/compute",
+            json={
+                "datasets": [
+                    {
+                        "exchange": "binance",
+                        "market_type": "spot",
+                        "symbol": "BTCUSDT",
+                        "timeframe": "1h",
+                    }
+                ],
+                "indicators": [{"name": "rsi"}],
+            },
+        )
+        assert response.status_code == 202, response.text
+        body = response.json()
+        task_id = body["task_id"]
+        assert body["poll_url"] == f"http://test/indicators/status/{task_id}"
+        assert body["plan_url"] == f"http://test/indicators/plan/{task_id}"
+        assert body["result_url"] == f"http://test/indicators/result/{task_id}"
+        polled = await client.get(body["poll_url"])
+    assert polled.status_code == 200
+    assert polled.json()["status"] == "COMPLETED"
 
 
 async def test_mounted_setup_router_answers() -> None:
@@ -124,3 +223,27 @@ def test_ft_serve_runs_uvicorn_with_settings_defaults(monkeypatch: pytest.Monkey
     assert captured["host"] == "127.0.0.1"
     assert captured["port"] == 8123
     assert json.dumps(captured["log_config"]) == "null"
+
+
+def test_composed_app_route_names_are_unique() -> None:
+    """``url_for`` resuelve por nombre en toda la app: un nombre repetido apunta a otra tool."""
+    names: list[str] = []
+    pending: list[Any] = list(create_app().routes)
+    while pending:  # FastAPI >= 0.16x envuelve cada router incluido en un _IncludedRouter
+        route = pending.pop()
+        included = getattr(route, "original_router", None)
+        if included is not None:
+            pending.extend(included.routes)
+        elif getattr(route, "name", None):
+            names.append(route.name)
+    duplicated = sorted({n for n in names if n and names.count(n) > 1})
+    assert duplicated == []
+
+
+def test_yfinance_poll_urls_resolve_to_yfinance_routes() -> None:
+    app = create_app()
+    task_id = "0190b2a5-0000-7000-8000-000000000000"
+    for name in ("yfinance_status", "yfinance_plan", "yfinance_result"):
+        assert app.url_path_for(name, task_id=task_id).startswith("/market-data/yfinance/")
+    for name in ("binance_status", "binance_plan", "binance_result"):
+        assert app.url_path_for(name, task_id=task_id).startswith("/market-data/binance/")

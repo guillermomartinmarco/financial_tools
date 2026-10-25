@@ -52,6 +52,7 @@ _DIRS_ATTRS: tuple[str, ...] = (
     "RAW_DIR",
     "PROCESSED_DIR",
     "PARQUET_DIR",
+    "INDICATORS_DIR",
     "LOGS_DIR",
     "STRATEGIES_DIR",
     "RESULTS_DIR",

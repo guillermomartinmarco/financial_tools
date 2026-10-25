@@ -43,6 +43,9 @@
 - [x] **T2.3**: Copiar `env_list.conf.j2` → `src/ft_setup/env_list.conf` en build (script o `pyproject.toml` `[tool.setuptools.package-data]`)
   - **Hecho cuando**: `importlib.resources.read_text("ft_setup", "env_list.conf")` retorna TOML parseable.
   - **Hecho**: `[tool.setuptools.package-data]` + `env_list.conf` materializado; `load_env_specs()` lo lee vía `importlib.resources.files`.
+- [x] **T2.4**: Registrar `FT_INDICATORS_DIR` y `FT_INDICATORS_MAX_CONCURRENT` (`source_tool="ft_indicators"`) y crear `INDICATORS_DIR` en `init` (ver `specs/ft_indicators` T7.2, RF-15)
+  - **Hecho cuando**: `test_doctor_lists_tool_variables_with_source_tool` incluye el caso `ft_indicators`; `test_init_env_template_includes_all_tool_variables` incluye ambas variables; `ft_setup init` crea `data/indicators`.
+  - **Hecho**: ambas entradas en `templates/env_list.conf.j2` y `env_list.conf` (idénticos byte a byte, `test_bundled_env_list_matches_template`); `INDICATORS_DIR` añadido a `_DIRS_ATTRS` de `service.py` (`init` crea 9 directorios); tests `test_doctor_lists_tool_variables_with_source_tool[ft_indicators-…]`, `test_init_env_template_includes_all_tool_variables` (ampliado) y `test_init_creates_indicators_dir` verdes. La lista de directorios de RF-1 de `spec.md` (`data/{raw,processed,parquet}`, …) no enumera aún `data/indicators`: actualizarla queda fuera del alcance de esta rama.
 
 ## Fase 3: Servicio Compartido (Lógica de Negocio)
 

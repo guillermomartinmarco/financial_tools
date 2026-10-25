@@ -31,7 +31,12 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e "packages/finances-core[dev]"
           python -m pip install -e "packages/finances-downloader[dev]"
+          # [dev] incluye ta-lib (rueda binaria; contraste de ft_indicators, plan §3.11)
+          python -m pip install -e "packages/finances-analytics[dev]"
           python -m pip install -e "packages/finances-api[service,dev]"
+
+      - name: TA-Lib binary wheel available
+        run: python -c "import talib; print('talib', talib.__version__)"
 
       - name: Ruff (lint + format)
         run: |
@@ -40,8 +45,27 @@ jobs:
 
       - name: Mypy --strict and pytest per package
         run: |
-          for pkg in finances-core finances-downloader finances-api; do
+          for pkg in finances-core finances-downloader finances-analytics finances-api; do
             echo "::group::$pkg"
             (cd "packages/$pkg" && python -m mypy --strict src && python -m pytest -q)
             echo "::endgroup::"
           done
+
+      # RF-14 / T6.2 de ft_indicators: benchmarks B1/B2 solo en ubuntu-latest (umbrales en
+      # tests/ft_indicators/benchmarks/thresholds.json). BENCH_ENFORCE=0 hasta la calibración
+      # de T6.3; después pasa a 1 y el job falla ante una regresión.
+      - name: Benchmarks ft_indicators (ubuntu-latest)
+        if: matrix.os == 'ubuntu-latest'
+        working-directory: packages/finances-analytics
+        env:
+          BENCH_OUTPUT: ${{ github.workspace }}/bench-results/ft_indicators.json
+          BENCH_ENFORCE: "0"
+        run: python -m pytest -m benchmark -s -q
+
+      - name: Upload benchmark results
+        if: matrix.os == 'ubuntu-latest' && success()
+        uses: actions/upload-artifact@v7
+        with:
+          name: bench-ft_indicators-${{ github.sha }}
+          path: bench-results/ft_indicators.json
+          if-no-files-found: error

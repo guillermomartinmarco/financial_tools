@@ -16,6 +16,7 @@ class HealthResponse(BaseModel):
 | * | `/market-data/binance/*` | ver `specs/ft_market_data_binance/plan.md` | `finances_downloader.ft_market_data_binance.api.router` |
 | * | `/data/*` | ver `specs/ft_data_viewer/plan.md` | `finances_downloader.ft_data_viewer.api.router` |
 | * | `/market-data/yfinance/*` | ver `specs/ft_market_data_yfinance/plan.md` | `finances_downloader.ft_market_data_yfinance.api.router` |
+| * | `/indicators/*` | ver `specs/ft_indicators/plan.md` §2.2 | `finances_analytics.ft_indicators.api.router` |
 
 ```python
 def create_app() -> FastAPI:
@@ -24,6 +25,7 @@ def create_app() -> FastAPI:
     app.include_router(binance_router)
     app.include_router(viewer_router)
     app.include_router(yfinance_router)
+    app.include_router(indicators_router)
     return app
 ```
 
@@ -36,7 +38,7 @@ Entry point: `[project.scripts] ft_serve = "finances_api.cli:app"`.
 ## 4. Estructura
 ```
 packages/finances-api/
-├── pyproject.toml          # deps: finances-core, finances-downloader, fastapi; extra [service]=uvicorn
+├── pyproject.toml          # deps: finances-core, finances-downloader, finances-analytics, fastapi; extra [service]=uvicorn
 ├── src/finances_api/
 │   ├── __init__.py         # __version__
 │   ├── app.py              # create_app, lifespan, /health

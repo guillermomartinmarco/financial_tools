@@ -1,6 +1,7 @@
 # Constitución Técnica de la Suite `financial_tools`
 
-**Versión:** 1.0.0  
+**Versión:** 1.1.0  
+**Historial:** 1.1.0 (2026-10-25) — Art. 5.1 bis y ajuste del Art. 5.4 (RFC-0003).  
 **Estado:** Vigente  
 **Alcance:** Obligatorio para todos los contribuyentes, agentes de IA y pipelines de CI/CD.  
 **Ubicación canónica:** `docs/constitution.md`
@@ -36,6 +37,9 @@ Todos los datos de mercado normalizados **DEBEN** usar exclusivamente:
 - **`float32`** (IEEE 754 single-precision) para: *precios* (open, high, low, close, vwap, bid, ask, mid), *volúmenes* (base, quote, notional), *indicadores* (RSI, MACD, ATR, etc.), *métricas derivadas* (returns, volatilidad, correlaciones).
 - **`int64`** (milisegundos desde epoch UTC) para: *timestamps* de apertura/cierre de vela, *event times* de ticks, *exchange timestamps*, *receive timestamps*.
 
+**5.1 bis Columnas categóricas y discretas**  
+Las columnas cuyo dominio es un conjunto finito de códigos enteros (p. ej. patrones de velas, señales, regímenes, estados) **PUEDEN** persistirse como `int8` o `int16`, eligiendo el tipo más pequeño que represente el dominio completo. El dominio **DEBE** documentarse en el `plan.md` de la herramienta y validarse al escribir: un valor fuera del rango del tipo es un error, nunca se trunca. Las magnitudes continuas siguen el Art. 5.1 (`float32`).
+
 **5.2 Normalización Universal Obligatoria**  
 **TODOS** los datos de entrada (OHLCV, *ticks*, *order books* L2/L3, *funding rates*, *open interest*, *option chains*, *on-chain metrics*, etc.) provenientes de **CUALQUIER** exchange (CEX/DEX), *data vendor*, *broker*, *blockchain indexer* o *feed* propietario **DEBEN** ser transformados **inmediatamente tras la ingesta** al esquema canónico unificado definido en `packages/finances-core/schemas/market_data.py` (o equivalente Pydantic/Polars).  
 El esquema canónico define: nombres de columnas, unidades, zona horaria (UTC), convención de *timestamp* (inicio de vela, milisegundos), y tipos (`float32`/`int64`). No existe "formato nativo del proveedor" en capas de procesamiento; solo existe el **formato normalizado**.
@@ -44,7 +48,7 @@ El esquema canónico define: nombres de columnas, unidades, zona horaria (UTC), 
 La conversión a `float32`/`int64` **DEBE** ser validada por Pydantic (Art. 13) con reglas de *range-check* (ej. precio > 0, volumen ≥ 0, timestamp monótono creciente). Pérdida de precisión por *downcast* a `float32` es **aceptada y documentada** como *trade-off* deliberado para rendimiento GPU/CPU y homogeneidad de tensores; cualquier caso que requiera mayor precisión (ej. *high-frequency arbitrage*, *smart contract settlement*) debe ser explícitamente justificado en RFC y aislado en módulo dedicado.
 
 **5.4 Prohibiciones**  
-- Queda **PROHIBIDO** el uso de `float64`/`double`, `Decimal`, `Decimal128` o *wrappers* monetarios (`Money`, `Currency`) en *data paths* de procesamiento masivo, *feature engineering*, inferencia ML, o kernels CUDA.
+- Queda **PROHIBIDO** el uso de `float64`/`double`, `Decimal`, `Decimal128` o *wrappers* monetarios (`Money`, `Currency`) en *data paths* de procesamiento masivo, *feature engineering*, inferencia ML, o kernels CUDA, **salvo las excepciones aprobadas por RFC según el Art. 5.3, que deben quedar aisladas en el módulo declarado en el RFC, con un único punto de conversión a los tipos canónicos antes de persistir o transmitir, y verificadas por un test automático.**
 - Queda **PROHIBIDO** almacenar o transmitir *timestamps* como strings ISO-8601, nanosegundos, o *timezone-aware* objects en capas de procesamiento. Solo `int64` ms UTC.
 
 ## Artículo 6 — Manejo de Errores bajo Notación EARS

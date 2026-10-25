@@ -14,6 +14,7 @@ Para garantizar el aislamiento y permitir ciclos SemVer independientes, las herr
 | :--- | :--- | :--- |
 | **`finances-core`** | `finances_core` (puente compartido: config, logging, tasks, schemas), `ft_setup`, `ft_strategy_manager` *(planificado)* | Pydantic Settings, Structlog, SQLite |
 | **`finances-downloader`** | `ft_market_data_binance`, `ft_market_data_yfinance`, `ft_data_viewer`, `ft_market_data_manager` *(planificado)* | Asyncio, Polars, Parquet |
+| **`finances-analytics`** | `ft_indicators` (indicadores técnicos sobre OHLCV Hive), `ft_ta_lib` *(planificado)* | Polars (cálculo `Float64`, persistencia `Float32`), Parquet Hive |
 | **`finances-api`** | `ft_serve` (raíz de composición: monta los routers de todas las herramientas) | FastAPI, Uvicorn |
 | **`finances-backtester`** *(planificado)* | `ft_vectorbt`, `ft_backtesting_py`, `ft_backtrader`, `ft_bt`, `ft_ffn`, `ft_backtestopt_spectre` (C++/CUDA), `ft_bot_paper_binance`, `ft_live_bot` | VectorBT, Backtrader, PyBind11, CMake |
 
@@ -32,6 +33,7 @@ Para garantizar el aislamiento y permitir ciclos SemVer independientes, las herr
 *   **`ft_data_viewer`**: Explorador y diagnóstico de datasets OHLCV (listado, estadísticas, gaps, anomalías, exportación, comparación).
 
 ### 2.3 Motores de Backtesting y Análisis
+*   **`ft_indicators`** (paquete `finances-analytics`): Catálogo cerrado de 12 indicadores técnicos (`sma`, `ema`, `wma`, `rsi`, `macd`, `bb`, `atr`, `stoch`, `roc`, `obv`, `adx` y `vwap` móvil) implementados con expresiones nativas de Polars (sin TA-Lib ni pandas en ejecución; TA-Lib solo como contraste en los tests de CI). Recalcula la serie completa de cada dataset descargado (Binance o Yahoo) sin anticipación y alineado 1:1 con la fuente (mismo `open_time_ms`, calentamiento conservado como nulo), y persiste cada indicador de forma idempotente en `FT_INDICATORS_DIR/{exchange}/market_type=…/symbol=…/timeframe=…/year=…/month=…/{indicator_id}.parquet` (`Float32`). Publica `stable_from_ms` (desde qué vela el indicador deja de depender de su semilla) y tolerancias `f32` como oráculo de futuros kernels GPU. Exporta a Parquet, CSV o JSON Lines, opcionalmente junto con el OHLCV fuente.
 *   **`ft_vectorbt` / `ft_backtesting_py` / `ft_backtrader` / `ft_bt`**: Envolturas modulares que exponen e interconectan los frameworks tradicionales al formato de datos canónico de la suite.
 *   **`ft_ffn`**: Generador estadístico de métricas avanzadas de rendimiento (Sharpe, Sortino, Drawdown masivo).
 *   **`ft_backtestopt_spectre`**: El motor híbrido de alto rendimiento. Código nativo C++/CUDA compilado vía CMake y enlazado mediante PyBind11 para optimizaciones masivas en GPU.
@@ -50,7 +52,8 @@ Para garantizar el aislamiento y permitir ciclos SemVer independientes, las herr
 ```bash
 python -m pip install -e packages/finances-core
 python -m pip install -e packages/finances-downloader
-python -m pip install -e packages/finances-api uvicorn   # servicio HTTP (ft_serve)
+python -m pip install -e packages/finances-analytics    # ft_indicators (con "[dev]" añade ta-lib para los tests)
+python -m pip install -e "packages/finances-api[service]"   # servicio HTTP (ft_serve, incluye uvicorn)
 ```
 
 ### Ejecución en Modo Efímero (CLI)
@@ -87,16 +90,36 @@ ft_data_viewer export -e binance -m spot -s BTCUSDT -t 1h --start 2024-01-01 --e
 ft_data_viewer summary -e yfinance -m equity -s AAPL -t 1d  # Dataset de Yahoo (market_type detectado)
 ft_data_viewer compare --exchange-a binance --market-a spot --symbol-a BTCUSDT --timeframe-a 1h \
   --exchange-b binance --market-b futures --symbol-b BTCUSDT --timeframe-b 1h  # Spot vs Futures
+
+# Indicadores técnicos sobre datasets ya descargados (dataset = exchange/market_type/symbol/timeframe)
+ft_indicators catalog                                           # catálogo JSON (parámetros, calentamiento, stable_from, tolerancias f32)
+ft_indicators compute -d binance/spot/BTCUSDT/1h -i rsi -i macd  # imprime el Task ID y las series calculadas
+ft_indicators compute -d yfinance/equity/AAPL/1d -i sma:period=50,source=adj_close -i bb:std=2.5 --dry-run  # solo el plan
+ft_indicators status <task_id>                                  # progreso (mismo JSON que GET /indicators/status)
+ft_indicators result <task_id>                                  # resultado final (mismo JSON que GET /indicators/result)
+ft_indicators show binance/spot/BTCUSDT/1h                      # manifiesto: indicadores calculados y stable_from_ms
+ft_indicators export binance/spot/BTCUSDT/1h --include-ohlcv --format csv -o .temp/indicators  # tabla ancha a CSV
+ft_indicators export binance/spot/BTCUSDT/1h -i rsi --stability drop --format jsonl -o -       # solo velas estables, a stdout
 ```
 
 ### Ejecución en Modo Servicio (FastAPI)
 ```bash
-# Servicio HTTP único: /setup, /market-data/binance, /market-data/yfinance, /data y /health (docs en /docs)
+# Servicio HTTP único: /setup, /market-data/binance, /market-data/yfinance, /data, /indicators y /health (docs en /docs)
 ft_serve --port 8000
 
 # Yahoo Finance vía API: POST devuelve 202 con task_id y las URLs de polling
 curl -X POST "http://localhost:8000/market-data/yfinance/download?symbols=AAPL&symbols=%5EGSPC&timeframes=1d&start=2024-01-01"
 curl http://localhost:8000/market-data/yfinance/status/<task_id>  # también /plan/<task_id> y /result/<task_id> (409 si no terminó)
+
+# Indicadores vía API (mismo contrato que la CLI): GET /indicators/catalog, POST /indicators/compute (202),
+# GET /indicators/{status,plan,result}/<task_id>, GET /indicators/datasets/{exchange}/{market_type}/{symbol}/{timeframe}
+# y POST /indicators/datasets/{...}/export (descarga en streaming)
+curl http://localhost:8000/indicators/catalog
+curl -X POST http://localhost:8000/indicators/compute -H "Content-Type: application/json" \
+  -d '{"datasets":[{"exchange":"binance","market_type":"spot","symbol":"BTCUSDT","timeframe":"1h"}],"indicators":[{"name":"rsi"},{"name":"macd"}]}'
+curl http://localhost:8000/indicators/status/<task_id>           # poll_url de la respuesta 202
+curl -X POST http://localhost:8000/indicators/datasets/binance/spot/BTCUSDT/1h/export -H "Content-Type: application/json" \
+  -d '{"format":"csv","include_ohlcv":true}' -o BTCUSDT_1h_indicators.csv
 ```
 
 ---
@@ -109,8 +132,15 @@ La suite aplica una política estricta de validación previa al commit. No se pe
 # Formateo y análisis estático rápido
 python -m ruff check packages && python -m ruff format packages
 
-# Tipado estricto y tests: ejecutar DENTRO de cada paquete (cada uno tiene su pyproject.toml)
-for pkg in finances-core finances-downloader finances-api; do
-  (cd packages/$pkg && python -m mypy --strict src && python -m pytest -q)
+# Lint, tipado estricto y tests: ejecutar DENTRO de cada paquete (cada uno tiene su pyproject.toml).
+# finances-analytics requiere el extra [dev] (ta-lib: contraste de ft_indicators).
+for pkg in finances-core finances-downloader finances-analytics finances-api; do
+  (cd packages/$pkg && python -m ruff check . && python -m ruff format --check . \
+    && python -m mypy --strict src && python -m pytest -q)
 done
+
+# Benchmarks de ft_indicators (RF-14; excluidos por defecto, en CI solo en ubuntu-latest).
+# BENCH_OUTPUT guarda el JSON de medianas; BENCH_ENFORCE=1 aplica los umbrales de
+# tests/ft_indicators/benchmarks/thresholds.json.
+(cd packages/finances-analytics && BENCH_OUTPUT=.temp/bench.json python -m pytest -m benchmark -s -q)
 ```

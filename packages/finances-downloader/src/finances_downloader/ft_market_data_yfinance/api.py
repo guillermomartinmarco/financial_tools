@@ -34,7 +34,12 @@ router = APIRouter(prefix="/market-data/yfinance", tags=["market-data-yfinance"]
 TASK_ID_PATTERN = r"^[0-9a-f-]{36}$"
 
 
-@router.post("/download", status_code=status.HTTP_202_ACCEPTED, response_model=DispatchResponse)
+@router.post(
+    "/download",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=DispatchResponse,
+    name="yfinance_download",
+)
 async def download_endpoint(
     request: Request,
     background_tasks: BackgroundTasks,
@@ -64,13 +69,13 @@ async def download_endpoint(
     background_tasks.add_task(run_download_sync, download_request, task_id)
     return DispatchResponse(
         task_id=task_id,
-        poll_url=str(request.url_for("status_endpoint", task_id=task_id)),
-        plan_url=str(request.url_for("plan_endpoint", task_id=task_id)),
-        result_url=str(request.url_for("result_endpoint", task_id=task_id)),
+        poll_url=str(request.url_for("yfinance_status", task_id=task_id)),
+        plan_url=str(request.url_for("yfinance_plan", task_id=task_id)),
+        result_url=str(request.url_for("yfinance_result", task_id=task_id)),
     )
 
 
-@router.get("/status/{task_id}", response_model=YFDownloadProgress)
+@router.get("/status/{task_id}", response_model=YFDownloadProgress, name="yfinance_status")
 async def status_endpoint(
     task_id: str = Path(..., pattern=TASK_ID_PATTERN),
 ) -> YFDownloadProgress:
@@ -81,7 +86,7 @@ async def status_endpoint(
     return progress
 
 
-@router.get("/plan/{task_id}", response_model=YFDownloadPlan)
+@router.get("/plan/{task_id}", response_model=YFDownloadPlan, name="yfinance_plan")
 async def plan_endpoint(task_id: str = Path(..., pattern=TASK_ID_PATTERN)) -> YFDownloadPlan:
     """Plan de descarga persistido (ventanas y ``gaps_unfillable``)."""
     plan = await run_in_threadpool(load_plan, task_id)
@@ -90,7 +95,7 @@ async def plan_endpoint(task_id: str = Path(..., pattern=TASK_ID_PATTERN)) -> YF
     return plan
 
 
-@router.get("/result/{task_id}", response_model=YFDownloadResult)
+@router.get("/result/{task_id}", response_model=YFDownloadResult, name="yfinance_result")
 async def result_endpoint(task_id: str = Path(..., pattern=TASK_ID_PATTERN)) -> YFDownloadResult:
     """Resultado final: rutas Parquet y de eventos, stats, errores y ``gaps_unfillable``."""
     try:
