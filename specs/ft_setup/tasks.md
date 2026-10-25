@@ -116,9 +116,9 @@
   - **Hecho**: sección 3 reescrita con comandos verificados y nota sobre el workspace `uv` pendiente.
   - **Auditoría 2026-10-25 — reabierta**: `README.md:79` documenta `ft_setup serve`, que no funciona (ver T5.1).
   - **Resuelto 2026-10-25 (refactor/spec-consistency)**: README documenta `ft_serve`, `ft_setup status` y la instalación de `finances-api`.
-- [ ] **T7.2**: Verificar matriz Art. 20 Constitución (100% dimensiones) via checklist interno
+- [x] **T7.2**: Verificar matriz Art. 20 Constitución (100% dimensiones) via checklist interno
   - **Hecho cuando**: Checklist firmado en PR description; CI pipeline verde.
-  - **Pendiente**: firma del Tech Lead sobre la checklist de `.github/pull_request_template.md` en el PR de `refactor/spec-consistency`, con el workflow `.github/workflows/ci.yml` en verde. La dimensión *Desempeño* requiere benchmarks que aún no existen (o marcarla N/A justificado).
+  - **Hecho**: PR #1 (`refactor/spec-consistency` → `main`) con la checklist del Art. 20 firmada por el Tech Lead (Guillermo Martín Marco, 2026-10-25); CI #3 y #4 en verde en `windows-latest` y `ubuntu-latest`. *Desempeño* = N/A justificado (sin benchmarks aún); métricas VRAM = N/A (sin GPU).
 - [x] **T7.3**: Resolver `TASKS_DB_PATH` respecto de la raíz del proyecto (no del cwd), según Art. 2
   - **Hecho cuando**: Test ejecuta `SQLTaskManager()` desde un subdirectorio y la base usada es `<raíz>/share/tasks.db`; los tests de API (`test_setup_api.py`) dejan de escribir en bases reales del repo.
   - **Hecho**: `find_project_root()` + `PROJECT_ROOT` en `FinancesSettings` (rutas y `.env` resueltos contra la raíz); `SQLTaskManager()` lee settings frescos; `tests/conftest.py` fija `FT_PROJECT_ROOT` a un tmp; `share/tasks.db` dejó de versionarse.

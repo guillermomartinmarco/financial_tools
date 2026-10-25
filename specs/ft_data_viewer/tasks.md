@@ -134,9 +134,9 @@
 - [x] **T8.2**: Actualizar `README.md` "Guía de Inicio Rápido" con ejemplos de uso
   - **Hecho cuando**: Comandos `list`, `summary`, `head`, `gaps`, `anomalies`, `export`, `compare` documentados.
   - **Hecho**: README §3 documenta `list`, `summary`, `head`, `gaps`, `anomalies`, `export` y `compare` (flags verificados contra `--help`).
-- [ ] **T8.3**: Verificar matriz Art. 20 Constitución (100% dimensiones) via checklist
+- [x] **T8.3**: Verificar matriz Art. 20 Constitución (100% dimensiones) via checklist
   - **Hecho cuando**: Checklist firmado en PR description; CI pipeline verde.
-  - **Pendiente**: firma del Tech Lead sobre la checklist de `.github/pull_request_template.md` en el PR de `refactor/spec-consistency`, con el workflow `.github/workflows/ci.yml` en verde. La dimensión *Desempeño* requiere benchmarks que aún no existen (o marcarla N/A justificado).
+  - **Hecho**: PR #1 (`refactor/spec-consistency` → `main`) con la checklist del Art. 20 firmada por el Tech Lead (Guillermo Martín Marco, 2026-10-25); CI #3 y #4 en verde en `windows-latest` y `ubuntu-latest`. *Desempeño* = N/A justificado (sin benchmarks aún); métricas VRAM = N/A (sin GPU).
 - [x] **T8.4**: Registrar router en `finances-api` (`ft_serve`)
   - **Hecho cuando**: `finances_api.create_app()` importa e incluye `data_viewer_router`.
   - **Hecho**: `finances_api.create_app()` monta el router; `test_openapi_includes_all_tool_routers` y los tests de `ft_serve` (packages/finances-api/tests/test_app.py) verifican arranque y rutas en OpenAPI.
