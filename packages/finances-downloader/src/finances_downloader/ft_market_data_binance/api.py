@@ -33,7 +33,12 @@ router = APIRouter(prefix="/market-data/binance", tags=["market-data-binance"])
 TASK_ID_PATTERN = r"^[0-9a-f-]{36}$"
 
 
-@router.post("/download", status_code=status.HTTP_202_ACCEPTED, response_model=DispatchResponse)
+@router.post(
+    "/download",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=DispatchResponse,
+    name="binance_download",
+)
 async def download_endpoint(
     request: Request,
     background_tasks: BackgroundTasks,
@@ -67,13 +72,13 @@ async def download_endpoint(
     background_tasks.add_task(run_download_sync, download_request, task_id)
     return DispatchResponse(
         task_id=task_id,
-        poll_url=str(request.url_for("status_endpoint", task_id=task_id)),
-        plan_url=str(request.url_for("plan_endpoint", task_id=task_id)),
-        result_url=str(request.url_for("result_endpoint", task_id=task_id)),
+        poll_url=str(request.url_for("binance_status", task_id=task_id)),
+        plan_url=str(request.url_for("binance_plan", task_id=task_id)),
+        result_url=str(request.url_for("binance_result", task_id=task_id)),
     )
 
 
-@router.get("/status/{task_id}", response_model=DownloadProgress)
+@router.get("/status/{task_id}", response_model=DownloadProgress, name="binance_status")
 async def status_endpoint(task_id: str = Path(..., pattern=TASK_ID_PATTERN)) -> DownloadProgress:
     """Progreso granular por fase (RF-6)."""
     progress = await run_in_threadpool(get_progress, task_id)
@@ -82,7 +87,7 @@ async def status_endpoint(task_id: str = Path(..., pattern=TASK_ID_PATTERN)) -> 
     return progress
 
 
-@router.get("/plan/{task_id}", response_model=DownloadPlan)
+@router.get("/plan/{task_id}", response_model=DownloadPlan, name="binance_plan")
 async def plan_endpoint(task_id: str = Path(..., pattern=TASK_ID_PATTERN)) -> DownloadPlan:
     """Plan de descarga generado (debug/inspección)."""
     plan = await run_in_threadpool(load_plan, task_id)
@@ -91,7 +96,7 @@ async def plan_endpoint(task_id: str = Path(..., pattern=TASK_ID_PATTERN)) -> Do
     return plan
 
 
-@router.get("/result/{task_id}", response_model=DownloadResult)
+@router.get("/result/{task_id}", response_model=DownloadResult, name="binance_result")
 async def result_endpoint(task_id: str = Path(..., pattern=TASK_ID_PATTERN)) -> DownloadResult:
     """Resultado final: rutas Parquet, stats (incl. ``errors``) y ``gaps_unfillable``."""
     try:

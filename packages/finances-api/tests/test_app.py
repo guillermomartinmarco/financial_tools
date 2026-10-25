@@ -223,3 +223,27 @@ def test_ft_serve_runs_uvicorn_with_settings_defaults(monkeypatch: pytest.Monkey
     assert captured["host"] == "127.0.0.1"
     assert captured["port"] == 8123
     assert json.dumps(captured["log_config"]) == "null"
+
+
+def test_composed_app_route_names_are_unique() -> None:
+    """``url_for`` resuelve por nombre en toda la app: un nombre repetido apunta a otra tool."""
+    names: list[str] = []
+    pending: list[Any] = list(create_app().routes)
+    while pending:  # FastAPI >= 0.16x envuelve cada router incluido en un _IncludedRouter
+        route = pending.pop()
+        included = getattr(route, "original_router", None)
+        if included is not None:
+            pending.extend(included.routes)
+        elif getattr(route, "name", None):
+            names.append(route.name)
+    duplicated = sorted({n for n in names if n and names.count(n) > 1})
+    assert duplicated == []
+
+
+def test_yfinance_poll_urls_resolve_to_yfinance_routes() -> None:
+    app = create_app()
+    task_id = "0190b2a5-0000-7000-8000-000000000000"
+    for name in ("yfinance_status", "yfinance_plan", "yfinance_result"):
+        assert app.url_path_for(name, task_id=task_id).startswith("/market-data/yfinance/")
+    for name in ("binance_status", "binance_plan", "binance_result"):
+        assert app.url_path_for(name, task_id=task_id).startswith("/market-data/binance/")
