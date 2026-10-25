@@ -121,6 +121,15 @@ def split_by_limits(gap, timeframe, now_ms) -> tuple[list[window], list[unfillab
 ```
 Margen de seguridad: el límite de historial se aplica con 1 hora de holgura para no rozar el borde de Yahoo.
 
+Duración de vela de calendario (velas a medianoche local de la bolsa): "+1 timeframe" de RF-1/RF-6 se
+aplica con la duración **mínima** real (`1d` = 23 h por DST, `1w` = 7 d − 1 h, `1M` = 28 d) para que la
+siguiente vela nunca se dé por cubierta sin tenerla; un gap interno más corto que esa duración (p. ej.
+`última + 23 h` → medianoche siguiente en un cambio de mes) no puede contener una vela y no se pide.
+La vela aún en formación (`open + duración máxima > now`: 25 h, 7 d + 1 h, 31 d) no se persiste, para
+que la re-ejecución la traiga completa en lugar de congelar un parcial.
+`EVENT_TIMEFRAMES = {1m..1d}`: en `1wk`/`1mo` yfinance asigna las acciones corporativas a la fila de la
+semana/mes, así que esos timeframes no alimentan la tabla de eventos.
+
 ### 3.2 Planificación — `planner.py`
 1. `validate_request` (núcleo compartido) + timeframes RF-2.
 2. Para cada (symbol, tf): `inventory_local_parquet(parquet_dir, exchange="yfinance", symbol, tf, market_type="*")` → `compute_gaps`.
@@ -142,6 +151,11 @@ def default_fetcher() -> FetchFn       # punto de inyección para tests (como de
 ```
 - `Ticker(symbol).history(interval=..., start=..., end=..., auto_adjust=False, actions=True, timeout=...)` con excepciones visibles (`yf.config.debug.hide_exceptions = False`; `raise_errors` está deprecado en 1.7).
 - Clasificación de errores: `YFRateLimitError` y errores de red → reintentables; `YFPricesMissingError` → `SymbolNotFoundError` (no reintentable) si el mensaje indica "No data found", si no → ventana vacía.
+  Medido en el smoke del 2026-10-25: un símbolo inexistente también puede llegar como `YFTzMissingError`
+  ("no timezone found") → `SymbolNotFoundError`. Los errores de red de yfinance (curl_cffi) heredan de `OSError`.
+- `event_time_ms` = medianoche local de la bolsa del día del evento (en ms UTC), igual en intradía y diario.
+- Medido: con `auto_adjust=False` Yahoo devuelve OHLC **ajustado por splits** (no por dividendos);
+  `adj_close` añade el ajuste por dividendos. AAPL 2020-08-07: `open` 113.2 (cotizó ~452 antes del 4:1).
 - Se ejecuta con `asyncio.to_thread` dentro del servicio.
 
 ### 3.4 Normalización — `normalizer.py`
@@ -157,6 +171,9 @@ create_task (PENDING) → PLANNING (planner) → DOWNLOADING (fetch por item, se
 → NORMALIZING → WRITING_PARQUET (write_parquet_partitioned exchange="yfinance" + write_events)
 → COMPLETED | FAILED (solo si algún item agotó reintentos)
 ```
+Los pedidos de un mismo símbolo van en secuencia (los símbolos en paralelo bajo el semáforo): tras un
+`SymbolNotFoundError` o reintentos agotados se omiten las ventanas restantes de ese símbolo.
+`stats["{symbol}/{timeframe}"] = {candles, market_type, requests}`.
 
 ## 4. Estructura de Archivos Objetivo
 ```
