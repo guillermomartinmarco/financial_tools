@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Estado | **Propuesto** — pendiente de aprobación del Tech Lead |
+| Estado | **Aprobado** (2026-10-25, Tech Lead) — su compatibilidad con el Art. 5.4 se formaliza en RFC-0003 |
 | Fecha | 2026-10-25 |
 | Artículo afectado | Art. 5.3 (Conversión y Validación) — **excepción**, no enmienda |
 | Alcance | Solo `packages/finances-analytics/.../ft_indicators/kernels/` y `engine.py` |
@@ -42,4 +42,4 @@ Sin cambios para otras herramientas ni para el formato de datos persistido. No r
 constitución (no la modifica; aplica la vía de excepción que el propio Art. 5.3 prevé).
 
 ## Aprobación
-- [ ] Aprobado por el Tech Lead — Firma: ________________ Fecha: __________
+- [X] Aprobado por el Tech Lead — Firma: Guillermo Martín Marco Fecha: 25/10/2026
