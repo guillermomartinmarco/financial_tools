@@ -72,13 +72,14 @@
 - [x] **T5.3**: `ft_setup`: `FT_YFINANCE_*` en `env_list.conf(.j2)`, sin `FT_YFINANCE_API_KEY`
   - **Hecho cuando**: `test_doctor_lists_tool_variables_with_source_tool[ft_market_data_yfinance]` pasa.
   - **Hecho**: `env_list.conf` y `templates/env_list.conf.j2` idénticos (`cmp`) con los 5 `FT_YFINANCE_*`; `test_doctor_lists_tool_variables_with_source_tool[ft_market_data_yfinance-expected2]` PASSED (aserción `FT_YFINANCE_API_KEY not in names`); finances-core `149 passed`.
-- [ ] **T5.4**: `pyproject.toml` (dep `yfinance`, script, mypy override) y README (sin *planificado*, ejemplos copy-pasteables)
+- [x] **T5.4**: `pyproject.toml` (dep `yfinance`, script, mypy override) y README (sin *planificado*, ejemplos copy-pasteables)
   - **Hecho cuando**: CI instala desde cero y pasa en Windows y Ubuntu.
   - **Avance**: `pyproject.toml` listo (dep `yfinance>=1.7`, script `ft_market_data_yfinance`, override mypy `yfinance.*`, `pandas-stubs` en dev).
   - **Avance**: README sin *(planificado)* para la herramienta, §2.2 descrita (OHLC ajustado por splits, no por dividendos + `adj_close` + eventos), ejemplos de §3 (`download` AAPL 1d, `"^GSPC"` 1d, `"EURUSD=X"` 1h, `--dry-run`, `status|plan|result`) verificados contra `--help` y en el smoke T6.1, rutas `/market-data/yfinance` en la sección de servicio. CI (`.github/workflows/ci.yml`) ya instala `finances-downloader[dev]`; `pip install --dry-run -e "packages/finances-downloader[dev]"` resuelve (`Would install finances-downloader-0.1.0`, yfinance/pandas satisfechos). **Pendiente**: la ejecución real de CI (Windows + Ubuntu) ocurre al hacer push.
 
 ## Fase 6: Cierre
 
+  - **Hecho**: CI #9 instala los paquetes desde cero y pasa ruff, ruff format, mypy --strict y pytest en `windows-latest` y `ubuntu-latest` (PR #2).
 - [x] **T6.1**: Smoke real contra Yahoo (fuera de CI, `FT_PROJECT_ROOT` temporal): AAPL 1d, ^GSPC 1d, EURUSD=X 1h, BTC-USD 5m; re-ejecución sin pérdida; `ft_data_viewer list` los muestra; `ft_serve` expone las rutas
   - **Hecho cuando**: salida del smoke registrada en este archivo.
   - **Hecho** (2026-10-25, yfinance 1.7, `FT_PROJECT_ROOT` temporal tras `ft_setup init`):
@@ -86,5 +87,6 @@
     - Run 2 (mismos comandos, exit 0, COMPLETED): `processed_candles=0`, filas por dataset sin cambios (706/706/927/1670, total 4009 → 4009). AAPL+^GSPC: 38 pedidos vacíos (`gaps_found=38`) = límites de mes en fin de semana/feriado + cola posterior a la última vela (limitación conocida, RF-6); EURUSD=X y BTC-USD: 1 pedido de cola cada uno.
     - `ft_data_viewer list`: 4 datasets `yfinance` (crypto BTC-USD 5m, equity AAPL 1d, fx EURUSD=X 1h, index ^GSPC 1d), sin warnings en stderr con `yfinance_events/` presente; `summary -m index -s ^GSPC` → 706 filas con `adj_close`.
     - App compuesta en proceso (`httpx.ASGITransport` sobre `finances_api.app.create_app()` con lifespan): `/openapi.json` expone `/market-data/yfinance/{download, status/{task_id}, plan/{task_id}, result/{task_id}}`; `GET /data/datasets?exchange=yfinance` → 200, 4 datasets; `/health` ok.
-- [ ] **T6.2**: Verificar matriz Art. 20 vía checklist del PR
+- [x] **T6.2**: Verificar matriz Art. 20 vía checklist del PR
   - **Hecho cuando**: checklist firmado en la descripción del PR; CI verde.
+  - **Hecho**: PR #2 mergeado a `main` (`8ba71e4`) con las 10 dimensiones marcadas y firma del Tech Lead (Guillermo Martín Marco); CI #9 verde en `windows-latest` y `ubuntu-latest`.
