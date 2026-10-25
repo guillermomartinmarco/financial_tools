@@ -92,8 +92,12 @@ class FinancesSettings(BaseSettings):
     # Concurrencia
     DOWNLOAD_MAX_CONCURRENT: int = 5
 
-    # Otros exchanges (futuro)
-    YFINANCE_API_KEY: str | None = None
+    # Yahoo Finance (ft_market_data_yfinance; Yahoo no usa API key)
+    YFINANCE_RATE_CAPACITY: int = 5
+    YFINANCE_RATE_REFILL_RATE: float = 1.0
+    YFINANCE_MAX_RETRIES: int = 3
+    YFINANCE_BASE_BACKOFF_MS: int = 2000
+    YFINANCE_TIMEOUT_S: int = 30
 
     # Data Viewer
     DATA_VIEWER_SAMPLE_MAX_ROWS: int = 10000

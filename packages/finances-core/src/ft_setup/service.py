@@ -414,6 +414,7 @@ def run_init(
                 env_list_target.write_text(
                     _template("env_list.conf.j2").read_text(encoding="utf-8"),
                     encoding="utf-8",
+                    newline="\n",  # LF en cualquier SO (.gitattributes eol=lf)
                 )
         elif not env_list_target.exists():  # pragma: no cover - instalación read-only
             logger.warning("env_list_not_writable", path=str(env_list_target), root=str(root))

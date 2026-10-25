@@ -350,19 +350,29 @@ packages/finances-downloader/
 │           ├── __init__.py
 │           ├── cli.py              # Typer app
 │           ├── api.py              # FastAPI router
-│           ├── service.py          # Orquestador principal
-│           ├── client.py           # Cliente HTTP dual (Public Data + REST), reintentos, checksums
-│           ├── rate_limiter.py     # TokenBucket / DualTokenBucket
+│           ├── service.py          # Orquestador principal (PHASE_ORDER, _TaskRecorder ⊂ core TaskRecorder)
+│           ├── client.py           # Cliente HTTP dual (Public Data + REST), is_retryable, checksums
+│           ├── rate_limiter.py     # DualTokenBucket (sobre core TokenBucket)
 │           ├── planner.py          # Lógica pasos 1-6 (inventory, gaps, plan)
 │           ├── normalizer.py       # normalize_binance_klines
-│           ├── writer.py           # write_parquet_partitioned
-│           ├── inventory.py        # inventory_local_parquet, compute_gaps
+│           ├── writer.py           # write_parquet_partitioned (wrapper exchange="binance")
+│           ├── inventory.py        # inventory_local_parquet (wrapper, símbolo en mayúsculas)
 │           ├── public_data.py      # check_public_data_availability
 │           ├── rest_api.py         # plan_rest_fallback, REST client
 │           └── models.py           # Re-export de los contratos de finances_core.schemas.market_data
 │   (sin logging.py propio: se usa finances_core.logging)
 (la base de tareas NO vive en este paquete: es la única `<raíz del proyecto>/share/tasks.db`, Art. 2)
+
+packages/finances-core/src/finances_core/marketdata/   # núcleo genérico compartido (Art. 4, ADR-Y06 de yfinance)
+├── hive_writer.py      # partition_dir, merge sin pérdida, escritura atómica (exchange, esquema)
+├── inventory.py        # inventory_local_parquet (exchange, market_type="*"), coverage_ranges, compute_gaps
+├── plans.py            # new_task_id, current_ms, validate_time_range, plan_file_path, load/save_plan
+├── tasks_lifecycle.py  # TaskRecorder (fases monótonas), create_download_task, run_download_sync, ...
+├── retry.py            # RetryPolicy, build_wait, build_retrying (predicado + evento de log inyectados)
+├── rate_limit.py       # TokenBucket
+└── months.py           # ms_to_year_month, month_bounds, get_months_in_range
 ```
+Los módulos de la herramienta conservan su API pública (wrappers finos) y delegan en el núcleo.
 
 ---
 

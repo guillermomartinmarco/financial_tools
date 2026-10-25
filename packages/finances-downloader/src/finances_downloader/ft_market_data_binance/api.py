@@ -8,16 +8,14 @@
 
 from __future__ import annotations
 
-from typing import Literal
-
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Path, Query, Request, status
+from finances_core.schemas.dispatch import DispatchResponse
 from finances_core.schemas.market_data import (
     DownloadPlan,
     DownloadProgress,
     DownloadRequest,
     DownloadResult,
 )
-from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
 from finances_downloader.ft_market_data_binance.planner import load_plan, validate_request
@@ -33,16 +31,6 @@ from finances_downloader.ft_market_data_binance.service import (
 router = APIRouter(prefix="/market-data/binance", tags=["market-data-binance"])
 
 TASK_ID_PATTERN = r"^[0-9a-f-]{36}$"
-
-
-class DispatchResponse(BaseModel):
-    """Contrato de despacho asíncrono (Art. 18)."""
-
-    task_id: str
-    status: Literal["ACCEPTED"] = "ACCEPTED"
-    poll_url: str
-    plan_url: str
-    result_url: str
 
 
 @router.post("/download", status_code=status.HTTP_202_ACCEPTED, response_model=DispatchResponse)

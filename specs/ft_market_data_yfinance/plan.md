@@ -166,7 +166,7 @@ packages/finances-core/src/finances_core/
 │   ├── inventory.py               # inventory_local_parquet, compute_gaps (exchange, market_type="*")
 │   ├── plans.py                   # new_task_id, validate_request, plan_file_path, load/save_plan
 │   ├── tasks_lifecycle.py         # TaskRecorder, create/get progress/result, run_download_sync
-│   ├── retry.py                   # build_retrying(max_retries, base_backoff_ms, is_retryable, log_event)
+│   ├── retry.py                   # build_retrying(RetryPolicy(max_retries, base_backoff_ms), is_retryable, log_event)
 │   ├── rate_limit.py              # TokenBucket
 │   └── months.py                  # helpers de meses
 └── schemas/market_data_yfinance.py

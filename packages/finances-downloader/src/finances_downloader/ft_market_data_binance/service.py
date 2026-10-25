@@ -10,10 +10,7 @@
 from __future__ import annotations
 
 import asyncio
-import json
-import os
 from collections import defaultdict
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
@@ -22,6 +19,18 @@ import httpx
 import polars as pl
 import structlog
 from finances_core.config import FinancesSettings
+from finances_core.marketdata import tasks_lifecycle as core_tasks
+from finances_core.marketdata.tasks_lifecycle import (
+    MAX_CONCURRENT_ENV,
+    TERMINAL_STATUSES,
+    PhaseCallback,
+    TaskNotFinishedError,
+    TaskRecorder,
+    ensure_finished,
+    json_field,
+    load_task_row,
+    resolve_max_concurrent,
+)
 from finances_core.schemas.market_data import (
     DownloadPlan,
     DownloadPlanItem,
@@ -29,7 +38,6 @@ from finances_core.schemas.market_data import (
     DownloadRequest,
     DownloadResult,
 )
-from finances_core.tasks import SQLTaskManager
 
 from finances_downloader.ft_market_data_binance.client import (
     BinancePublicDataClient,
@@ -52,7 +60,9 @@ from finances_downloader.ft_market_data_binance.writer import write_parquet_part
 logger = structlog.get_logger(__name__)
 
 __all__ = [
+    "MAX_CONCURRENT_ENV",
     "PHASE_ORDER",
+    "TERMINAL_STATUSES",
     "TaskNotFinishedError",
     "create_download_task",
     "execute_download_plan",
@@ -75,33 +85,11 @@ PHASE_ORDER = (
     "COMPLETED",
     "FAILED",
 )
-TERMINAL_STATUSES = frozenset({"COMPLETED", "FAILED"})
-MAX_CONCURRENT_ENV = "FT_DOWNLOAD_MAX_CONCURRENT"
 #: Reintentos adicionales ante checksum incorrecto antes del fallback REST (RF-9).
 CHECKSUM_RETRIES = 1
 REST_FALLBACK_LIMIT = 1000
 
-PhaseCallback = Callable[[str], None]
 Pair = tuple[str, str, str]  # (symbol, timeframe, market_type)
-
-
-class TaskNotFinishedError(Exception):
-    """La tarea existe pero aún no está en ``COMPLETED``/``FAILED``."""
-
-    def __init__(self, task_id: str, status: str) -> None:
-        super().__init__(f"Task {task_id} not finished: {status}")
-        self.status = status
-
-
-def resolve_max_concurrent(override: int | None, settings: FinancesSettings) -> int:
-    """RF-2: CLI/API > ``FT_DOWNLOAD_MAX_CONCURRENT`` > default (que se crea en el proceso)."""
-    if override is not None:
-        return override
-    value = settings.DOWNLOAD_MAX_CONCURRENT
-    if MAX_CONCURRENT_ENV not in os.environ:
-        os.environ[MAX_CONCURRENT_ENV] = str(value)
-        logger.info(f"Usando default {MAX_CONCURRENT_ENV}={value}")
-    return value
 
 
 def _pair_key(pair: Pair) -> str:
@@ -116,91 +104,31 @@ def create_download_task(
     task_id: str, request: DownloadRequest, *, settings: FinancesSettings | None = None
 ) -> None:
     """Registra la tarea en ``PENDING`` (idempotente). Se llama en el despacho."""
-    settings = settings or FinancesSettings()
-    SQLTaskManager(settings.TASKS_DB_PATH).create_task(
+    core_tasks.create_download_task(
         task_id,
-        status="PENDING",
-        phase="PENDING",
-        result_summary_json={
+        {
             "request": request.model_dump(mode="json"),
             "pairs_total": _request_pairs(request),
             "pairs_done": [],
             "gaps_unfillable": [],
         },
+        settings=settings,
     )
 
 
 # ---------------------------------------------------------------- estado
-class _TaskRecorder:
-    """Persistencia del progreso en ``SQLTaskManager`` (escrituras en hilo, Art. 3)."""
-
-    def __init__(
-        self,
-        task_id: str,
-        settings: FinancesSettings,
-        on_phase: PhaseCallback | None,
-    ) -> None:
-        self.task_id = task_id
-        self.manager = SQLTaskManager(settings.TASKS_DB_PATH)
-        self.on_phase = on_phase
-        self.summary: dict[str, Any] = {}
-        self.errors: list[str] = []
-        self._phase_index = 0
+class _TaskRecorder(TaskRecorder):
+    """``TaskRecorder`` del núcleo con el orden de fases de RF-6 y resultado Binance."""
 
     @classmethod
-    async def open(
+    async def open_binance(
         cls, task_id: str, settings: FinancesSettings, on_phase: PhaseCallback | None
     ) -> _TaskRecorder:
-        rec = cls(task_id, settings, on_phase)
-        await asyncio.to_thread(rec.manager.create_task, task_id, "PENDING")
-        row = await asyncio.to_thread(rec.manager.get_task, task_id)
-        if row is not None:
-            rec.summary = json.loads(row.get("result_summary_json") or "{}")
-            rec.errors = list(json.loads(row.get("errors_json") or "[]"))
-            status = str(row.get("status") or "PENDING")
-            rec._phase_index = PHASE_ORDER.index(status) if status in PHASE_ORDER else 0
-        return rec
-
-    async def update(self, **fields: Any) -> None:
-        await asyncio.to_thread(self.manager.update_task, self.task_id, **fields)
-
-    async def phase(self, status: str) -> None:
-        """Avanza de fase sólo hacia delante (RF-6)."""
-        index = PHASE_ORDER.index(status)
-        if index <= self._phase_index:
-            return
-        self._phase_index = index
-        await self.update(status=status, phase=status)
-        logger.info("task_phase", task_id=self.task_id, phase=status)
-        if self.on_phase is not None:
-            self.on_phase(status)
-
-    async def add_error(self, message: str) -> None:
-        self.errors.append(message)
-        await self.update(errors_json=self.errors)
-
-    async def save_summary(self) -> None:
-        await self.update(result_summary_json=self.summary)
-
-    def mark_pairs_done(self, pairs: list[list[str]]) -> None:
-        done: list[list[str]] = self.summary.setdefault("pairs_done", [])
-        for pair in pairs:
-            if pair not in done:
-                done.append(pair)
+        return await cls.open(task_id, settings, on_phase, phase_order=PHASE_ORDER)
 
     async def fail(self, message: str) -> DownloadResult:
         """Marca ``FAILED`` con error detallado (RF-9) y devuelve el resultado."""
-        self.errors.append(message)
-        self._phase_index = PHASE_ORDER.index("FAILED")
-        await self.update(
-            status="FAILED",
-            phase="FAILED",
-            error=message,
-            errors_json=self.errors,
-            result_summary_json=self.summary,
-        )
-        if self.on_phase is not None:
-            self.on_phase("FAILED")
+        await self.mark_failed(message)
         return DownloadResult(
             task_id=self.task_id,
             status="FAILED",
@@ -264,7 +192,7 @@ async def execute_download_plan(
     Un item fallido no detiene al resto; los datos escritos persisten.
     """
     settings = settings or FinancesSettings()
-    rec = _recorder or await _TaskRecorder.open(plan.task_id, settings, on_phase)
+    rec = _recorder or await _TaskRecorder.open_binance(plan.task_id, settings, on_phase)
     with structlog.contextvars.bound_contextvars(task_id=plan.task_id):
         try:
             concurrency = resolve_max_concurrent(max_concurrent, settings)
@@ -497,7 +425,7 @@ async def run_download(
     """Pipeline completo (pasos 1-7) sobre una tarea ya despachada (o la crea)."""
     settings = settings or FinancesSettings()
     await asyncio.to_thread(create_download_task, task_id, request, settings=settings)
-    rec = await _TaskRecorder.open(task_id, settings, on_phase)
+    rec = await _TaskRecorder.open_binance(task_id, settings, on_phase)
     with structlog.contextvars.bound_contextvars(task_id=task_id):
         await rec.phase("PLANNING")
         try:
@@ -533,26 +461,20 @@ def run_download_sync(
 
     Nunca propaga excepciones: el fallo queda registrado en la tarea (``FAILED``).
     """
-    try:
-        asyncio.run(run_download(request, task_id, settings=settings))
-    except Exception as exc:
-        logger.exception("background_download_failed", task_id=task_id, error=str(exc))
+    core_tasks.run_download_sync(lambda: run_download(request, task_id, settings=settings), task_id)
 
 
 # ----------------------------------------------------------- consultas
-def _load_row(task_id: str, settings: FinancesSettings | None) -> dict[str, Any] | None:
-    settings = settings or FinancesSettings()
-    return SQLTaskManager(settings.TASKS_DB_PATH).get_task(task_id)
 
 
 def get_progress(
     task_id: str, *, settings: FinancesSettings | None = None
 ) -> DownloadProgress | None:
     """Progreso granular (mismo DTO para ``GET /status`` y ``ft_market_data_binance status``)."""
-    row = _load_row(task_id, settings)
+    row = load_task_row(task_id, settings)
     if row is None:
         return None
-    summary: dict[str, Any] = json.loads(row.get("result_summary_json") or "{}")
+    summary: dict[str, Any] = json_field(row, "result_summary_json", {})
     total = {(p[0], p[1]) for p in summary.get("pairs_total", [])}
     done = {(p[0], p[1]) for p in summary.get("pairs_done", [])} & total
     symbols = {s for s, _ in total}
@@ -576,7 +498,7 @@ def get_progress(
             "gaps_found": row.get("gaps_found") or 0,
             "gaps_filled_public": row.get("gaps_filled_public") or 0,
             "gaps_filled_rest": row.get("gaps_filled_rest") or 0,
-            "errors": json.loads(row.get("errors_json") or "[]"),
+            "errors": json_field(row, "errors_json", []),
             "current_symbol": row.get("current_symbol"),
             "current_timeframe": row.get("current_timeframe"),
         }
@@ -589,21 +511,19 @@ def get_result(task_id: str, *, settings: FinancesSettings | None = None) -> Dow
     Raises:
         TaskNotFinishedError: la tarea aún no ha terminado.
     """
-    row = _load_row(task_id, settings)
+    row = load_task_row(task_id, settings)
     if row is None:
         return None
-    status = str(row["status"])
-    if status not in TERMINAL_STATUSES:
-        raise TaskNotFinishedError(task_id, status)
-    summary: dict[str, Any] = json.loads(row.get("result_summary_json") or "{}")
-    stats: dict[str, object] = json.loads(row.get("stats_json") or "{}")
+    status = ensure_finished(task_id, row)
+    summary: dict[str, Any] = json_field(row, "result_summary_json", {})
+    stats: dict[str, object] = json_field(row, "stats_json", {})
     return DownloadResult.model_validate(
         {
             "task_id": row["task_id"],
             "status": status,
-            "parquet_paths": json.loads(row.get("parquet_paths_json") or "[]"),
+            "parquet_paths": json_field(row, "parquet_paths_json", []),
             "stats": stats,
-            "errors": json.loads(row.get("errors_json") or "[]"),
+            "errors": json_field(row, "errors_json", []),
             "gaps_unfillable": summary.get("gaps_unfillable", []),
         }
     )

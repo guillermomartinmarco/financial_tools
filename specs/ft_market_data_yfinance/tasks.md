@@ -6,16 +6,21 @@
 
 ## Fase 1: Núcleo compartido `finances_core.marketdata` (Art. 4)
 
-- [ ] **T1.1**: `marketdata/hive_writer.py` (extraído de `ft_market_data_binance/writer.py`, parametrizado por `exchange` y esquema de datos)
+- [x] **T1.1**: `marketdata/hive_writer.py` (extraído de `ft_market_data_binance/writer.py`, parametrizado por `exchange` y esquema de datos)
   - **Hecho cuando**: tests del núcleo cubren layout Hive por `exchange`, merge sin pérdida (re-ejecución con rango menor no borra filas), dedupe prevaleciendo lo nuevo y escritura atómica.
-- [ ] **T1.2**: `marketdata/inventory.py` (`inventory_local_parquet` con `exchange` y `market_type="*"`, `compute_gaps`)
+  - **Hecho**: `packages/finances-core/tests/unit/test_marketdata_hive_writer.py` (8 tests: `test_partition_dir_is_parametrized_by_exchange`, `test_write_uses_exchange_layout_and_schema_columns`, `test_narrower_rerun_keeps_existing_rows`, `test_dedupe_keeps_newest_row`, `test_duplicates_inside_batch_keep_last`, `test_failed_atomic_write_keeps_previous_file`, ...) en verde.
+- [x] **T1.2**: `marketdata/inventory.py` (`inventory_local_parquet` con `exchange` y `market_type="*"`, `compute_gaps`)
   - **Hecho cuando**: test encuentra particiones bajo cualquier `market_type` y calcula gaps con cobertura hasta última vela + 1 timeframe.
-- [ ] **T1.3**: `marketdata/plans.py`, `tasks_lifecycle.py`, `retry.py`, `rate_limit.py`, `months.py`
+  - **Hecho**: `test_marketdata_inventory.py` (`test_inventory_any_market_type_finds_all`, `test_inventory_keeps_symbol_verbatim`, `test_gaps_with_coverage_until_last_candle_plus_timeframe`, ...; `coverage_ranges` añadido al núcleo) en verde.
+- [x] **T1.3**: `marketdata/plans.py`, `tasks_lifecycle.py`, `retry.py`, `rate_limit.py`, `months.py`
   - **Hecho cuando**: tests del núcleo cubren persistencia de planes en `share/plans/`, fases monótonas, retry solo ante errores reintentables, TokenBucket.
-- [ ] **T1.4**: `ft_market_data_binance` usa `finances_core.marketdata` (borra sus copias)
+  - **Hecho**: `test_marketdata_plans.py` (`test_save_and_load_roundtrip` en `share/plans/`), `test_marketdata_tasks_lifecycle.py` (`test_phases_only_advance`, `test_mark_failed_records_error`), `test_marketdata_retry.py` (`test_retries_only_retryable_errors_then_succeeds`, `test_non_retryable_error_is_not_retried`), `test_marketdata_rate_limit_months.py` (TokenBucket + meses) en verde. `retry.py` usa `RetryPolicy(max_retries, base_backoff_ms, jitter)`; dependencia `tenacity>=8.2` añadida a finances-core.
+- [x] **T1.4**: `ft_market_data_binance` usa `finances_core.marketdata` (borra sus copias)
   - **Hecho cuando**: los 134 tests de binance pasan **sin cambios en sus aserciones**; ruff + mypy strict limpios.
-- [ ] **T1.5**: Schemas y settings: `schemas/market_data_yfinance.py`, `FT_YFINANCE_*` en `config.py`, se quita `YFINANCE_API_KEY`
+  - **Hecho**: `pytest -q tests/ft_market_data_binance` → `134 passed` sin tocar `tests/` (git diff vacío); finances-downloader: ruff check `All checks passed!`, ruff format `50 files already formatted`, mypy `Success: no issues found in 24 source files`, pytest `313 passed`; finances-api: mypy OK, `8 passed`.
+- [x] **T1.5**: Schemas y settings: `schemas/market_data_yfinance.py`, `FT_YFINANCE_*` en `config.py`, se quita `YFINANCE_API_KEY`
   - **Hecho cuando**: tests validan defaults y validaciones de `YFDownloadRequest` (timeframe no canónico rechazado, `symbols` 1..100).
+  - **Hecho**: `test_schemas_market_data_yfinance.py` (`test_request_rejects_non_canonical_timeframe`, `test_request_symbols_between_1_and_100`, `test_yfinance_settings_defaults`, ...) en verde; `DispatchResponse` movido a `finances_core/schemas/dispatch.py`; `env_list.conf(.j2)` actualizados (idénticos) y `test_doctor_lists_tool_variables_with_source_tool[ft_market_data_yfinance]` pasa (adelanta T5.3). finances-core: `149 passed`, ruff/format/mypy limpios.
 
 ## Fase 2: Adaptador y planificación
 
