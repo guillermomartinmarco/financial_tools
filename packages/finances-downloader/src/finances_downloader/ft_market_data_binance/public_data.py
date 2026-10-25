@@ -1,3 +1,13 @@
+"""RF-1 paso 4: qué meses de cada gap existen en Binance Public Data.
+
+Cada mes se evalúa por separado: los meses con .zip publicado se convierten en
+items ``public_data`` y **cada** mes ausente (p. ej. el mes en curso, que Binance
+aún no publica) se devuelve como sub-rango residual para el fallback REST (paso 5).
+"""
+
+from __future__ import annotations
+
+import asyncio
 from datetime import UTC, datetime
 
 import structlog
@@ -7,27 +17,45 @@ from finances_downloader.ft_market_data_binance.client import BinancePublicDataC
 
 logger = structlog.get_logger(__name__)
 
+DECEMBER = 12
+
 
 def ms_to_year_month(ms: int) -> tuple[int, int]:
-    """Convierte timestamp ms a (año, mes)."""
+    """Convierte timestamp ms UTC a ``(año, mes)``."""
     dt = datetime.fromtimestamp(ms / 1000, tz=UTC)
     return dt.year, dt.month
 
 
-def get_months_in_range(start_ms: int, end_ms: int) -> list[tuple[int, int]]:
-    """Retorna lista de (año, mes) cubiertos por el rango [start_ms, end_ms]."""
-    start_year, start_month = ms_to_year_month(start_ms)
-    end_year, end_month = ms_to_year_month(end_ms)
+def month_bounds(year: int, month: int) -> tuple[int, int]:
+    """``(inicio_mes_ms, inicio_mes_siguiente_ms)`` en UTC."""
+    start = datetime(year, month, 1, tzinfo=UTC)
+    nxt = (
+        datetime(year + 1, 1, 1, tzinfo=UTC)
+        if month == DECEMBER
+        else datetime(year, month + 1, 1, tzinfo=UTC)
+    )
+    return int(start.timestamp() * 1000), int(nxt.timestamp() * 1000)
 
-    months = []
-    year, month = start_year, start_month
-    while (year < end_year) or (year == end_year and month <= end_month):
+
+def get_months_in_range(start_ms: int, end_ms: int) -> list[tuple[int, int]]:
+    """Lista de ``(año, mes)`` tocados por ``[start_ms, end_ms]``."""
+    year, month = ms_to_year_month(start_ms)
+    end_year, end_month = ms_to_year_month(end_ms)
+    months: list[tuple[int, int]] = []
+    while (year, month) <= (end_year, end_month):
         months.append((year, month))
-        month += 1
-        if month > 12:
-            month = 1
-            year += 1
+        year, month = (year + 1, 1) if month == DECEMBER else (year, month + 1)
     return months
+
+
+def _merge_adjacent(segments: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    merged: list[tuple[int, int]] = []
+    for start, end in segments:
+        if merged and merged[-1][1] >= start:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+    return merged
 
 
 async def check_public_data_availability(
@@ -37,44 +65,49 @@ async def check_public_data_availability(
     market_type: str,
     client: BinancePublicDataClient,
 ) -> tuple[list[DownloadPlanItem], list[tuple[int, int]]]:
+    """Para cada gap y cada mes: HEAD del .zip mensual.
+
+    Returns:
+        ``(items_public_data, sub_rangos_no_cubiertos)``; los sub-rangos contiguos
+        se fusionan para minimizar requests REST.
     """
-    Para cada gap, verifica qué archivos mensuales existen en Public Data.
-    Retorna (items_public_data, gaps_residuales_no_cubiertos).
-    """
-    public_items = []
-    uncovered_gaps = []
+    public_items: list[DownloadPlanItem] = []
+    uncovered: list[tuple[int, int]] = []
 
     for gap_start, gap_end in gaps:
-        months = get_months_in_range(gap_start, gap_end)
-        gap_covered = False
+        segments: list[tuple[int, int, int, int]] = []
+        for year, month in get_months_in_range(gap_start, gap_end):
+            month_start, next_month = month_bounds(year, month)
+            seg_start, seg_end = max(gap_start, month_start), min(gap_end, next_month)
+            if seg_start < seg_end:
+                segments.append((year, month, seg_start, seg_end))
 
-        for year, month in months:
-            exists, checksum = await client.check_exists(symbol, timeframe, market_type, year, month)
+        checks = await asyncio.gather(
+            *(client.check_exists(symbol, timeframe, market_type, y, m) for y, m, _, _ in segments)
+        )
+        for (year, month, seg_start, seg_end), (exists, checksum) in zip(
+            segments, checks, strict=True
+        ):
             if exists:
-                gap_covered = True
-                # Calcular rango real cubierto por este archivo mensual
-                month_start = int(datetime(year, month, 1, tzinfo=UTC).timestamp() * 1000)
-                if month == 12:
-                    next_month_start = int(datetime(year + 1, 1, 1, tzinfo=UTC).timestamp() * 1000)
-                else:
-                    next_month_start = int(datetime(year, month + 1, 1, tzinfo=UTC).timestamp() * 1000)
-
-                covers_start = max(gap_start, month_start)
-                covers_end = min(gap_end, next_month_start)
-
-                url = client._build_monthly_url(symbol, timeframe, market_type, year, month)
-                item = DownloadPlanItem(
-                    source="public_data",
+                public_items.append(
+                    DownloadPlanItem(
+                        source="public_data",
+                        symbol=symbol,
+                        timeframe=timeframe,
+                        market_type=market_type,
+                        url=client.build_monthly_url(symbol, timeframe, market_type, year, month),
+                        expected_checksum=checksum,
+                        covers_range_ms=[seg_start, seg_end],
+                    )
+                )
+            else:
+                logger.debug(
+                    "public_data_month_missing",
                     symbol=symbol,
                     timeframe=timeframe,
-                    market_type=market_type,
-                    url=url,
-                    expected_checksum=checksum,
-                    covers_range_ms=[covers_start, covers_end],
+                    year=year,
+                    month=month,
                 )
-                public_items.append(item)
+                uncovered.append((seg_start, seg_end))
 
-        if not gap_covered:
-            uncovered_gaps.append((gap_start, gap_end))
-
-    return public_items, uncovered_gaps
+    return public_items, _merge_adjacent(uncovered)
