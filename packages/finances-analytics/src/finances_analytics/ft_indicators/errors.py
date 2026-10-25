@@ -1,6 +1,7 @@
 """Errores de dominio de ``ft_indicators`` (RF-12).
 
-Los adaptadores los traducen: :class:`IndicatorValidationError` → CLI exit 2 / HTTP 400.
+Los adaptadores los traducen: :class:`IndicatorValidationError` → CLI exit 2 / HTTP 400;
+:class:`EmptyExportError` → CLI exit 3 / HTTP 400.
 """
 
 from __future__ import annotations
@@ -28,4 +29,8 @@ class IndicatorValidationError(ValueError):
         self.valid = valid
 
 
-__all__ = ["IndicatorValidationError"]
+class EmptyExportError(Exception):
+    """El rango pedido no tiene filas que exportar (RF-9: CLI exit 3 / HTTP 400)."""
+
+
+__all__ = ["EmptyExportError", "IndicatorValidationError"]

@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -58,6 +59,29 @@ def build_request(datasets: Sequence[str], indicators: Sequence[str]) -> Indicat
         raise IndicatorValidationError(msg) from exc
 
 
+def request_from_payload(data: object) -> IndicatorComputeRequest:
+    """Valida el cuerpo JSON ya decodificado de ``POST /indicators/compute``.
+
+    Única validación del cuerpo, compartida por la API y ``--request-file`` (Art. 1).
+
+    Raises:
+        IndicatorValidationError: SI algún indicador no existe (lista los válidos) o el
+            cuerpo no cumple el contrato ``IndicatorComputeRequest``.
+    """
+    if isinstance(data, dict):
+        indicators = data.get("indicators")
+        for entry in indicators if isinstance(indicators, list) else []:
+            name = entry.get("name") if isinstance(entry, dict) else None
+            if isinstance(name, str) and name not in CATALOG:
+                msg = f"Indicador desconocido {name!r}; válidos: {', '.join(CATALOG)}"
+                raise IndicatorValidationError(msg, indicator=name, valid=", ".join(CATALOG))
+    try:
+        return IndicatorComputeRequest.model_validate(data)
+    except ValidationError as exc:
+        msg = f"petición inválida: {exc}"
+        raise IndicatorValidationError(msg) from exc
+
+
 def load_request_file(path: Path) -> IndicatorComputeRequest:
     """Carga ``--request-file`` (mismo JSON que el cuerpo de ``POST /indicators/compute``).
 
@@ -69,10 +93,11 @@ def load_request_file(path: Path) -> IndicatorComputeRequest:
         msg = f"El archivo de petición no existe: {path}"
         raise IndicatorValidationError(msg)
     try:
-        return IndicatorComputeRequest.model_validate_json(path.read_bytes())
-    except ValidationError as exc:
+        data = json.loads(path.read_bytes())
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
         msg = f"archivo de petición inválido {path}: {exc}"
         raise IndicatorValidationError(msg) from exc
+    return request_from_payload(data)
 
 
 def dedupe_specs(specs: Sequence[IndicatorSpec]) -> list[IndicatorSpec]:
@@ -88,4 +113,10 @@ def dedupe_specs(specs: Sequence[IndicatorSpec]) -> list[IndicatorSpec]:
     return list(unique.values())
 
 
-__all__ = ["build_request", "dedupe_specs", "load_request_file", "spec_from_token"]
+__all__ = [
+    "build_request",
+    "dedupe_specs",
+    "load_request_file",
+    "request_from_payload",
+    "spec_from_token",
+]

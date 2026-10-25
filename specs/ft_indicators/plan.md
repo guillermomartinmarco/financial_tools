@@ -245,6 +245,11 @@ Exit: 0 OK · 1 no encontrado/bloqueado/genérico · 2 validación · 3 tarea FA
   de la tarea (fase `PLANNING`) para responder en ≤ 200 ms.
 - Exportación: se resuelve en `run_in_threadpool` a un directorio temporal y se sirve con `StreamingResponse`
   + `BackgroundTask` de limpieza (mismo patrón que `ft_data_viewer`).
+- **Implementado (Fase 5)**: la **resolución** del plan (`planner.plan_items`: specs, `indicator_id`, columnas y lectura
+  del *footer* del esquema de cada dataset) ocurre en el despacho, en el *threadpool*, para que `source=adj_close` sin
+  columna responda 400 (RF-6) sin crear tarea; la fase `PLANNING` de la tarea **persiste** ese plan. Medido: 202 en
+  ≪ 200 ms. El router usa `route_class=BadRequestRoute`: errores de validación de cuerpo o ruta → **400** (RF-11/RF-12)
+  en lugar del 422 por defecto de FastAPI; `ConfigError` (RF-7) → 500.
 
 ## 3. Algoritmos Clave
 
@@ -368,6 +373,10 @@ on="open_time_ms")` de cada serie (`scan_series` con poda Hive por año/mes); co
 `{series_id}_is_stable`; `drop` filtra `open_time_ms >= max(stable_from_ms)` (nulo ⇒ error de validación).
 Streaming con `finances_core.export.stream_export(lf, fmt, output)`. `ft_indicators/exporter.py` solo traduce
 `--indicator` a `series_id`.
+**Implementado (Fase 5)**: la traducción (`indicator_id` tal cual o spec `name[:k=v,...]` → `indicator_id`) se aplica
+también a `SeriesExportRequest.series` en la API (simetría CLI ≡ API); un rango sin filas lanza
+`errors.EmptyExportError` (CLI 3 / HTTP 400) antes de crear el archivo; los ids de otro namespace (`talib_*`) son error
+de validación.
 
 ### 3.8 Orquestador — `ft_indicators/service.py` sobre `finances_core.indicators_store.runner` (compartido)
 ```python
@@ -385,8 +394,12 @@ lock → load_source → validate → compute_dataset (motor de la herramienta) 
 → COMPLETED | FAILED (solo IO/inesperado)
 ```
 Errores por dataset (`InvalidSourceError`, dataset desaparecido) → `errors` y continúa.
-Funciones públicas de `service.py`: `dispatch_compute(request)`, `run_compute(task_id, request, *, on_progress)`,
-`get_progress/get_plan/get_result(task_id)`, `get_manifest(ds)`, `export(ds, req, *, stream=None)`, `catalog()`.
+Funciones públicas de `service.py` (**implementado, Fase 5**): `prepare_compute(request, settings) -> PreparedCompute`
+(valida, planifica y comprueba bloqueos vivos sin escribir; lo usa `--dry-run`), `create_task(prepared)`,
+`dispatch_compute(request) -> PreparedCompute` (las dos anteriores), `run_compute(prepared, *, on_progress, on_phase)`,
+`run_compute_sync(prepared)` (`BackgroundTasks`), `compute_dataset(ds, items, *, store, settings, task_id)`,
+`get_progress/get_plan/get_result(task_id)`, `get_manifest(ds)`, `export(ds, req, *, stream=None) -> ExportOutcome`,
+`catalog()`. `PreparedCompute` lleva el `IndicatorPlan` y `items_by_dataset` derivados de él (única fuente de verdad).
 
 ### 3.9 Convergencia y política de precisión — `ft_indicators/convergence.py`, `precision.py`
 **Convergencia (RF-16)**, función pura sin datos:
