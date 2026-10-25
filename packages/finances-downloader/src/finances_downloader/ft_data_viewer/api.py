@@ -19,6 +19,7 @@ import structlog
 from fastapi import APIRouter, HTTPException, Query, status
 from fastapi import Path as PathParam
 from fastapi.responses import StreamingResponse
+from finances_core.export import MEDIA_TYPES
 from finances_core.schemas.data_viewer import (
     AnomalyReport,
     CompareRequest,
@@ -39,7 +40,6 @@ from finances_downloader.ft_data_viewer.errors import (
     InvalidArgumentError,
     NoDataInRangeError,
 )
-from finances_downloader.ft_data_viewer.exporter import MEDIA_TYPES
 from finances_downloader.ft_data_viewer.scanner import MARKET_HELP
 
 router = APIRouter(prefix="/data", tags=["data-viewer"])

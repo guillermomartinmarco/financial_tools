@@ -7,9 +7,9 @@ repos:
     hooks:
       - id: ruff
         args: [--fix]
-        files: ^packages/(finances-core|finances-downloader|finances-api)/
+        files: ^packages/(finances-core|finances-downloader|finances-analytics|finances-api)/
       - id: ruff-format
-        files: ^packages/(finances-core|finances-downloader|finances-api)/
+        files: ^packages/(finances-core|finances-downloader|finances-analytics|finances-api)/
 
   # mypy local (sistema): cada paquete importa a los demás, por eso usa el .venv del repo
   # en lugar del entorno aislado de mirrors-mypy.
@@ -26,6 +26,12 @@ repos:
         language: system
         entry: python -m mypy --strict --config-file packages/finances-downloader/pyproject.toml packages/finances-downloader/src
         files: ^packages/finances-downloader/src/
+        pass_filenames: false
+      - id: mypy-finances-analytics
+        name: mypy --strict (finances-analytics)
+        language: system
+        entry: python -m mypy --strict --config-file packages/finances-analytics/pyproject.toml packages/finances-analytics/src
+        files: ^packages/finances-analytics/src/
         pass_filenames: false
       - id: mypy-finances-api
         name: mypy --strict (finances-api)

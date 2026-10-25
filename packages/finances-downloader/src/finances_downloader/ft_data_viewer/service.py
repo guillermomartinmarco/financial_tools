@@ -18,6 +18,7 @@ from typing import IO, Any
 import polars as pl
 import structlog
 from finances_core.config import FinancesSettings
+from finances_core.export import ExportFormat, stream_export
 from finances_core.schemas.data_viewer import (
     AnomalyReport,
     CompareResult,
@@ -43,7 +44,6 @@ from finances_downloader.ft_data_viewer.errors import (
     InvalidArgumentError,
     NoDataInRangeError,
 )
-from finances_downloader.ft_data_viewer.exporter import ExportFormat, stream_export
 from finances_downloader.ft_data_viewer.scanner import (
     MARKET_TYPES,
     ProgressCallback,

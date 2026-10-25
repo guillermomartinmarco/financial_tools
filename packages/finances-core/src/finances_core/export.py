@@ -1,23 +1,32 @@
-"""Exportación streaming de subconjuntos (RF-6, DV-03): ``sink_parquet/csv/ndjson``."""
+"""Exportación streaming compartida (``parquet``/``csv``/``jsonl``) con ``sink_*`` de Polars.
+
+Origen: ``ft_data_viewer`` (RF-6, DV-03). Vive en el núcleo (Art. 4) porque la usan
+``ft_data_viewer``, ``ft_indicators`` y ``ft_ta_lib`` (plan de ``ft_indicators`` §3.7).
+"""
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 from typing import IO, Literal
 
 import polars as pl
 import structlog
 
-logger = structlog.get_logger(__name__, component="ft_data_viewer")
+logger = structlog.get_logger(__name__)
 
 ExportFormat = Literal["parquet", "csv", "jsonl"]
 
-#: ``Content-Type`` por formato (API, T6.3).
+#: ``Content-Type`` por formato (respuestas ``StreamingResponse`` de la API).
 MEDIA_TYPES: dict[str, str] = {
     "parquet": "application/vnd.apache.parquet",
     "csv": "text/csv",
     "jsonl": "application/x-ndjson",
 }
+
+
+class ForbiddenOutputDirError(ValueError):
+    """El destino de exportación cae dentro de un directorio de datos protegido."""
 
 
 def stream_export(lf: pl.LazyFrame, fmt: ExportFormat, output: Path | IO[bytes]) -> int:
@@ -51,3 +60,22 @@ def stream_export(lf: pl.LazyFrame, fmt: ExportFormat, output: Path | IO[bytes])
         output=str(output) if isinstance(output, Path) else "stream",
     )
     return rows
+
+
+def validate_output_dir(output_dir: Path | str, forbidden: Sequence[Path]) -> Path:
+    """Resuelve ``output_dir`` y verifica que no esté dentro de ningún directorio prohibido.
+
+    Returns:
+        Ruta absoluta resuelta del destino.
+
+    Raises:
+        ForbiddenOutputDirError: SI el destino está dentro de alguno de ``forbidden``
+            (p. ej. ``FT_PARQUET_DIR`` o ``FT_INDICATORS_DIR``).
+    """
+    target = Path(output_dir).resolve()
+    for base in forbidden:
+        resolved = base.resolve()
+        if target.is_relative_to(resolved):
+            msg = f"El directorio de salida no puede estar dentro de {resolved}"
+            raise ForbiddenOutputDirError(msg)
+    return target

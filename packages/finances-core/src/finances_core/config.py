@@ -18,6 +18,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 ROOT_MARKER = ".ft_root"
 
 
+class ConfigError(Exception):
+    """Configuración incoherente detectada al usarla (p. ej. RF-7 de ``ft_indicators``)."""
+
+
 def find_project_root(start: pathlib.Path | None = None) -> pathlib.Path:
     """Devuelve la raíz del proyecto como ruta absoluta.
 
@@ -103,6 +107,10 @@ class FinancesSettings(BaseSettings):
     DATA_VIEWER_SAMPLE_MAX_ROWS: int = 10000
     DATA_VIEWER_GAP_THRESHOLD_MS: int = 0
 
+    # Indicadores (ft_indicators; compartidos con ft_ta_lib)
+    INDICATORS_DIR: pathlib.Path = pathlib.Path("./data/indicators")
+    INDICATORS_MAX_CONCURRENT: int = Field(default=2, ge=1, le=16)
+
     @model_validator(mode="after")
     def _resolve_paths(self) -> FinancesSettings:
         root = self.PROJECT_ROOT.resolve()
@@ -111,6 +119,26 @@ class FinancesSettings(BaseSettings):
             if isinstance(value, pathlib.Path) and not value.is_absolute():
                 setattr(self, name, (root / value).resolve())
         return self
+
+    def require_indicators_dir(self) -> pathlib.Path:
+        """``INDICATORS_DIR`` validado (RF-7 de ``ft_indicators``).
+
+        La validación se hace al usarlo (no al construir los settings) para que una
+        configuración errónea de indicadores no impida usar el resto de herramientas.
+
+        Raises:
+            ConfigError: SI ``INDICATORS_DIR`` está dentro de ``PARQUET_DIR`` (los
+                inventarios y ``ft_data_viewer`` lo confundirían con un exchange).
+        """
+        indicators = self.INDICATORS_DIR.resolve()
+        parquet = self.PARQUET_DIR.resolve()
+        if indicators.is_relative_to(parquet):
+            msg = (
+                f"FT_INDICATORS_DIR ({indicators}) no puede estar dentro de "
+                f"FT_PARQUET_DIR ({parquet})"
+            )
+            raise ConfigError(msg)
+        return indicators
 
 
 settings = FinancesSettings()

@@ -22,6 +22,35 @@ herramienta), y `ft_ta_lib` lo reutiliza sin cambios:
 
 Cada herramienta aporta solo su catálogo, su resolución de specs, su motor de cálculo y sus adaptadores CLI/API.
 
+**API implementada en la Fase 1** (contrato que reutiliza `ft_ta_lib`; precisa lo esbozado en §1.1–§3.8):
+- `DatasetIdentifier` es inmutable (`frozen=True`, *hashable*: clave de `items_by_dataset`); `parse()`/`path_segment()`.
+- `indicators_store.request.parse_spec_token(token) -> ParsedSpec(name, params)`; `SpecTokenError(ValueError)`. Claves y
+  valores identificador se normalizan a minúsculas; el nombre conserva mayúsculas (cada herramienta lo normaliza).
+- `indicators_store.namespaces`: `NAMESPACES`, `validate_series_id`, `belongs_to`, `manifest_file_name`,
+  `lock_file_name`; `NamespaceViolationError(ValueError)`. También se valida el namespace de cada **columna** escrita.
+- `indicators_store.source`: `dataset_dir`, `source_files`, `dataset_exists`, `available_columns`,
+  `load_source -> SourceFrame(dataset, frame, files)` (archivos en orden cronológico, **sin** reordenar filas: el orden
+  lo verifica `validate_source`), `validate_source -> ValidatedSource(frame, null_counts)`;
+  `SourceNotFoundError(LookupError, code="dataset_not_found")`, `InvalidSourceError(ValueError, code="invalid_source")`.
+- `indicators_store.store.IndicatorStore(root, namespace, *, tasks_db_path=None)` + `IndicatorStore.from_settings(settings,
+  namespace)` (aplica la validación RF-7); `write_series(...) -> WriteStats(rows, first_ms, last_ms, partitions_written,
+  partitions_removed, files)`; `scan_series(ds, series_id, *, start_ms=None, end_ms=None)` (poda por año/mes, `end`
+  exclusivo); `update_manifest(ds, entries)` (solo las entradas dadas); `series_files`, `has_series`, `lock`.
+  Dtypes persistibles `Float32`/`Int16`/`Int64` (`Float64` → `SeriesDtypeError`); valores no enteros o fuera de `Int16`
+  → `SeriesDtypeError` (Art. 5.1 bis: nunca se trunca); `SeriesNotFoundError(LookupError)`.
+- `indicators_store.manifest`: `read_manifest`, `write_manifest`, `merge_entries`, `acquire_lock`/`release_lock`/
+  `dataset_lock`, `task_liveness(tasks_db_path)`; `DatasetLockedError(owner_task_id)`. Al liberar un bloqueo de un
+  dataset sin entradas (p. ej. fuente inexistente) se elimina el manifiesto en lugar de dejarlo vacío.
+- `indicators_store.view.build_wide_view(store, ds, req, *, settings=None) -> WideView(frame, stale, series)`;
+  `ExportValidationError(ValueError)` (rango invertido, `drop` sin `stable_from_ms`).
+- `indicators_store.runner`: `create_compute_task(task_id, *, datasets_total, items_total, settings)`,
+  `run_compute_task(..., on_progress=None, on_phase=None)`, `DatasetOutcome(items, entries, rows_computed, warnings)`,
+  `get_progress`, `get_result`, `dispatch`. El runner toma el bloqueo, llama a `compute_dataset` (carga, valida,
+  calcula y `write_series`) y escribe el manifiesto con `DatasetOutcome.entries`. Errores por dataset con prefijo
+  `invalid_source:` / `dataset_not_found:` / `dataset_locked:`.
+- `finances_core.export`: además `ForbiddenOutputDirError(ValueError)` lanzado por `validate_output_dir`.
+- `schemas.indicators.DispatchResponse` es el mismo modelo que `schemas.dispatch.DispatchResponse` (re-exportado).
+
 ### 1.1 Esquemas (`packages/finances-core/src/finances_core/schemas/indicators.py`)
 Viven en `finances_core` porque `ft_ta_lib` y el futuro backtester necesitan la nomenclatura y el manifiesto sin
 importar `ft_indicators` (Art. 4).
@@ -171,7 +200,9 @@ OHLCV_EXPORT_COLUMNS = ["open", "high", "low", "close", "adj_close", "volume"]  
 INDICATORS_DIR: pathlib.Path = pathlib.Path("./data/indicators")   # resuelto desde PROJECT_ROOT; compartido con ft_ta_lib
 INDICATORS_MAX_CONCURRENT: int = 2                                 # ge=1, le=16
 ```
-Validación (RF-7): `INDICATORS_DIR` no puede estar dentro de `PARQUET_DIR` → `ConfigError`.
+Validación (RF-7): `INDICATORS_DIR` no puede estar dentro de `PARQUET_DIR` → `ConfigError`, comprobada al usarlo con
+`FinancesSettings.require_indicators_dir()` (la usa `IndicatorStore.from_settings`), no al construir los settings: así una
+configuración errónea de indicadores no rompe el resto de herramientas que importan `finances_core.config`.
 
 ## 2. Mapeo de Interfaces
 

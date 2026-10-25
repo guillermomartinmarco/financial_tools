@@ -72,3 +72,22 @@ def test_validate_time_range_rejects_future_start_for_any_timeframe() -> None:
 def test_validate_time_range_rejects_end_before_start() -> None:
     with pytest.raises(ValueError, match="end_ms"):
         validate_time_range(NOW - DAY_MS, NOW - 2 * DAY_MS, {"1h": HOUR_MS}, NOW)
+
+
+# --- T1.2 (ft_indicators / ft_ta_lib): prefijo de plan por herramienta ----------------
+
+
+@pytest.mark.parametrize("prefix", ["indicators_plan", "ta_lib_plan"])
+def test_plan_prefix_roundtrip(tmp_path: Path, prefix: str) -> None:
+    plan = _Plan(task_id="t-9", items=[3])
+    path = save_plan("t-9", plan, prefix=prefix)
+    assert path == tmp_path.resolve() / "share" / "plans" / f"{prefix}_t-9.json"
+    assert plan_file_path("t-9", prefix=prefix) == path
+    assert load_plan("t-9", _Plan, prefix=prefix) == plan
+    # El prefijo por defecto sigue siendo el de los descargadores.
+    assert load_plan("t-9", _Plan) is None
+
+
+def test_plan_prefix_rejects_unsafe_names() -> None:
+    with pytest.raises(ValueError, match="prefix"):
+        plan_file_path("t", prefix="../evil")

@@ -31,7 +31,12 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e "packages/finances-core[dev]"
           python -m pip install -e "packages/finances-downloader[dev]"
+          # [dev] incluye ta-lib (rueda binaria; contraste de ft_indicators, plan §3.11)
+          python -m pip install -e "packages/finances-analytics[dev]"
           python -m pip install -e "packages/finances-api[service,dev]"
+
+      - name: TA-Lib binary wheel available
+        run: python -c "import talib; print('talib', talib.__version__)"
 
       - name: Ruff (lint + format)
         run: |
@@ -40,7 +45,7 @@ jobs:
 
       - name: Mypy --strict and pytest per package
         run: |
-          for pkg in finances-core finances-downloader finances-api; do
+          for pkg in finances-core finances-downloader finances-analytics finances-api; do
             echo "::group::$pkg"
             (cd "packages/$pkg" && python -m mypy --strict src && python -m pytest -q)
             echo "::endgroup::"

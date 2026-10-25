@@ -1,0 +1,102 @@
+[project]
+name = "finances-analytics"
+version = "0.1.0"
+description = "Analytics tools (technical indicators) for financial_tools suite"
+requires-python = ">=3.11"
+dependencies = [
+    "finances-core",
+    "polars>=1.6",
+    "pydantic>=2.8",
+    "pydantic-settings>=2.3",
+    "typer>=0.12",
+    "fastapi>=0.111",
+    "structlog>=24.1",
+    "rich>=13.7",
+    "uuid6>=1.11",
+    "pyarrow>=16.0",
+]
+
+[project.scripts]
+ft_indicators = "finances_analytics.ft_indicators.cli:app"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2",
+    "pytest-asyncio>=0.23",
+    "httpx>=0.27",
+    "ruff>=0.5",
+    "mypy>=1.10",
+    "hypothesis>=6.100",
+    # Referencia de contraste en CI (plan §3.11); versión menor fijada: sus valores son la referencia.
+    "ta-lib>=0.8.2,<0.9",
+]
+
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["finances_analytics*"]
+
+[tool.setuptools.package-data]
+finances_analytics = ["py.typed"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM", "T20", "PTH", "PD", "PGH", "PL", "TRY", "NPY"]
+ignore = []
+fixable = ["I", "F", "E", "W", "UP", "B", "C4", "SIM", "T20", "PTH", "PD", "PGH", "PL", "TRY", "NPY"]
+unfixable = []
+exclude = ["**/.venv/**", "**/__pycache__/**"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["PLR2004", "TRY003", "PLR0913", "PLR0917"]
+# Firmas planas exigidas por plan.md (opciones Typer / query params FastAPI)
+"src/finances_analytics/*/cli.py" = ["PLR0913", "PLR0917"]
+"src/finances_analytics/*/api.py" = ["PLR0913", "PLR0917"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["typer.Option", "typer.Argument", "fastapi.Query", "fastapi.Path", "fastapi.Depends"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "lf"
+
+[tool.mypy]
+strict = true
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+show_error_codes = true
+pretty = true
+namespace_packages = true
+explicit_package_bases = true
+mypy_path = "src"
+
+[[tool.mypy.overrides]]
+module = ["pyarrow", "pyarrow.*"]
+ignore_missing_imports = true
+
+# ta-lib no publica stubs (solo se importa en tests de contraste, plan §3.11)
+[[tool.mypy.overrides]]
+module = ["talib", "talib.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = ["benchmark: benchmarks de desempeño (RF-14); excluidos por defecto"]
+addopts = "-v --tb=short -m 'not benchmark'"
