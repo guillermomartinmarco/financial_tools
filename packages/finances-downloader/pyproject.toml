@@ -2,10 +2,9 @@
 name = "finances-downloader"
 version = "0.1.0"
 description = "Market data downloaders for financial_tools suite"
-readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "finances-core @ file:///c/P/financial_tools/packages/finances-core",
+    "finances-core",
     "pydantic>=2.8",
     "pydantic-settings>=2.3",
     "typer[all]>=0.12",
@@ -51,19 +50,19 @@ select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM", "T20", "PTH", "PD", "
 ignore = []
 fixable = ["I", "F", "E", "W", "UP", "B", "C4", "SIM", "T20", "PTH", "PD", "PGH", "PL", "TRY", "NPY"]
 unfixable = []
-exclude = ["**/tests/**", "**/.venv/**", "**/__pycache__/**"]
+exclude = ["**/.venv/**", "**/__pycache__/**"]
 
 [tool.ruff.lint.per-file-ignores]
-"src/finances_downloader/ft_market_data_binance/cli.py" = ["PLR0913", "PLR0917", "B008", "TRY301", "B904", "E501", "PLC0415"]
-"src/finances_downloader/ft_market_data_binance/api.py" = ["PLR0913", "PLR0917", "B008", "TRY400", "B904", "C401", "SIM118", "E501", "PLC0415"]
-"src/finances_downloader/ft_market_data_binance/client.py" = ["PLR0913", "PLR0917", "PLR2004", "TRY300", "TRY301", "TRY003", "SIM115", "PTH123", "E501", "E402"]
-"src/finances_downloader/ft_market_data_binance/service.py" = ["PLR0913", "PLR0917", "PLR0915", "C401", "TRY400", "B007", "E501"]
-"src/finances_downloader/ft_market_data_binance/writer.py" = ["E501", "PLW2901"]
-"src/finances_downloader/ft_market_data_binance/planner.py" = ["PLR0913", "PLR0917", "PLR2004", "TRY003", "E501"]
-"src/finances_downloader/ft_market_data_binance/inventory.py" = ["E501"]
-"src/finances_downloader/ft_market_data_binance/normalizer.py" = ["PLR0913", "PLR0917", "C416", "B905", "TRY003", "E501"]
-"src/finances_downloader/ft_market_data_binance/public_data.py" = ["PLR2004", "E501"]
-"src/finances_downloader/ft_market_data_binance/rest_api.py" = ["PLR0913", "PLR0917", "F841"]
+"tests/**" = ["PLR2004", "TRY003", "PLR0913", "PLR0917"]
+# Firmas planas exigidas por plan.md (opciones Typer / query params FastAPI / contratos de servicio)
+"src/finances_downloader/*/cli.py" = ["PLR0913", "PLR0917"]
+"src/finances_downloader/*/api.py" = ["PLR0913", "PLR0917"]
+"src/finances_downloader/ft_market_data_binance/client.py" = ["PLR0913", "PLR0917"]
+"src/finances_downloader/ft_market_data_binance/normalizer.py" = ["PLR0913", "PLR0917"]
+"src/finances_downloader/ft_market_data_binance/rest_api.py" = ["PLR0913", "PLR0917"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["typer.Option", "typer.Argument", "fastapi.Query", "fastapi.Path", "fastapi.Depends"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -87,7 +86,7 @@ explicit_package_bases = true
 mypy_path = "src"
 
 [[tool.mypy.overrides]]
-module = "finances_downloader.*"
+module = ["pyarrow", "pyarrow.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
