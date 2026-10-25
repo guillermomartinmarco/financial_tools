@@ -471,7 +471,9 @@ igualdad con lo versionado (detecta cambios de fórmula no versionados).
 `{out_dir}/{version}`. CSV: `,`, cabecera, LF, nulo = vacío, `NaN`/`Infinity` literales y `%.17g` también en las
 entradas `Float32` (recuperables exactamente con `float()`/`strtod`). `manifest.json` por caso e indicador: rutas,
 columnas, `stable_from_index` (fila, o `null`), `stability_reason`, `warnings`; `files` con sha256. La regeneración
-exige CSV byte a byte y Parquet por contenido (los bytes Parquet llevan metadatos del escritor).
+exige estructura idéntica (columnas, tipos, nulos, enteros) y flotantes dentro de 1e-12 relativo a la escala de
+cada columna: entre CPUs distintas (SIMD/FMA) el último bit de `float64` puede variar (observado en CI ubuntu-latest
+con Bollinger sobre precios ~1e6), así que la igualdad byte a byte solo se garantiza en la misma máquina.
 
 ### 3.11 Contraste con TA-Lib en CI — `tests/ft_indicators/test_talib_parity.py`
 TA-Lib (`ta-lib`, ruedas binarias cp312 Windows/manylinux) es dependencia del extra `[dev]`; solo los **tests**

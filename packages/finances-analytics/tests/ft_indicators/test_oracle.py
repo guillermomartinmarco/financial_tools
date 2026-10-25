@@ -11,7 +11,6 @@ from typing import Any
 
 import polars as pl
 import pytest
-from polars.testing import assert_frame_equal
 
 from finances_analytics.ft_indicators.catalog import CATALOG, ENGINE_VERSION
 from finances_analytics.ft_indicators.convergence import EPSILON
@@ -96,20 +95,43 @@ def test_versioned_files_match_manifest_sha256() -> None:
         assert hashlib.sha256((PACK / rel).read_bytes()).hexdigest() == digest, rel
 
 
-def test_regeneration_is_byte_identical_for_csv_and_equal_for_parquet(regenerated: Path) -> None:
+# Tolerancia de regeneración entre máquinas: pocos ULP de float64 relativos a la escala.
+# Polars vectoriza distinto según el CPU (SIMD/FMA) y el orden de las sumas cambia el último bit;
+# ninguna librería numérica garantiza bytes idénticos entre plataformas.
+REGEN_RTOL = 1e-12
+
+
+def _assert_same_data(fresh: pl.DataFrame, versioned: pl.DataFrame, rel: str) -> None:
+    """Estructura exacta (columnas, tipos, nulos, enteros) y flotantes dentro de ``REGEN_RTOL``."""
+    assert fresh.columns == versioned.columns, rel
+    assert fresh.dtypes == versioned.dtypes, rel
+    assert fresh.height == versioned.height, rel
+    for name in fresh.columns:
+        a, b = fresh[name], versioned[name]
+        assert a.is_null().to_list() == b.is_null().to_list(), f"{rel}:{name} (nulos)"
+        if not a.dtype.is_float():
+            assert a.to_list() == b.to_list(), f"{rel}:{name}"
+            continue
+        scale = max(float(b.abs().max() or 0.0), 1e-300)
+        worst = float((a - b).abs().max() or 0.0)
+        assert worst <= REGEN_RTOL * scale, f"{rel}:{name} difiere {worst:.3e} (escala {scale:.3e})"
+
+
+def test_regeneration_matches_versioned_pack(regenerated: Path) -> None:
     versioned, fresh = _manifest(PACK), _manifest(regenerated)
     assert set(versioned["files"]) == set(fresh["files"])
     for rel in versioned["files"]:
         if rel.endswith(".csv"):
-            assert (regenerated / rel).read_bytes() == (PACK / rel).read_bytes(), rel
+            read = pl.read_csv
+            options: dict[str, object] = {"infer_schema_length": None}
         else:
-            assert_frame_equal(
-                pl.read_parquet(regenerated / rel), pl.read_parquet(PACK / rel), check_exact=True
-            )
-    # Igual salvo el commit generador y los hash de Parquet (metadatos del escritor).
+            read = pl.read_parquet
+            options = {}
+        _assert_same_data(read(regenerated / rel, **options), read(PACK / rel, **options), rel)
+    # Igual salvo el commit generador y los hash (el último bit puede variar entre CPUs).
     for manifest in (versioned, fresh):
         manifest["generator"].pop("commit")
-        manifest["files"] = {k: v for k, v in manifest["files"].items() if k.endswith(".csv")}
+        manifest.pop("files")
     assert versioned == fresh
 
 

@@ -63,7 +63,7 @@ jobs:
         run: python -m pytest -m benchmark -s -q
 
       - name: Upload benchmark results
-        if: matrix.os == 'ubuntu-latest' && !cancelled()
+        if: matrix.os == 'ubuntu-latest' && success()
         uses: actions/upload-artifact@v7
         with:
           name: bench-ft_indicators-${{ github.sha }}
