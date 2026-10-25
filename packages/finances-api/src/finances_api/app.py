@@ -18,6 +18,7 @@ from finances_core.config import FinancesSettings
 from finances_core.logging import configure_logging
 from finances_downloader.ft_data_viewer.api import router as viewer_router
 from finances_downloader.ft_market_data_binance.api import router as binance_router
+from finances_downloader.ft_market_data_yfinance.api import router as yfinance_router
 from ft_setup.api import router as setup_router
 from pydantic import BaseModel
 
@@ -47,7 +48,7 @@ def _build_lifespan(level: int) -> Callable[[FastAPI], AbstractAsyncContextManag
 
 
 def create_app(log_level: int = logging.INFO) -> FastAPI:
-    """Crea la app con ``/health`` y los routers de setup, binance y data viewer."""
+    """Crea la app con ``/health`` y los routers de setup, binance, yfinance y data viewer."""
     app = FastAPI(
         title="financial_tools",
         version=__version__,
@@ -61,5 +62,6 @@ def create_app(log_level: int = logging.INFO) -> FastAPI:
 
     app.include_router(setup_router)
     app.include_router(binance_router)
+    app.include_router(yfinance_router)
     app.include_router(viewer_router)
     return app

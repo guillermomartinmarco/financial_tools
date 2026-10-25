@@ -50,7 +50,7 @@ LOG_FORMATS: tuple[LogFormat, ...] = ("rich", "json")
 
 app = typer.Typer(
     name="ft_market_data_yfinance",
-    help="Descarga OHLCV (precios crudos + adj_close) y eventos corporativos de Yahoo Finance",
+    help="Descarga OHLCV (ajustado por splits) + adj_close y eventos corporativos de Yahoo Finance",
     rich_markup_mode="rich",
     no_args_is_help=True,
 )

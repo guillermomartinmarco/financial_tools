@@ -179,8 +179,9 @@ def fetch_history(
 ) -> YahooBatch:
     """Un pedido ``Ticker(symbol).history`` sobre ``[start_ms, end_ms)`` (síncrono).
 
-    Precios crudos con acciones corporativas (``auto_adjust=False``, ``actions=True``),
-    sin ``prepost`` ni ``repair`` (No-Go del spec).
+    Precios sin ajuste por dividendos con acciones corporativas (``auto_adjust=False``,
+    ``actions=True``), sin ``prepost`` ni ``repair`` (No-Go del spec). Yahoo entrega el OHLC
+    ya ajustado por splits aun con ``auto_adjust=False``; ``Adj Close`` añade dividendos.
 
     Raises:
         YahooTransientError: HTTP 429 (``YFRateLimitError``) o error de red/timeout.

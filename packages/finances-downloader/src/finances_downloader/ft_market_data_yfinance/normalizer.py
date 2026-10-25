@@ -45,7 +45,8 @@ def normalize_yahoo_batch(
     - Con ``now_ms``, descarta la vela aún en formación (``open + duración > now``)
       para que la re-ejecución la pida completa en lugar de congelar un parcial.
     - Descarta filas con OHLC nulo; dedupe por ``open_time_ms`` (gana la última); ordena.
-    - Precios ``float32`` crudos, ``adj_close`` y ``volume`` ``float32``; ``year``/``month``.
+    - OHLC ``float32`` tal como lo entrega Yahoo (ajustado por splits, no por dividendos),
+      ``adj_close`` (además por dividendos) y ``volume`` ``float32``; ``year``/``month``.
     """
     if batch.candles.height == 0:
         return pl.DataFrame(schema=OUTPUT_SCHEMA)

@@ -63,19 +63,28 @@
 
 ## Fase 5: Integración con la suite
 
-- [ ] **T5.1**: `ft_data_viewer` lista y resume datasets `yfinance` (`DatasetIdentifier.market_type` ampliado; `yfinance_events/` ignorado)
+- [x] **T5.1**: `ft_data_viewer` lista y resume datasets `yfinance` (`DatasetIdentifier.market_type` ampliado; `yfinance_events/` ignorado)
   - **Hecho cuando**: tests del viewer: `list` muestra `yfinance/equity/AAPL/1d`; `summary` funciona; el árbol de eventos no aparece como dataset.
-- [ ] **T5.2**: `finances_api` monta `/market-data/yfinance`
+  - **Hecho**: `DatasetIdentifier.market_type` admite los 10 valores; ayuda de CLI/API generada de `MARKET_TYPES` (`scanner.MARKET_HELP`). `packages/finances-downloader/tests/ft_data_viewer/test_yfinance_datasets.py` (RED por `literal_error` → GREEN): `test_list_shows_yfinance_dataset_and_ignores_events_tree` (sin warnings con `yfinance_events/symbol=AAPL/events.parquet`), `test_summary_works_on_yfinance_dataset` (incl. `adj_close`), `test_symbols_with_special_characters_resolve` (`^GSPC`, `EURUSD=X`, `BTC-USD`), `test_cli_list_and_summary_on_yfinance`, `test_list_filters_by_yahoo_market_type`, `test_market_types_include_yahoo_values`, `test_cli_help_lists_widened_market_types`; `tests/ft_data_viewer` → `187 passed`.
+- [x] **T5.2**: `finances_api` monta `/market-data/yfinance`
   - **Hecho cuando**: test de OpenAPI incluye las 4 rutas.
-- [ ] **T5.3**: `ft_setup`: `FT_YFINANCE_*` en `env_list.conf(.j2)`, sin `FT_YFINANCE_API_KEY`
+  - **Hecho**: `create_app()` incluye `yfinance_router`; `packages/finances-api/tests/test_app.py`: `test_openapi_includes_all_tool_routers` (prefijo `/market-data/yfinance/`, RED → GREEN) y `test_openapi_includes_the_four_yfinance_routes` (POST `/download`, GET `/status|/plan|/result/{task_id}`); finances-api `9 passed`.
+- [x] **T5.3**: `ft_setup`: `FT_YFINANCE_*` en `env_list.conf(.j2)`, sin `FT_YFINANCE_API_KEY`
   - **Hecho cuando**: `test_doctor_lists_tool_variables_with_source_tool[ft_market_data_yfinance]` pasa.
+  - **Hecho**: `env_list.conf` y `templates/env_list.conf.j2` idénticos (`cmp`) con los 5 `FT_YFINANCE_*`; `test_doctor_lists_tool_variables_with_source_tool[ft_market_data_yfinance-expected2]` PASSED (aserción `FT_YFINANCE_API_KEY not in names`); finances-core `149 passed`.
 - [ ] **T5.4**: `pyproject.toml` (dep `yfinance`, script, mypy override) y README (sin *planificado*, ejemplos copy-pasteables)
   - **Hecho cuando**: CI instala desde cero y pasa en Windows y Ubuntu.
-  - **Avance**: `pyproject.toml` listo (dep `yfinance>=1.7`, script `ft_market_data_yfinance`, override mypy `yfinance.*`, `pandas-stubs` en dev); pendiente README y CI.
+  - **Avance**: `pyproject.toml` listo (dep `yfinance>=1.7`, script `ft_market_data_yfinance`, override mypy `yfinance.*`, `pandas-stubs` en dev).
+  - **Avance**: README sin *(planificado)* para la herramienta, §2.2 descrita (OHLC ajustado por splits, no por dividendos + `adj_close` + eventos), ejemplos de §3 (`download` AAPL 1d, `"^GSPC"` 1d, `"EURUSD=X"` 1h, `--dry-run`, `status|plan|result`) verificados contra `--help` y en el smoke T6.1, rutas `/market-data/yfinance` en la sección de servicio. CI (`.github/workflows/ci.yml`) ya instala `finances-downloader[dev]`; `pip install --dry-run -e "packages/finances-downloader[dev]"` resuelve (`Would install finances-downloader-0.1.0`, yfinance/pandas satisfechos). **Pendiente**: la ejecución real de CI (Windows + Ubuntu) ocurre al hacer push.
 
 ## Fase 6: Cierre
 
-- [ ] **T6.1**: Smoke real contra Yahoo (fuera de CI, `FT_PROJECT_ROOT` temporal): AAPL 1d, ^GSPC 1d, EURUSD=X 1h, BTC-USD 5m; re-ejecución sin pérdida; `ft_data_viewer list` los muestra; `ft_serve` expone las rutas
+- [x] **T6.1**: Smoke real contra Yahoo (fuera de CI, `FT_PROJECT_ROOT` temporal): AAPL 1d, ^GSPC 1d, EURUSD=X 1h, BTC-USD 5m; re-ejecución sin pérdida; `ft_data_viewer list` los muestra; `ft_serve` expone las rutas
   - **Hecho cuando**: salida del smoke registrada en este archivo.
+  - **Hecho** (2026-10-25, yfinance 1.7, `FT_PROJECT_ROOT` temporal tras `ft_setup init`):
+    - Run 1 (exit 0, COMPLETED, 0 errores): `AAPL/1d` equity 706 velas · `^GSPC/1d` index 706 · `EURUSD=X/1h` fx 927 (desde 2026-09-01) · `BTC-USD/5m` crypto 1670 (desde 2026-10-20); 68 Parquet diarios + `yfinance_events/symbol=AAPL/events.parquet`.
+    - Run 2 (mismos comandos, exit 0, COMPLETED): `processed_candles=0`, filas por dataset sin cambios (706/706/927/1670, total 4009 → 4009). AAPL+^GSPC: 38 pedidos vacíos (`gaps_found=38`) = límites de mes en fin de semana/feriado + cola posterior a la última vela (limitación conocida, RF-6); EURUSD=X y BTC-USD: 1 pedido de cola cada uno.
+    - `ft_data_viewer list`: 4 datasets `yfinance` (crypto BTC-USD 5m, equity AAPL 1d, fx EURUSD=X 1h, index ^GSPC 1d), sin warnings en stderr con `yfinance_events/` presente; `summary -m index -s ^GSPC` → 706 filas con `adj_close`.
+    - App compuesta en proceso (`httpx.ASGITransport` sobre `finances_api.app.create_app()` con lifespan): `/openapi.json` expone `/market-data/yfinance/{download, status/{task_id}, plan/{task_id}, result/{task_id}}`; `GET /data/datasets?exchange=yfinance` → 200, 4 datasets; `/health` ok.
 - [ ] **T6.2**: Verificar matriz Art. 20 vía checklist del PR
   - **Hecho cuando**: checklist firmado en la descripción del PR; CI verde.

@@ -13,5 +13,6 @@
   - **Hecho cuando**: No quedan referencias a `ft_setup serve` ni a `finances-backtester serve` en el repo.
   - **Hecho**: `ft_setup/serve.py` eliminado (y extra `[service]` de finances-core); README usa `ft_serve`; solo quedan menciones históricas en ADRs/notas de auditoría.
 
-- [ ] **T5**: Montar router `/market-data/yfinance` (ver `specs/ft_market_data_yfinance` T5.2)
+- [x] **T5**: Montar router `/market-data/yfinance` (ver `specs/ft_market_data_yfinance` T5.2)
   - **Hecho cuando**: `test_openapi_includes_all_tool_routers` incluye el prefijo `/market-data/yfinance/`.
+  - **Hecho**: `create_app()` incluye `finances_downloader.ft_market_data_yfinance.api.router`; `test_openapi_includes_all_tool_routers` incluye `/market-data/yfinance/` y `test_openapi_includes_the_four_yfinance_routes` fija las 4 rutas; ruff/format/mypy limpios, `9 passed`.

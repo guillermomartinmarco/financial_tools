@@ -127,6 +127,9 @@ siguiente vela nunca se dé por cubierta sin tenerla; un gap interno más corto 
 `última + 23 h` → medianoche siguiente en un cambio de mes) no puede contener una vela y no se pide.
 La vela aún en formación (`open + duración máxima > now`: 25 h, 7 d + 1 h, 31 d) no se persiste, para
 que la re-ejecución la traiga completa en lugar de congelar un parcial.
+**Limitación conocida**: la cobertura se calcula por partición mensual, así que el tramo entre la última
+vela de un mes y la primera del siguiente que cruza un cierre de mercado (fin de semana en el cambio de
+mes) se re-pide en cada ejecución; la respuesta es vacía (sin filas ni error) y se cuenta en `gaps_found`.
 `EVENT_TIMEFRAMES = {1m..1d}`: en `1wk`/`1mo` yfinance asigna las acciones corporativas a la fila de la
 semana/mes, así que esos timeframes no alimentan la tabla de eventos.
 
@@ -156,6 +159,9 @@ def default_fetcher() -> FetchFn       # punto de inyección para tests (como de
 - `event_time_ms` = medianoche local de la bolsa del día del evento (en ms UTC), igual en intradía y diario.
 - Medido: con `auto_adjust=False` Yahoo devuelve OHLC **ajustado por splits** (no por dividendos);
   `adj_close` añade el ajuste por dividendos. AAPL 2020-08-07: `open` 113.2 (cotizó ~452 antes del 4:1).
+  Lo almacenado es por tanto "ajustado por splits, no por dividendos"; el precio cotizado se reconstruye
+  multiplicando por el producto de los splits posteriores (tabla de eventos). Un split nuevo hace que
+  Yahoo re-exprese el histórico: re-descargar esos meses los reescribe (merge sin pérdida, gana lo nuevo).
 - Se ejecuta con `asyncio.to_thread` dentro del servicio.
 
 ### 3.4 Normalización — `normalizer.py`
@@ -205,7 +211,7 @@ packages/finances-downloader/tests/ft_market_data_yfinance/
 |---|---|---|
 | ADR-Y01 | `yfinance` como fuente | Resuelve cookies/crumb y cambios de Yahoo; no hay API oficial |
 | ADR-Y02 | pandas solo en `adapter.py`; Polars en el resto | Constitución: Polars > pandas; el borde se aísla y se testea con un fetcher falso |
-| ADR-Y03 | Precios crudos + `adj_close` + tabla de eventos | El ajuste de Yahoo cambia retroactivamente; los crudos y eventos son inmutables y permiten cualquier ajuste |
+| ADR-Y03 | OHLC de Yahoo (ajustado por splits, no por dividendos) + `adj_close` + tabla de eventos | Yahoo no entrega precios sin ajuste por splits aun con `auto_adjust=False`; con la tabla de eventos (inmutable) se reconstruye el precio cotizado (× producto de splits posteriores) y el retorno total. Un split futuro re-expresa el histórico de Yahoo: la re-descarga reescribe esos meses (merge sin pérdida, gana lo nuevo) |
 | ADR-Y04 | `market_type` detectado de `instrumentType` | Gratis en cada respuesta; el usuario no lo tiene que saber |
 | ADR-Y05 | Límites de Yahoo como tabla de constantes | Un único lugar para ajustar si Yahoo cambia sus límites |
 | ADR-Y06 | Núcleo de descarga en `finances_core.marketdata` | Art. 4: binance y yfinance comparten escritor, inventario, tareas y reintentos sin importarse entre sí |

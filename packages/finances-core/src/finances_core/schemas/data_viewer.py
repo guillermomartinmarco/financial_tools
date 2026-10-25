@@ -5,7 +5,10 @@ from pydantic import BaseModel
 
 class DatasetIdentifier(BaseModel):
     exchange: str = "binance"
-    market_type: Literal["spot", "futures"]
+    # Binance usa spot/futures; Yahoo Finance (ft_market_data_yfinance) el resto.
+    market_type: Literal[
+        "spot", "futures", "equity", "etf", "index", "fx", "crypto", "future", "fund", "other"
+    ]
     symbol: str
     timeframe: str
 

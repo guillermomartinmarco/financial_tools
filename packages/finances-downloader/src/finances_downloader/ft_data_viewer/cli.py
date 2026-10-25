@@ -33,7 +33,7 @@ from finances_downloader.ft_data_viewer.errors import (
     NoDataInRangeError,
 )
 from finances_downloader.ft_data_viewer.exporter import ExportFormat
-from finances_downloader.ft_data_viewer.scanner import dataset_label
+from finances_downloader.ft_data_viewer.scanner import MARKET_HELP, dataset_label
 
 COMPONENT = "ft_data_viewer"
 EXIT_NOT_FOUND = 1
@@ -166,7 +166,7 @@ def _unsupported_csv(command: str) -> NoReturn:
 def list_cmd(
     ctx: typer.Context,
     exchange: str | None = typer.Option(None, "--exchange", "-e", help="Filtrar por exchange"),
-    market_type: str | None = typer.Option(None, "--market", "-m", help="spot | futures"),
+    market_type: str | None = typer.Option(None, "--market", "-m", help=MARKET_HELP),
     symbol: str | None = typer.Option(None, "--symbol", "-s", help="Filtrar por símbolo"),
     timeframe: str | None = typer.Option(None, "--timeframe", "-t", help="Filtrar por timeframe"),
     output_format: OutputFormat | None = typer.Option(None, "--format", "-f"),
@@ -246,7 +246,7 @@ def list_cmd(
 def summary(
     ctx: typer.Context,
     exchange: str = typer.Option(..., "--exchange", "-e", help="Exchange (binance)"),
-    market_type: str = typer.Option(..., "--market", "-m", help="spot | futures"),
+    market_type: str = typer.Option(..., "--market", "-m", help=MARKET_HELP),
     symbol: str = typer.Option(..., "--symbol", "-s", help="Símbolo (ej. BTCUSDT)"),
     timeframe: str = typer.Option(..., "--timeframe", "-t", help="Timeframe (ej. 1h)"),
     output_format: OutputFormat | None = typer.Option(None, "--format", "-f"),

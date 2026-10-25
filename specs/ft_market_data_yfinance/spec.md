@@ -11,7 +11,7 @@ Parquet Hive sin pérdida, tarea persistida con *polling*, CLI ≡ API) adaptada
 | ID | Rol | Historia |
 |----|-----|----------|
 | US-1 | Quant Researcher | Como investigador, **quiero** descargar OHLCV de acciones, ETFs, índices, forex, futuros y cripto desde Yahoo Finance para varios símbolos y timeframes **para que** pueda backtestear estrategias multi-activo con la misma suite que uso para Binance. |
-| US-2 | Backtest Engineer | Como usuario del backtester, **exijo** precios **crudos** (lo que realmente cotizó) más `adj_close` y una tabla separada de dividendos/splits **para que** pueda calcular retornos totales o ajustes sin depender de que Yahoo recalcule el histórico. |
+| US-2 | Backtest Engineer | Como usuario del backtester, **exijo** el OHLC tal como lo entrega Yahoo (**ajustado por splits, no por dividendos**) más `adj_close` (ajustado además por dividendos) y una tabla separada de dividendos/splits **para que** pueda reconstruir los precios realmente cotizados y calcular retornos totales. |
 | US-3 | Data Engineer | Como ingeniero de datos, **necesito** que las descargas sean **incrementales, idempotentes y sin pérdida** y que los cierres de mercado **no** se traten como huecos **para que** re-ejecutar una descarga solo traiga lo nuevo. |
 | US-4 | Operador | Como operador, **quiero** `ft_market_data_yfinance download` y `POST /market-data/yfinance/download` con el mismo contrato de polling que binance **para que** pueda lanzar descargas desde la terminal o desde `ft_serve`. |
 
@@ -59,7 +59,7 @@ Los límites viven en una tabla de constantes (un único lugar) para poder ajust
 **SI** un gap cae fuera del historial disponible, **ENTONCES** se registra en `gaps_unfillable` y la tarea **no** falla por ello.
 
 ### RF-4 — Normalización Canónica (Ubícuo)
-**EL SISTEMA DEBE** pedir a Yahoo precios **sin ajustar** con acciones corporativas (`auto_adjust=False`, `actions=True`, excepciones visibles) y transformar cada lote **antes de persistir** a:
+**EL SISTEMA DEBE** pedir a Yahoo precios **sin ajuste por dividendos** con acciones corporativas (`auto_adjust=False`, `actions=True`, excepciones visibles) y transformar cada lote **antes de persistir** a:
 
 | Columna | Tipo | Origen |
 |---|---|---|
@@ -67,13 +67,15 @@ Los límites viven en una tabla de constantes (un único lugar) para poder ajust
 | `timeframe` | str | canónico (RF-2) |
 | `market_type` | str | `instrumentType` de Yahoo: EQUITY→`equity`, ETF→`etf`, INDEX→`index`, CURRENCY→`fx`, CRYPTOCURRENCY→`crypto`, FUTURE→`future`, MUTUALFUND→`fund` |
 | `open_time_ms` | int64 | índice de Yahoo (zona horaria de la bolsa) convertido a ms UTC |
-| `open`, `high`, `low`, `close` | float32 | precios crudos |
-| `adj_close` | float32 | `Adj Close` de Yahoo |
+| `open`, `high`, `low`, `close` | float32 | OHLC de Yahoo: **ajustado por splits, no por dividendos** (Yahoo aplica el ajuste por splits aun con `auto_adjust=False`) |
+| `adj_close` | float32 | `Adj Close` de Yahoo: ajustado por splits **y** dividendos |
 | `volume` | float32 | `Volume` |
 
 - Filas con OHLC nulo se descartan; duplicados por `open_time_ms` se resuelven conservando la última; salida ordenada.
 - **SI** Yahoo devuelve un `instrumentType` no listado, **ENTONCES** `market_type="other"` y se loguea un warning.
 - Las velas diarias o mayores tienen `open_time_ms` = medianoche local de la bolsa expresada en UTC.
+- **Precio realmente cotizado**: se reconstruye con la tabla de eventos (RF-5) multiplicando el OHLC almacenado por el producto de los ratios de los splits **posteriores** a la vela; el retorno total se calcula con `adj_close` o con los dividendos de la tabla.
+- **SI** ocurre un split nuevo, **ENTONCES** Yahoo re-expresa todo el histórico; las particiones ya guardadas conservan la escala anterior hasta que se re-descargan (el merge sin pérdida de RF-5 reescribe esos meses y prevalece lo nuevo). La tabla de eventos permite detectar y corregir esa mezcla de escalas.
 
 ### RF-5 — Persistencia en Parquet Hive sin Pérdida (Ubícuo)
 **EL SISTEMA DEBE** escribir:
@@ -85,6 +87,7 @@ Los límites viven en una tabla de constantes (un único lugar) para poder ajust
 - Los intervalos sin velas por mercado cerrado (fines de semana, feriados, fuera de rueda) **NO DEBEN** reportarse como gaps ni como errores.
 - **SI** Yahoo devuelve una respuesta vacía para una ventana dentro del historial disponible, **ENTONCES** se considera "sin operaciones" y la ventana se da por procesada.
 - El inventario considera cubierto todo el tramo entre la primera y la última vela de cada partición, así las re-ejecuciones solo piden lo posterior a la última vela.
+- **Limitación conocida**: como la cobertura se calcula por partición mensual, el tramo entre la última vela de un mes y la primera del siguiente que cae en un cierre de mercado (p. ej. un fin de semana en el cambio de mes) se vuelve a pedir en cada ejecución; Yahoo responde vacío, no se escriben filas ni se reporta error, pero el tramo se cuenta en `gaps_found`.
 
 ### RF-7 — Rate-Limit y Reintentos (Ubícuo)
 **EL SISTEMA DEBE** limitar los pedidos con un Token Bucket (`FT_YFINANCE_RATE_CAPACITY`, default 5; `FT_YFINANCE_RATE_REFILL_RATE`, default 1.0 pedido/s) y reintentar con backoff exponencial + jitter (`FT_YFINANCE_BASE_BACKOFF_MS`, default 2000) hasta `FT_YFINANCE_MAX_RETRIES` reintentos adicionales (default 3) **solo** ante rate-limit de Yahoo (HTTP 429) o errores de red/timeout (`FT_YFINANCE_TIMEOUT_S`, default 30). Cada reintento se loguea.
@@ -116,5 +119,6 @@ Los límites viven en una tabla de constantes (un único lugar) para poder ajust
 
 - **Fuera de alcance**: datos fundamentales, opciones, noticias, pre/post-market (`prepost`), streaming en vivo, ajuste de precios al leer (lo hace el consumidor con `adj_close` o la tabla de eventos).
 - **Intervalos no canónicos** de Yahoo (`2m`, `90m`, `5d`, `3mo`): no soportados.
-- **Reparación de precios** de yfinance (`repair=True`): no se usa en el MVP (requiere SciPy y altera datos crudos).
+- **Reparación de precios** de yfinance (`repair=True`): no se usa en el MVP (requiere SciPy y altera los datos entregados por Yahoo).
+- **Precios sin ajuste por splits**: Yahoo no los entrega; no se reconstruyen al escribir (se derivan al leer con la tabla de eventos, ver RF-4).
 - **Cambios de símbolo / deslistados**: se tratan como símbolo sin datos (RF-10).
