@@ -13,7 +13,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest]
+        # Ubuntu fijo (no -latest): los umbrales del benchmark se calibraron en esta imagen;
+        # cambiar de imagen debe ser una decisión explícita que recalibre (ft_indicators RF-14).
+        os: [windows-latest, ubuntu-24.04]
         python: ["3.12"]
     defaults:
       run:
@@ -51,11 +53,11 @@ jobs:
             echo "::endgroup::"
           done
 
-      # RF-14 / T6.2 de ft_indicators: benchmarks B1/B2 solo en ubuntu-latest (umbrales en
+      # RF-14 / T6.2 de ft_indicators: benchmarks B1/B2 solo en ubuntu-24.04 (umbrales en
       # tests/ft_indicators/benchmarks/thresholds.json, calibrados en T6.3): el job falla ante
       # una regresión.
-      - name: Benchmarks ft_indicators (ubuntu-latest)
-        if: matrix.os == 'ubuntu-latest'
+      - name: Benchmarks ft_indicators (ubuntu-24.04)
+        if: matrix.os == 'ubuntu-24.04'
         working-directory: packages/finances-analytics
         env:
           BENCH_OUTPUT: ${{ github.workspace }}/bench-results/ft_indicators.json
@@ -63,7 +65,7 @@ jobs:
         run: python -m pytest -m benchmark -s -q
 
       - name: Upload benchmark results
-        if: matrix.os == 'ubuntu-latest' && success()
+        if: matrix.os == 'ubuntu-24.04' && success()
         uses: actions/upload-artifact@v7
         with:
           name: bench-ft_indicators-${{ github.sha }}
