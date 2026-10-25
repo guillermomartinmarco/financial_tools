@@ -346,8 +346,9 @@ on:
 jobs:
   real-data:
     if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'real-data')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04                                # misma imagen fijada que ci.yml
     timeout-minutes: 60
+    permissions: {contents: read, issues: write}         # solo GITHUB_TOKEN (RF-10 bis)
     concurrency: {group: "real-data-${{ github.ref }}", cancel-in-progress: true}
     env: {FT_DATASETS_DIR: "${{ github.workspace }}/.ft-datasets"}
     steps:
@@ -359,23 +360,45 @@ jobs:
           path: .ft-datasets
           key: ft-datasets-ftds-v1-${{ hashFiles('datasets/*.toml', 'datasets/*.lock.json') }}
           restore-keys: ft-datasets-ftds-v1-
-      - name: Materializar y verificar      # timeout-minutes: 30
+      - id: materialize
+        name: Materializar y verificar      # timeout-minutes: 30; guarda el exit code en outputs.exit
         run: ft_datasets --log-format json materialize benchmark-v1 --refetch
       - uses: actions/cache/save@v4
         if: success() && steps.cache.outputs.cache-hit != 'true'
-      - name: Tests real_data              # timeout-minutes: 20
+      - id: tests
+        name: Tests real_data              # timeout-minutes: 20; resumen de fallos en reports/pytest.txt
         run: pytest -m real_data en finances-core, finances-downloader y finances-analytics
-      - if: always(): ft_datasets verify benchmark-v1 --format markdown >> $GITHUB_STEP_SUMMARY
+      - if: always(): ft_datasets verify benchmark-v1 --format markdown > reports/verify.md (y >> $GITHUB_STEP_SUMMARY)
                       y ft_datasets verify --format json > reports/benchmark-v1.json (artifact)
+      - name: Issue de fallo semanal       # RF-10 bis
+        if: failure() && github.event_name == 'schedule'
+        env: {GH_TOKEN: "${{ github.token }}"}
+        run: scripts/ci/real_data_issue.sh benchmark-v1 "${{ steps.materialize.outputs.exit }}" "${{ steps.tests.outcome }}"
 ```
-- Solo `ubuntu-latest`: la portabilidad del hash entre SO la cubren los vectores dorados en la matriz por defecto, y
+- Solo `ubuntu-24.04`, la misma imagen fijada en `ci.yml` para la calibración de benchmarks: ambos workflows corren
+  sobre el mismo sistema y el cambio de imagen es una decisión explícita (un PR que toca las dos), nunca un salto
+  silencioso de `ubuntu-latest`. La portabilidad del hash entre SO la cubren los vectores dorados en la matriz por defecto, y
   el *lock* inicial se genera en Windows (T6.1) y se verifica en Ubuntu, lo que lo prueba con datos reales.
 - La caché solo se guarda tras verificación `OK`: nunca se cachean datos que no coinciden. `restore-keys` reutiliza
   la caché previa si cambia la receta; `--refetch` corrige lo que ya no coincide y la pre-verificación evita
   re-descargar lo que sí coincide.
 - Lectura del resultado: exit 3 = fallo de red/proveedor (re-ejecutar); exit 5 = deriva de datos (el resumen
   muestra `drift`, columnas y meses; se corrige con `lock --update` en un PR revisado); fallo en `pytest` = regresión
-  de código. El fallo de una ejecución programada lo notifica GitHub al autor del workflow.
+  de código.
+
+#### 3.8.1 Issue automático — `scripts/ci/real_data_issue.sh` (RF-10 bis)
+- **Tipo** (prioridad): exit de materialización 3 → `download`; 5 → `drift`; 6 → `unlocked`; materialización 0 y
+  `steps.tests.outcome == failure` → `tests`. Cualquier otro fallo (p. ej. instalación) → `infra`.
+- **Etiquetas**: `real-data` y `real-data:<tipo>`; se crean con `gh label create --force` (idempotente).
+- **De-duplicación**: `gh issue list --state open --label real-data --label "real-data:<tipo>" --json number --limit 1`;
+  si devuelve un número → `gh issue comment <n> --body-file body.md`; si no →
+  `gh issue create --title "[real-data] <tipo>: benchmark-v1" --label ... --body-file body.md`.
+- **Cuerpo** (`body.md`): enlace a la ejecución (`$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID`),
+  fecha, `reports/verify.md` (tabla por dataset con estado, `drift`, `scale_factor`, columnas y meses) y, para
+  `tests`, las líneas de resumen de `reports/pytest.txt`. Si `verify.md` no existe (fallo temprano), se indica.
+- El script termina con `|| echo "::warning::..."`: un fallo al gestionar el issue no cambia el resultado del job,
+  que ya está en rojo por el paso original.
+- Las ejecuciones manuales y por etiqueta no ejecutan el paso (`github.event_name == 'schedule'`).
 
 ## 4. Estructura de Archivos Objetivo
 ```
@@ -397,6 +420,7 @@ packages/finances-downloader/tests/ft_datasets/
 └── real_data/test_benchmark_v1.py        # marcador real_data
 packages/finances-analytics/tests/real_data/test_indicators_real.py   # marcador real_data
 .github/workflows/real-data.yml
+scripts/ci/real_data_issue.sh            # issue de-duplicado ante fallo semanal (RF-10 bis)
 ```
 
 ## 5. Dependencias
@@ -423,6 +447,8 @@ packages/finances-analytics/tests/real_data/test_indicators_real.py   # marcador
 | ADR-D10 | Recetas inmutables por nombre (`-v1`, `-v2`); `RECIPE_CHANGED` si se editan tras bloquear | Una receta con nombre fijo significa siempre los mismos datos; evolucionar = receta nueva |
 | ADR-D11 | Bloques en secuencia | Cada descargador ya paraleliza internamente con su propio rate-limit (Art. 14); paralelizar bloques solo suma riesgo de 429 |
 | ADR-D12 | Suite `real_data` opt-in, workflow separado solo en Ubuntu, caché guardada solo tras verificación `OK` | La suite por defecto sigue sin red y determinista; CI descarga una vez por versión de receta y nunca cachea datos inválidos |
+| ADR-D14 | Fallo semanal → issue automático de-duplicado por tipo (etiquetas `real-data:<tipo>`), solo con `GITHUB_TOKEN` | Un fallo programado sin dueño se pierde en los correos; un issue por tipo evita ruido semanal repetido y separa red, deriva y regresión de código |
+| ADR-D15 | Imagen `ubuntu-24.04` fijada, igual que `ci.yml` | Coherencia con la calibración de benchmarks; cambiar de imagen debe ser explícito |
 | ADR-D13 | Clasificación de deriva con 3 sondas de `close` y hashes por columna y por mes | Sin guardar los datos esperados, distingue *split* re-expresado (cociente constante), filas cambiadas y correcciones puntuales, y localiza el mes |
 
 ## 7. Integración con `finances-core` y la suite

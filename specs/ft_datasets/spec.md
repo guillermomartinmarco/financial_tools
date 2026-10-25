@@ -151,9 +151,28 @@ y devolver un `VerifyReport` con un estado por ítem:
   devuelve un `LazyFrame`; **SI** el ítem no está `OK`, **ENTONCES** el test **falla** (nunca se omite en silencio).
 - Los tests de datos reales llevan el marcador `real_data`, excluido por defecto (`-m 'not real_data'`) en todos los
   paquetes: la suite por defecto sigue **sin red y determinista**.
-- **CI**: workflow separado (`.github/workflows/real-data.yml`) en `ubuntu-latest`, disparado manualmente, por
+- **CI**: workflow separado (`.github/workflows/real-data.yml`) en `ubuntu-24.04` (la misma imagen fijada en
+  `ci.yml`; cambiarla es una decisión explícita, nunca un efecto de `ubuntu-latest`), disparado manualmente, por
   calendario semanal o por la etiqueta `real-data` de un PR; caché de `FT_DATASETS_DIR` con clave derivada del hash
   de la receta y su *lock*; la caché solo se guarda tras una verificación `OK` (plan §3.8).
+
+### RF-10 bis — Issue Automático ante Fallo Semanal (Evento-Driven)
+- **CUANDO** la ejecución **programada** (semanal) del workflow de datos reales falla, **EL SISTEMA DEBE** clasificar el
+  fallo en un único tipo, en este orden de prioridad: `download` (materialización con exit 3), `drift` (verificación
+  con exit 5: `MISMATCH`, `MISSING` o `RECIPE_CHANGED`), `unlocked` (exit 6) `tests` (falla `pytest -m real_data`
+  con los datos verificados) o `infra` (cualquier otro paso, p. ej. instalación).
+- **SI** existe un issue **abierto** con la etiqueta `real-data` y la etiqueta del tipo (`real-data:<tipo>`), **ENTONCES**
+  **EL SISTEMA DEBE** añadir un comentario a ese issue en lugar de abrir uno nuevo (de-duplicación: a lo sumo un issue
+  abierto por tipo).
+- **SI** no existe, **ENTONCES** **EL SISTEMA DEBE** abrir un issue con título fijo por tipo
+  (`[real-data] <tipo>: <receta>`) y ambas etiquetas, creándolas si no existen.
+- El cuerpo (del issue o del comentario) **DEBE** ser el informe Markdown de `ft_datasets verify --format markdown`
+  (dataset, estado, meses afectados, clase de deriva y factor) más el enlace a la ejecución; para `tests` se añade
+  además el resumen de los tests fallidos.
+- **EL SISTEMA DEBE** usar solo el `GITHUB_TOKEN` del workflow con permisos `issues: write` y `contents: read` (sin
+  secretos adicionales). Las ejecuciones manuales y por etiqueta de PR **NO DEBEN** abrir ni comentar issues (su fallo
+  ya es visible en la UI del PR o de Actions).
+- Un fallo al gestionar el issue se registra en el log del job pero no oculta el fallo original (el job sigue en rojo).
 
 ### RF-11 — Configuración vía `FT_` Settings (Ubicuo)
 **EL SISTEMA DEBE** leer de `FinancesSettings`: `FT_DATASETS_RECIPES_DIR` (`./datasets`), `FT_DATASETS_DIR`

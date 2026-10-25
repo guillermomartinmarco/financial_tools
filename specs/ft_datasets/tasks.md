@@ -29,7 +29,7 @@
 ## Fase 2: Hash y verificación (núcleo)
 
 - [ ] **T2.1**: `datasets/hashing.py` — algoritmo `ftds-v1` (plan §3.2) en *streaming* por mes
-  - **Hecho cuando**: vectores dorados con hex fijado en el test para un `DataFrame` con `-0.0`, subnormal, `±inf`, `float32::MAX`, NaN `0x7FC00000` y `0xFFC00000` (mismo hash), y nulos; `0.0` ≠ `-0.0`; cambiar un bit de un valor cambia `content_hash`, su columna y su mes; procesar por meses == procesar de una vez; el test pasa idéntico en `windows-latest` y `ubuntu-latest`.
+  - **Hecho cuando**: vectores dorados con hex fijado en el test para un `DataFrame` con `-0.0`, subnormal, `±inf`, `float32::MAX`, NaN `0x7FC00000` y `0xFFC00000` (mismo hash), y nulos; `0.0` ≠ `-0.0`; cambiar un bit de un valor cambia `content_hash`, su columna y su mes; procesar por meses == procesar de una vez; el test pasa idéntico en Windows y Ubuntu (matriz de `ci.yml`).
 - [ ] **T2.2**: Independencia del escritor
   - **Hecho cuando**: test escribe el mismo `DataFrame` con `zstd`, `snappy` y sin compresión, `row_group_size` 1.000 y 100.000 y con/sin estadísticas → bytes de archivo distintos, hash idéntico.
 - [ ] **T2.3**: `datasets/store.py`: `scan_item` (solo meses que solapan, filtro `[start, end)`, validación de dtypes y orden) y `delete_item_partitions`
@@ -70,14 +70,16 @@
 - [ ] **T5.4**: Tests `real_data`: `ft_datasets/real_data/test_benchmark_v1.py` (todos los ítems `OK` vía `require_dataset`; BTCUSDT `1m` sin huecos inesperados frente a `missing_candles`) y `finances-analytics/tests/real_data/test_indicators_real.py` (`ft_indicators` sobre BTCUSDT `1m` y AAPL `1d` reales, contraste TA-Lib con las tolerancias de su plan)
   - **Hecho cuando**: con el almacén materializado, `pytest -m real_data` pasa en local; sin almacén, falla con mensaje claro (no se omite).
 - [ ] **T5.5**: Workflow `.github/workflows/real-data.yml` (plan §3.8)
-  - **Hecho cuando**: ejecución manual en `ubuntu-latest` con caché fría descarga, verifica, guarda la caché y pasa; segunda ejecución con caché caliente no lanza subprocesos de descarga (`blocks=[]` en el resultado) y termina en < 5 min; el resumen del job muestra la tabla de verificación; el workflow por defecto `ci.yml` no cambia de duración ni usa red.
+  - **Hecho cuando**: ejecución manual en `ubuntu-24.04` (misma imagen que `ci.yml`) con caché fría descarga, verifica, guarda la caché y pasa; segunda ejecución con caché caliente no lanza subprocesos de descarga (`blocks=[]` en el resultado) y termina en < 5 min; el resumen del job muestra la tabla de verificación; el workflow por defecto `ci.yml` no cambia de duración ni usa red.
+- [ ] **T5.7**: Issue automático ante fallo semanal (RF-10 bis, plan §3.8.1): `scripts/ci/real_data_issue.sh`, paso `if: failure() && github.event_name == 'schedule'`, `permissions: {contents: read, issues: write}`
+  - **Hecho cuando**: probado en un fork o rama con un disparador `schedule` temporal (o `workflow_dispatch` con una entrada `simulate_schedule` usada solo para la prueba): un fallo `drift` provocado (lock alterado) abre `[real-data] drift: benchmark-v1` con etiquetas `real-data` y `real-data:drift` y cuerpo con la tabla de verify (dataset, meses, deriva y factor); una segunda ejecución fallida del mismo tipo **comenta** ese issue sin abrir otro; un fallo `download` (URL base de Binance inválida) abre un issue distinto; una ejecución manual fallida no abre ni comenta nada; con el issue cerrado, el siguiente fallo abre uno nuevo. Evidencias (URLs de issues/comentarios) registradas aquí y la entrada de prueba eliminada.
 - [ ] **T5.6**: README (§2.2 utilidad, §3 ejemplos copy-pasteables, servicio `/datasets`, §4 `pytest -m real_data` y etiqueta `real-data`)
   - **Hecho cuando**: los ejemplos del README se ejecutan tal cual en el smoke T6.1.
 
 ## Fase 6: Cierre
 
 - [ ] **T6.1**: Smoke real en Windows (fuera de CI, `FT_PROJECT_ROOT` temporal): `materialize benchmark-v1` → `UNLOCKED` (exit 6) → `lock` → `verify` `OK`; segunda `materialize` sin red; `ft_data_viewer list` con `FT_PARQUET_DIR=data/datasets`; `ft_serve` expone `/datasets`; tiempo de `verify` registrado (RF-5 ≤ 5 s); `benchmark-v1.lock.json` commiteado
-  - **Hecho cuando**: salida del smoke registrada en este archivo y el *lock* generado en Windows verifica `OK` en la primera ejecución del workflow en `ubuntu-latest` (portabilidad real entre SO).
+  - **Hecho cuando**: salida del smoke registrada en este archivo y el *lock* generado en Windows verifica `OK` en la primera ejecución del workflow en `ubuntu-24.04` (portabilidad real entre SO).
 - [ ] **T6.2**: Medición de estabilidad de fuente (riesgo de plan §3.2): un mismo mes de BTCUSDT `1m` descargado por Public Data y por REST (almacenes separados; REST forzado apuntando `FT_BINANCE_PUBLIC_DATA_BASE_URL_SPOT` a una URL sin archivos, de modo que el planificador use el *fallback*; si eso no lo fuerza, se registra y se compara normalizando el CSV mensual y la respuesta REST del mismo mes con un script fuera del repo)
   - **Hecho cuando**: hashes comparados y resultado registrado aquí; si difieren, se abre una tarea en `specs/ft_market_data_binance/tasks.md` para unificar la conversión texto→`Float32` y se documenta en ADR-D02.
 - [ ] **T6.3**: Verificar matriz Art. 20 vía checklist del PR (Resiliencia: delegada + *timeout* por bloque; Desempeño: RF-5 medido, sin benchmark de CI justificado)
