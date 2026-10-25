@@ -15,7 +15,7 @@
 
 ### RF-1 — Listado de Datasets Disponibles (Ubícuo)
 **EL SISTEMA DEBE** proveer una operación `list` (CLI) / `GET /data/datasets` (API) que:
-- Escanee recursivamente `FT_PARQUET_DIR` detectando todos los datasets particionados (exchange, market_type, symbol, timeframe).
+- Escanee recursivamente `FT_PARQUET_DIR` detectando todos los datasets particionados (exchange, market_type, symbol, timeframe). `market_type` ∈ {`spot`, `futures`, `equity`, `etf`, `index`, `fx`, `crypto`, `future`, `fund`, `other`} (Binance usa los dos primeros; Yahoo Finance el resto). Los árboles que no siguen el layout de velas (p. ej. `yfinance_events/`) se ignoran.
 - Retorne para cada dataset: `exchange`, `market_type`, `symbol`, `timeframe`, `year_range` (min/max), `month_count`, `estimated_rows`, `size_bytes`, `last_modified`.
 - Permita filtrar por `exchange`, `market_type`, `symbol`, `timeframe` (query params CLI/API).
 - **SI** no hay datasets, **ENTONCES** retornar lista vacía (no error).

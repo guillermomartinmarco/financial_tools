@@ -5,7 +5,8 @@ Layout leído (spec ``ft_market_data_binance`` RF-4, Hive completo)::
     {PARQUET_DIR}/{exchange}/market_type=X/symbol=Y/timeframe=Z/year=YYYY/month=MM/data.parquet
 
 Los archivos ``data.parquet`` no contienen las columnas de partición; la identidad
-del dataset sale exclusivamente de la ruta.
+del dataset sale exclusivamente de la ruta. Los árboles sin ese layout de velas (p. ej.
+``yfinance_events/symbol=Y/events.parquet``) se ignoran en silencio.
 """
 
 from __future__ import annotations
@@ -31,6 +32,8 @@ ProgressCallback = Callable[[int, int], None]
 
 #: Valores válidos de ``market_type`` según el contrato ``DatasetIdentifier``.
 MARKET_TYPES: tuple[str, ...] = get_args(DatasetIdentifier.model_fields["market_type"].annotation)
+#: Texto de ayuda de CLI/API con los ``market_type`` admitidos.
+MARKET_HELP = " | ".join(MARKET_TYPES)
 
 _NUMERIC_PREFIXES = ("Int", "UInt", "Float")
 

@@ -40,6 +40,7 @@ from finances_downloader.ft_data_viewer.errors import (
     NoDataInRangeError,
 )
 from finances_downloader.ft_data_viewer.exporter import MEDIA_TYPES
+from finances_downloader.ft_data_viewer.scanner import MARKET_HELP
 
 router = APIRouter(prefix="/data", tags=["data-viewer"])
 logger = structlog.get_logger(__name__, component="ft_data_viewer")
@@ -49,7 +50,7 @@ T = TypeVar("T")
 _CHUNK_SIZE = 1024 * 1024
 
 ExchangeParam = PathParam(..., description="Exchange (ej. binance)")
-MarketParam = PathParam(..., description="Market type (spot | futures)")
+MarketParam = PathParam(..., description=f"Market type ({MARKET_HELP})")
 SymbolParam = PathParam(..., description="Símbolo (ej. BTCUSDT)")
 TimeframeParam = PathParam(..., description="Timeframe (ej. 1h)")
 

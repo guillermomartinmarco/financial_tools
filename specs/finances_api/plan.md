@@ -15,6 +15,7 @@ class HealthResponse(BaseModel):
 | * | `/setup/*` | ver `specs/ft_setup/plan.md` | `ft_setup.api.router` |
 | * | `/market-data/binance/*` | ver `specs/ft_market_data_binance/plan.md` | `finances_downloader.ft_market_data_binance.api.router` |
 | * | `/data/*` | ver `specs/ft_data_viewer/plan.md` | `finances_downloader.ft_data_viewer.api.router` |
+| * | `/market-data/yfinance/*` | ver `specs/ft_market_data_yfinance/plan.md` | `finances_downloader.ft_market_data_yfinance.api.router` |
 
 ```python
 def create_app() -> FastAPI:
@@ -22,6 +23,7 @@ def create_app() -> FastAPI:
     app.include_router(setup_router)
     app.include_router(binance_router)
     app.include_router(viewer_router)
+    app.include_router(yfinance_router)
     return app
 ```
 

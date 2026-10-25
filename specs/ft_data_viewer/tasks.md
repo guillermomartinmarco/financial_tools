@@ -143,3 +143,9 @@
 - [x] **T8.5**: Validar que `ft_setup doctor` detecta y lista las 2 nuevas variables `FT_DATA_VIEWER_*`
   - **Hecho cuando**: `ft_setup doctor` output incluye ambas con `source_tool=ft_data_viewer`.
   - **Hecho**: `test_doctor_lists_tool_variables_with_source_tool[ft_data_viewer]` y `test_init_env_template_includes_all_tool_variables` (packages/finances-core/tests/integration/test_setup_cli.py).
+
+## Fase 9: Integración con `ft_market_data_yfinance`
+
+- [x] **T9.1**: `market_type` ampliado (`spot`, `futures`, `equity`, `etf`, `index`, `fx`, `crypto`, `future`, `fund`, `other`) y árboles sin layout de velas ignorados
+  - **Hecho cuando**: `list`/`summary` funcionan sobre `yfinance/market_type=equity/symbol=AAPL/timeframe=1d` y `yfinance_events/` no aparece ni genera warnings.
+  - **Hecho**: `packages/finances-downloader/tests/ft_data_viewer/test_yfinance_datasets.py` (7 tests) en verde; ayuda `--market` y descripción de la ruta generadas desde `MARKET_TYPES`; `tests/ft_data_viewer` → `187 passed` (ver `specs/ft_market_data_yfinance/tasks.md` T5.1).

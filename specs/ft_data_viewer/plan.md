@@ -16,7 +16,7 @@ class MarketType(str, Enum):
 
 class DatasetIdentifier(BaseModel):
     exchange: str = "binance"
-    market_type: Literal["spot", "futures"]
+    market_type: Literal["spot", "futures", "equity", "etf", "index", "fx", "crypto", "future", "fund", "other"]
     symbol: str
     timeframe: str
 

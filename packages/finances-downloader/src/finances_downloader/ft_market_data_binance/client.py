@@ -19,15 +19,9 @@ from typing import Any, Self
 import httpx
 import structlog
 from finances_core.config import FinancesSettings
+from finances_core.marketdata import retry as core_retry
 from finances_core.schemas.market_data import TF_MS_MAP
-from tenacity import (
-    AsyncRetrying,
-    RetryCallState,
-    retry_if_exception,
-    stop_after_attempt,
-    wait_exponential,
-    wait_exponential_jitter,
-)
+from tenacity import AsyncRetrying
 from tenacity.wait import wait_base
 
 from finances_downloader.ft_market_data_binance.rate_limiter import DualTokenBucket
@@ -39,7 +33,7 @@ RATE_LIMIT_STATUS = frozenset({418, 429})
 SERVER_ERROR_MIN = 500
 HTTP_OK = 200
 HTTP_NOT_FOUND = 404
-MAX_BACKOFF_S = 60.0
+MAX_BACKOFF_S = core_retry.MAX_BACKOFF_S
 CHUNK_SIZE = 64 * 1024
 #: Peso de ``exchangeInfo`` en el bucket REST (límites oficiales de Binance).
 EXCHANGE_INFO_WEIGHT = 20
@@ -73,37 +67,25 @@ def is_retryable(exc: BaseException) -> bool:
 
 def build_wait(settings: FinancesSettings, *, jitter: bool = True) -> wait_base:
     """Backoff exponencial ``base * 2**(n-1)`` (+ jitter uniforme ``[0, base]``)."""
-    base_s = settings.BINANCE_BASE_BACKOFF_MS / 1000.0
-    if jitter:
-        return wait_exponential_jitter(multiplier=base_s, max=MAX_BACKOFF_S, jitter=base_s)
-    return wait_exponential(multiplier=base_s, max=MAX_BACKOFF_S)
+    return core_retry.build_wait(settings.BINANCE_BASE_BACKOFF_MS, jitter=jitter)
 
 
-def _log_retry(operation: str, url: str) -> Any:
-    def before_sleep(state: RetryCallState) -> None:
-        exc = state.outcome.exception() if state.outcome is not None else None
-        status_code = exc.response.status_code if isinstance(exc, httpx.HTTPStatusError) else None
-        logger.warning(
-            "binance_http_retry",
-            operation=operation,
-            url=url,
-            attempt=state.attempt_number,
-            wait_s=state.next_action.sleep if state.next_action is not None else None,
-            status_code=status_code,
-            error=repr(exc),
-        )
-
-    return before_sleep
+def _describe_http_error(exc: BaseException | None) -> dict[str, object]:
+    status_code = exc.response.status_code if isinstance(exc, httpx.HTTPStatusError) else None
+    return {"status_code": status_code}
 
 
 def build_retrying(settings: FinancesSettings, operation: str, url: str) -> AsyncRetrying:
     """Política de reintentos: 1 intento + ``FT_BINANCE_MAX_RETRIES`` reintentos."""
-    return AsyncRetrying(
-        stop=stop_after_attempt(settings.BINANCE_MAX_RETRIES + 1),
-        wait=build_wait(settings),
-        retry=retry_if_exception(is_retryable),
-        before_sleep=_log_retry(operation, url),
-        reraise=True,
+    return core_retry.build_retrying(
+        core_retry.RetryPolicy(
+            max_retries=settings.BINANCE_MAX_RETRIES,
+            base_backoff_ms=settings.BINANCE_BASE_BACKOFF_MS,
+        ),
+        is_retryable,
+        "binance_http_retry",
+        log_fields={"operation": operation, "url": url},
+        describe_error=_describe_http_error,
     )
 
 

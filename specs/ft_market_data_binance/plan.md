@@ -350,19 +350,29 @@ packages/finances-downloader/
 │           ├── __init__.py
 │           ├── cli.py              # Typer app
 │           ├── api.py              # FastAPI router
-│           ├── service.py          # Orquestador principal
-│           ├── client.py           # Cliente HTTP dual (Public Data + REST), reintentos, checksums
-│           ├── rate_limiter.py     # TokenBucket / DualTokenBucket
+│           ├── service.py          # Orquestador principal (PHASE_ORDER, _TaskRecorder ⊂ core TaskRecorder)
+│           ├── client.py           # Cliente HTTP dual (Public Data + REST), is_retryable, checksums
+│           ├── rate_limiter.py     # DualTokenBucket (sobre core TokenBucket)
 │           ├── planner.py          # Lógica pasos 1-6 (inventory, gaps, plan)
 │           ├── normalizer.py       # normalize_binance_klines
-│           ├── writer.py           # write_parquet_partitioned
-│           ├── inventory.py        # inventory_local_parquet, compute_gaps
+│           ├── writer.py           # write_parquet_partitioned (wrapper exchange="binance")
+│           ├── inventory.py        # inventory_local_parquet (wrapper, símbolo en mayúsculas)
 │           ├── public_data.py      # check_public_data_availability
 │           ├── rest_api.py         # plan_rest_fallback, REST client
 │           └── models.py           # Re-export de los contratos de finances_core.schemas.market_data
 │   (sin logging.py propio: se usa finances_core.logging)
 (la base de tareas NO vive en este paquete: es la única `<raíz del proyecto>/share/tasks.db`, Art. 2)
+
+packages/finances-core/src/finances_core/marketdata/   # núcleo genérico compartido (Art. 4, ADR-Y06 de yfinance)
+├── hive_writer.py      # partition_dir, merge sin pérdida, escritura atómica (exchange, esquema)
+├── inventory.py        # inventory_local_parquet (exchange, market_type="*"), coverage_ranges, compute_gaps
+├── plans.py            # new_task_id, current_ms, validate_time_range, plan_file_path, load/save_plan
+├── tasks_lifecycle.py  # TaskRecorder (fases monótonas), create_download_task, run_download_sync, ...
+├── retry.py            # RetryPolicy, build_wait, build_retrying (predicado + evento de log inyectados)
+├── rate_limit.py       # TokenBucket
+└── months.py           # ms_to_year_month, month_bounds, get_months_in_range
 ```
+Los módulos de la herramienta conservan su API pública (wrappers finos) y delegan en el núcleo.
 
 ---
 
@@ -415,6 +425,7 @@ dev = ["pytest>=8.2", "pytest-asyncio>=0.23", "httpx>=0.27", "ruff>=0.5", "mypy>
 
 - Usa `FinancesSettings` para todas las `FT_*` settings
 - Usa `SQLTaskManager` de `finances-core` para persistencia de tareas
-- Usa `configure_logging` patrón compartido
-- Registra router en `ft_api_service` via `include_router(binance_router)`
+- Usa `finances_core.logging.configure_logging` y `finances_core.timeutils.parse_time_input`
+- Usa el núcleo de descarga compartido `finances_core.marketdata` (escritor Hive sin pérdida, inventario, planes, ciclo de vida de tareas, reintentos, TokenBucket, meses), extraído de esta herramienta para reutilizarlo en `ft_market_data_yfinance` sin violar el Art. 4
+- Su router lo monta `finances_api.create_app()` (`ft_serve`)
 - Declara variables en `ft_setup/env_list.conf` (Art. 16)

@@ -212,6 +212,16 @@ def test_status_unknown_task_exits_1(monkeypatch: pytest.MonkeyPatch, tmp_path: 
             },
         ),
         ("ft_data_viewer", {"FT_DATA_VIEWER_SAMPLE_MAX_ROWS", "FT_DATA_VIEWER_GAP_THRESHOLD_MS"}),
+        (
+            "ft_market_data_yfinance",
+            {
+                "FT_YFINANCE_RATE_CAPACITY",
+                "FT_YFINANCE_RATE_REFILL_RATE",
+                "FT_YFINANCE_MAX_RETRIES",
+                "FT_YFINANCE_BASE_BACKOFF_MS",
+                "FT_YFINANCE_TIMEOUT_S",
+            },
+        ),
     ],
 )
 def test_doctor_lists_tool_variables_with_source_tool(
@@ -224,6 +234,16 @@ def test_doctor_lists_tool_variables_with_source_tool(
         v["spec"]["name"] for v in payload["vars"] if v["spec"]["source_tool"] == source_tool
     }
     assert expected <= by_tool
+
+
+def test_doctor_no_longer_lists_yfinance_api_key(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Yahoo no usa API key (yfinance RF-11): la variable desaparece del catálogo."""
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(cli.app, ["--quiet", "doctor", "--format", "json"])
+    names = {v["spec"]["name"] for v in json.loads(result.output)["vars"]}
+    assert "FT_YFINANCE_API_KEY" not in names
 
 
 def test_init_env_template_includes_all_tool_variables(

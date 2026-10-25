@@ -274,12 +274,52 @@ source_tool = "ft_market_data_binance"
 since_version = "0.1.0"
 
 [[vars]]
-name = "FT_YFINANCE_API_KEY"
-description = "API Key de Yahoo Finance (si aplica)"
-example = "***"
+name = "FT_YFINANCE_RATE_CAPACITY"
+description = "Capacidad del Token Bucket para pedidos a Yahoo Finance"
+example = "5"
 required = false
-var_type = "str"
-secret = true
+var_type = "int"
+secret = false
+source_tool = "ft_market_data_yfinance"
+since_version = "0.1.0"
+
+[[vars]]
+name = "FT_YFINANCE_RATE_REFILL_RATE"
+description = "Pedidos por segundo repuestos en el Token Bucket de Yahoo"
+example = "1.0"
+required = false
+var_type = "float"
+secret = false
+source_tool = "ft_market_data_yfinance"
+since_version = "0.1.0"
+
+[[vars]]
+name = "FT_YFINANCE_MAX_RETRIES"
+description = "Máximo reintentos ante rate-limit (429) o error de red de Yahoo"
+example = "3"
+required = false
+var_type = "int"
+secret = false
+source_tool = "ft_market_data_yfinance"
+since_version = "0.1.0"
+
+[[vars]]
+name = "FT_YFINANCE_BASE_BACKOFF_MS"
+description = "Backoff base en ms para retry exponencial contra Yahoo"
+example = "2000"
+required = false
+var_type = "int"
+secret = false
+source_tool = "ft_market_data_yfinance"
+since_version = "0.1.0"
+
+[[vars]]
+name = "FT_YFINANCE_TIMEOUT_S"
+description = "Timeout en segundos de cada pedido a Yahoo Finance"
+example = "30"
+required = false
+var_type = "int"
+secret = false
 source_tool = "ft_market_data_yfinance"
 since_version = "0.1.0"
 

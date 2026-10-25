@@ -46,9 +46,24 @@ async def test_openapi_includes_all_tool_routers() -> None:
     transport = httpx.ASGITransport(app=create_app())
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         paths = (await client.get("/openapi.json")).json()["paths"]
-    prefixes = ("/setup/", "/market-data/binance/", "/data/")
+    prefixes = ("/setup/", "/market-data/binance/", "/market-data/yfinance/", "/data/")
     for prefix in prefixes:
         assert any(path.startswith(prefix) for path in paths), prefix
+
+
+async def test_openapi_includes_the_four_yfinance_routes() -> None:
+    transport = httpx.ASGITransport(app=create_app())
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        paths = (await client.get("/openapi.json")).json()["paths"]
+    yf = {
+        path: set(ops) for path, ops in paths.items() if path.startswith("/market-data/yfinance/")
+    }
+    assert yf == {
+        "/market-data/yfinance/download": {"post"},
+        "/market-data/yfinance/status/{task_id}": {"get"},
+        "/market-data/yfinance/plan/{task_id}": {"get"},
+        "/market-data/yfinance/result/{task_id}": {"get"},
+    }
 
 
 async def test_mounted_setup_router_answers() -> None:

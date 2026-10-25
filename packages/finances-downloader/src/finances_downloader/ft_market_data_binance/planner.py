@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 import asyncio
-import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import httpx
 import structlog
-import uuid6
 from finances_core.config import FinancesSettings
+from finances_core.marketdata import plans as core_plans
+from finances_core.marketdata.inventory import coverage_ranges
+from finances_core.marketdata.plans import FUTURE_DATA_MESSAGE, current_ms, new_task_id
 from finances_core.schemas.market_data import (
     TF_MS_MAP,
     DownloadPlan,
@@ -32,17 +33,18 @@ from finances_downloader.ft_market_data_binance.rest_api import plan_rest_fallba
 
 logger = structlog.get_logger(__name__)
 
-#: Mensaje exigido por RF-9 para peticiones de datos futuros.
-FUTURE_DATA_MESSAGE = "Cannot download future data"
-
-
-def current_ms() -> int:
-    return int(time.time() * 1000)
-
-
-def new_task_id() -> str:
-    """``task_id`` UUID v7 (RF-6, Art. 18)."""
-    return str(uuid6.uuid7())
+__all__ = [
+    "FUTURE_DATA_MESSAGE",
+    "PlanOutcome",
+    "build_download_plan",
+    "build_rate_limiter",
+    "current_ms",
+    "generate_download_plan",
+    "load_plan",
+    "new_task_id",
+    "plan_file_path",
+    "validate_request",
+]
 
 
 def build_rate_limiter(settings: FinancesSettings) -> DualTokenBucket:
@@ -63,43 +65,22 @@ def validate_request(request: DownloadRequest, now_ms: int | None = None) -> int
     - ``end_ms`` ausente o futuro se acota a ``now_ms``.
     - Timeframes y ``end_ms > start_ms`` ya los garantiza ``DownloadRequest``.
     """
-    now = now_ms if now_ms is not None else current_ms()
-    for tf in request.timeframes:
-        if request.start_ms > now - TF_MS_MAP[tf.value]:
-            msg = (
-                f"{FUTURE_DATA_MESSAGE}: start_ms={request.start_ms} > now_ms - 1 vela "
-                f"({tf.value}) = {now - TF_MS_MAP[tf.value]}"
-            )
-            raise ValueError(msg)
-
-    end_ms = request.end_ms if request.end_ms is not None else now
-    if end_ms > now:
-        logger.warning("end_ms_in_future_clamped", end_ms=end_ms, now_ms=now)
-        end_ms = now
-    if end_ms < request.start_ms:
-        msg = f"end_ms ({end_ms}) debe ser >= start_ms ({request.start_ms})"
-        raise ValueError(msg)
-    return end_ms
+    timeframes_ms = {tf.value: TF_MS_MAP[tf.value] for tf in request.timeframes}
+    return core_plans.validate_time_range(request.start_ms, request.end_ms, timeframes_ms, now_ms)
 
 
 def plan_file_path(task_id: str) -> Path:
     """Ruta persistente ``<raíz>/share/plans/download_plan_{task_id}.json`` (RF-1 paso 6)."""
-    return FinancesSettings().SHARE_DIR / "plans" / f"download_plan_{task_id}.json"
+    return core_plans.plan_file_path(task_id)
 
 
 def load_plan(task_id: str) -> DownloadPlan | None:
     """Plan persistido de ``task_id`` o ``None`` si no existe."""
-    path = plan_file_path(task_id)
-    if not path.is_file():
-        return None
-    return DownloadPlan.model_validate_json(path.read_text(encoding="utf-8"))
+    return core_plans.load_plan(task_id, DownloadPlan)
 
 
 def _save_plan(plan: DownloadPlan) -> Path:
-    path = plan_file_path(plan.task_id)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(plan.model_dump_json(indent=2), encoding="utf-8")
-    return path
+    return core_plans.save_plan(plan.task_id, plan)
 
 
 @dataclass(frozen=True)
@@ -158,7 +139,7 @@ async def build_download_plan(
                     inventory_local_parquet, settings.PARQUET_DIR, symbol, tf, market
                 )
                 # Cada partición cubre hasta el cierre de su última vela.
-                covered = [(lo, hi + tf_ms) for lo, hi in local]
+                covered = coverage_ranges(local, tf_ms)
 
                 # Paso 3: gaps
                 gaps = compute_gaps(request.start_ms, end_ms, covered)
