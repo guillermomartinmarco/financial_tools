@@ -1,4 +1,5 @@
-# Normaliza finales de línea en el repo (LF); cada SO hace checkout con su EOL nativo.
-* text=auto
+# Finales de línea LF en el repo y en el checkout de todos los SO (ruff format exige LF).
+* text=auto eol=lf
 *.parquet binary
 *.db binary
+*.png binary
