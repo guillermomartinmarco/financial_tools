@@ -236,8 +236,12 @@ def test_thresholds_file_is_the_single_source() -> None:
     assert thresholds["rows"] == 1_000_000
     assert thresholds["repeats"] == 5
     assert set(thresholds["scenarios"]) == {"B1", "B2"}
-    assert _scenario_threshold("B1") == 2.0
-    assert _scenario_threshold("B2") == 8.0
+    for scenario, spec in thresholds["scenarios"].items():
+        assert _scenario_threshold(scenario) == spec["max_median_s"]
+    calibration = thresholds["calibration"]
+    if calibration is not None:  # T6.3: 1,5 x mediana de CI, sin superar el provisional
+        for scenario, provisional in calibration["provisional_s"].items():
+            assert _scenario_threshold(scenario) <= provisional
 
 
 def test_bench_config_reads_env_overrides(tmp_path: Path) -> None:
