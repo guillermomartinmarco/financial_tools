@@ -1,0 +1,16 @@
+{
+  "name": "gentle-ai-framework",
+  "version": "4.1.1",
+  "description": "Enlace local determinista para control de flujos e ingeniería de software",
+  "entry": "gentle-orchestrator",
+  "options": {
+    "deterministic_mode": true,
+    "test_first": true,
+    "security_denylist": [
+      ".env",
+      "*.pem",
+      "**/.ssh/*",
+      "**/ft_setup/secrets/*"
+    ]
+  }
+}
