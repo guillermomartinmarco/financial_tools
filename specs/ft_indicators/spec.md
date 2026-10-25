@@ -6,7 +6,8 @@ Los descargadores (`ft_market_data_binance`, `ft_market_data_yfinance`) dejan OH
 El siguiente eslabón de la suite es transformar esas velas en **indicadores técnicos** (columnas numéricas por
 vela) que puedan consumir el futuro backtester, notebooks o software externo. `ft_indicators` es la primera
 herramienta del nuevo paquete `packages/finances-analytics`: calcula un catálogo cerrado de indicadores con
-implementaciones propias en expresiones nativas de **Polars** (sin TA-Lib ni pandas), **persiste** los resultados
+implementaciones propias en expresiones nativas de **Polars** (sin TA-Lib ni pandas en ejecución; TA-Lib solo como
+referencia en los tests de CI), **persiste** los resultados
 en Parquet Hive alineados 1:1 con la fuente y los **exporta** a Parquet / CSV / JSON Lines.
 
 `ft_indicators` es además el **oráculo de referencia** de la suite: calcula internamente en `Float64` sobre CPU y
@@ -61,7 +62,11 @@ Restricciones de parámetros: enteros en `[2, 10000]` (`roc.period` en `[1, 1000
 
 **Decisión VWAP**: el VWAP **anclado a sesión** queda **fuera** del MVP: en cripto 24/7 no existe sesión (cualquier ancla UTC es arbitraria), en acciones requiere calendario y zona horaria de la bolsa que el esquema canónico (solo `open_time_ms` UTC) no transporta, y en timeframes ≥ `1d` carece de sentido. Se incluye el VWAP **móvil** de `period` velas, bien definido para cualquier mercado y timeframe.
 
-**Valores de referencia**: cada indicador se valida contra valores publicados (hojas de StockCharts ChartSchool, ejemplos de Wilder 1978) y contra valores generados **fuera de CI** con TA-Lib, con procedencia documentada. CI **NO DEBE** depender de TA-Lib.
+**Valores de referencia** (Ubícuo): **EL SISTEMA DEBE** validar en CI cada indicador con equivalente en TA-Lib comparándolo **directamente** contra TA-Lib (`ta-lib`, dependencia de test del extra `[dev]`; ruedas binarias para Windows y manylinux x86_64, cp312), además de contra ejemplos publicados (hojas de StockCharts ChartSchool, ejemplos de Wilder 1978). Equivalencias: `sma`↔`SMA`, `ema`↔`EMA`, `wma`↔`WMA`, `rsi`↔`RSI`, `macd`↔`MACD`, `bb`↔`BBANDS(matype=SMA)`, `atr`↔`ATR`, `stoch`↔`STOCH(slowk/slowd_matype=SMA)`, `roc`↔`ROC`, `obv`↔`OBV`, `adx`↔`ADX`/`PLUS_DI`/`MINUS_DI`; `vwap` móvil no tiene equivalente (solo ejemplos calculados a mano). Diferencias de convención conocidas, tratadas como **ajustes explícitos del test** (no como tolerancia):
+- `macd`: TA-Lib alinea las semillas de las EMAs y emite las tres salidas desde el índice `slow+signal−2`; se compara desde `stable_from_ms` (RF-16).
+- `stoch`: TA-Lib emite %K y %D desde `k+smooth_k+d−3`; se compara desde ese índice.
+- `roc`: con base 0 TA-Lib devuelve 0 y `ft_indicators` nulo; esas filas se excluyen de la comparación.
+- Series con nulos/NaN: TA-Lib propaga `NaN`; la comparación usa series sin nulos (la convención de nulos se prueba aparte, RF-3).
 
 ### RF-3 — Convenciones Numéricas Comunes (Ubícuo)
 - **Sin anticipación**: el valor en la fila `t` **DEBE** depender solo de las filas `≤ t` (calculado al cierre de `t`). Calcular sobre el prefijo `[0..t]` **DEBE** dar el mismo valor en `t` que calcular sobre la serie completa.
@@ -96,13 +101,14 @@ Restricciones de parámetros: enteros en `[2, 10000]` (`roc.period` en `[1, 1000
 **EL SISTEMA DEBE** escribir cada indicador en su propio archivo, con **las mismas claves Hive que la fuente**:
 `{FT_INDICATORS_DIR}/{exchange}/market_type={X}/symbol={Y}/timeframe={Z}/year={YYYY}/month={MM}/{indicator_id}.parquet`
 - Columnas: `open_time_ms` (Int64) + columnas de salida (Float32); zstd, estadísticas activadas; filas ordenadas.
+- Espacio de nombres: los `indicator_id` de `ft_indicators` nunca empiezan por `talib_` (prefijo reservado a `ft_ta_lib`, que escribe en los mismos directorios mensuales).
 - Cada ejecución **reescribe completo** cada indicador pedido: cada archivo mensual se reemplaza de forma atómica (temporal + reemplazo) y **DEBE** contener exactamente las filas fuente de ese mes (alineación 1:1, sin pérdida de filas); los archivos de ese indicador en meses que ya no tienen filas fuente se eliminan. Los indicadores **no** pedidos no se tocan.
-- Manifiesto por dataset en `{…}/timeframe={Z}/_manifest.json` (prefijo `_`: ignorado por lectores Hive) con, por `indicator_id`: spec resuelta, columnas, versión del motor, filas, primer y último `open_time_ms` calculado, `stable_from_ms` (RF-16) por indicador y por columna, fecha de cálculo. Se escribe de forma atómica **después** de las particiones; sirve a `show` y a la detección de desactualización en `export`.
+- Manifiesto por dataset y herramienta en `{…}/timeframe={Z}/_manifest.ft_indicators.json` (prefijo `_`: ignorado por lectores Hive; el sufijo de herramienta permite que `ft_ta_lib` comparta el directorio sin colisiones) con, por `indicator_id`: spec resuelta, columnas, versión del motor, filas, primer y último `open_time_ms` calculado, `stable_from_ms` (RF-16) por indicador y por columna, fecha de cálculo. Se escribe de forma atómica **después** de las particiones; sirve a `show` y a la detección de desactualización en `export`.
 - `FT_INDICATORS_DIR` **NO DEBE** estar dentro de `FT_PARQUET_DIR`. **SI** lo está, **ENTONCES** toda operación falla con error de configuración (CLI exit 2 / API HTTP 500) — evitaría que `ft_data_viewer` y los inventarios lo confundan con un exchange.
 
 ### RF-8 — Idempotencia y Concurrencia (Art. 12)
 - Relanzar la misma petición sobre la misma fuente **DEBE** producir archivos con contenido idéntico (mismas filas, nulos y valores `Float32`) y el mismo manifiesto salvo la fecha de cálculo; relanzar tras una interrupción **DEBE** converger al mismo resultado que una ejecución sin interrupción.
-- **SI** otra tarea no terminada está calculando un dataset pedido, **ENTONCES** la petición se rechaza (exit 1 / HTTP 409) indicando el `task_id` que lo bloquea. **SI** el bloqueo pertenece a una tarea ya terminada o inexistente (caída), **ENTONCES** se considera obsoleto y se reemplaza.
+- **SI** otra tarea no terminada de `ft_indicators` está calculando un dataset pedido (el bloqueo es por dataset y herramienta; `ft_ta_lib` usa el suyo), **ENTONCES** la petición se rechaza (exit 1 / HTTP 409) indicando el `task_id` que lo bloquea. **SI** el bloqueo pertenece a una tarea ya terminada o inexistente (caída), **ENTONCES** se considera obsoleto y se reemplaza.
 
 ### RF-9 — Exportación (Ubícuo)
 **EL SISTEMA DEBE** proveer `export` (CLI) / `POST /indicators/datasets/{exchange}/{market_type}/{symbol}/{timeframe}/export` (API) que, para **un** dataset:
@@ -164,7 +170,7 @@ Los umbrales son **provisionales**: se calibran con la primera ejecución real e
 - **SI** la semilla nunca decae (`obv`: el nivel depende para siempre del primer volumen), **ENTONCES** `stable_from_ms` es nulo con motivo `non_decaying_seed`.
 - Los índices cuentan solo filas no nulas de la entrada (las nulas se excluyen de la recursión, RF-3) y se traducen al `open_time_ms` de esa fila.
 - **SI** la serie es más corta que el índice estable, **ENTONCES** `stable_from_ms` es nulo, se añade el warning `not_converged` y la tarea **no** falla.
-- `stable_from_ms` **DEBE** figurar en el manifiesto, en `IndicatorItemResult`, en el progreso de la tarea y en `GET /catalog` (como fórmula legible).
+- `stable_from_ms` **DEBE** figurar en el manifiesto, en `ComputeItemResult`, en el progreso de la tarea y en `GET /catalog` (como fórmula legible).
 
 ### RF-17 — Oráculo de Referencia para Implementaciones `f32` (Ubícuo)
 - **EL SISTEMA DEBE** publicar en el catálogo, por indicador y columna, la **tolerancia esperada** para una implementación `float32` (p. ej. GPU) comparada con el oráculo, aplicada solo desde `stable_from_ms`; la coincidencia bit a bit **no** se exige para indicadores con divisiones, raíces o cancelaciones (RSI, Bollinger, MACD, Estocástico, ADX).
@@ -178,7 +184,7 @@ Los umbrales son **provisionales**: se calibran con la primera ejecución real e
 - **Recálculo incremental** (procesar solo la cola nueva + calentamiento): fuera del MVP. Mejora futura documentada: reanudar los recursivos desde un estado persistido, calcular los de memoria finita por bloques alineados para garantizar equivalencia bit a bit con el recálculo completo, detectar cambios retroactivos de la fuente con huellas de contenido por mes y añadir un test de propiedad *incremental ≡ completo*. El MVP siempre recalcula la serie completa (barato en memoria, RF-14) y su idempotencia es por construcción.
 - **Señales de trading** (cruces, umbrales, divergencias, reglas de entrada/salida): fuera del MVP; corresponden a una herramienta futura o al backtester.
 - **VWAP anclado a sesión** y cualquier indicador que requiera calendario de mercado (RF-2).
-- **TA-Lib, pandas, pandas-ta** como motor o dependencia de ejecución o de CI (TA-Lib solo se usa fuera de CI para generar *fixtures*).
+- **TA-Lib, pandas, pandas-ta** como motor o dependencia de ejecución de `ft_indicators` (TA-Lib solo como referencia en tests; el catálogo TA-Lib completo lo cubre la herramienta hermana `ft_ta_lib`, `specs/ft_ta_lib/`).
 - **Indicadores definidos por el usuario** (fórmulas libres, plugins): fuera del MVP; el catálogo es cerrado y versionado.
 - **Multi-timeframe** (p. ej. RSI diario sobre velas `1h`) y *resampling*: fuera del MVP.
 - **Cálculo sobre un subrango temporal**: el cálculo siempre cubre todo el dataset (necesario para la exactitud de los recursivos); el rango solo filtra la exportación.
