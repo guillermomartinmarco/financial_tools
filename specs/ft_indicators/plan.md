@@ -250,6 +250,10 @@ Exit: 0 OK · 1 no encontrado/bloqueado/genérico · 2 validación · 3 tarea FA
   columna responda 400 (RF-6) sin crear tarea; la fase `PLANNING` de la tarea **persiste** ese plan. Medido: 202 en
   ≪ 200 ms. El router usa `route_class=BadRequestRoute`: errores de validación de cuerpo o ruta → **400** (RF-11/RF-12)
   en lugar del 422 por defecto de FastAPI; `ConfigError` (RF-7) → 500.
+- **Implementado (Fase 7)**: las rutas `status`/`plan`/`result` llevan nombres únicos (`indicators_status`,
+  `indicators_plan`, `indicators_result`) y `POST /compute` construye las URLs con ellos: `url_for` resuelve por nombre en
+  toda la app y, montado en `ft_serve`, `status_endpoint` resolvía a la ruta homónima del primer router montado
+  (`/market-data/binance/status/...`). Cubierto por `finances-api/tests/test_app.py::test_indicators_dispatch_urls_point_to_indicators_routes`.
 
 ## 3. Algoritmos Clave
 

@@ -132,6 +132,12 @@ def _dataset(exchange: str, market_type: str, symbol: str, timeframe: str) -> Da
 
 # ---------------------------------------------------------------- endpoints
 
+#: Nombres de ruta únicos en la app compuesta (``ft_serve``): ``url_for`` resuelve por nombre y
+#: los demás routers también tienen ``status_endpoint``/``plan_endpoint``/``result_endpoint``.
+STATUS_ROUTE = "indicators_status"
+PLAN_ROUTE = "indicators_plan"
+RESULT_ROUTE = "indicators_result"
+
 
 @router.get("/catalog", response_model=list[IndicatorCatalogEntry])
 async def catalog_endpoint() -> list[IndicatorCatalogEntry]:
@@ -152,13 +158,13 @@ async def compute_endpoint(
     return DispatchResponse(
         task_id=task_id,
         status="ACCEPTED",
-        poll_url=str(request.url_for("status_endpoint", task_id=task_id)),
-        plan_url=str(request.url_for("plan_endpoint", task_id=task_id)),
-        result_url=str(request.url_for("result_endpoint", task_id=task_id)),
+        poll_url=str(request.url_for(STATUS_ROUTE, task_id=task_id)),
+        plan_url=str(request.url_for(PLAN_ROUTE, task_id=task_id)),
+        result_url=str(request.url_for(RESULT_ROUTE, task_id=task_id)),
     )
 
 
-@router.get("/status/{task_id}", response_model=ComputeProgress)
+@router.get("/status/{task_id}", response_model=ComputeProgress, name=STATUS_ROUTE)
 async def status_endpoint(
     task_id: str = PathParam(..., pattern=TASK_ID_PATTERN),
 ) -> ComputeProgress:
@@ -169,7 +175,7 @@ async def status_endpoint(
     return progress
 
 
-@router.get("/plan/{task_id}", response_model=IndicatorPlan)
+@router.get("/plan/{task_id}", response_model=IndicatorPlan, name=PLAN_ROUTE)
 async def plan_endpoint(task_id: str = PathParam(..., pattern=TASK_ID_PATTERN)) -> IndicatorPlan:
     """Plan persistido (``share/plans/indicators_plan_{task_id}.json``)."""
     plan = await _run(lambda: service.get_plan(task_id))
@@ -178,7 +184,7 @@ async def plan_endpoint(task_id: str = PathParam(..., pattern=TASK_ID_PATTERN)) 
     return plan
 
 
-@router.get("/result/{task_id}", response_model=ComputeResult)
+@router.get("/result/{task_id}", response_model=ComputeResult, name=RESULT_ROUTE)
 async def result_endpoint(task_id: str = PathParam(..., pattern=TASK_ID_PATTERN)) -> ComputeResult:
     """Resultado final (``409`` mientras la tarea no termina)."""
     try:

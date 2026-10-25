@@ -50,3 +50,22 @@ jobs:
             (cd "packages/$pkg" && python -m mypy --strict src && python -m pytest -q)
             echo "::endgroup::"
           done
+
+      # RF-14 / T6.2 de ft_indicators: benchmarks B1/B2 solo en ubuntu-latest (umbrales en
+      # tests/ft_indicators/benchmarks/thresholds.json). BENCH_ENFORCE=0 hasta la calibración
+      # de T6.3; después pasa a 1 y el job falla ante una regresión.
+      - name: Benchmarks ft_indicators (ubuntu-latest)
+        if: matrix.os == 'ubuntu-latest'
+        working-directory: packages/finances-analytics
+        env:
+          BENCH_OUTPUT: ${{ github.workspace }}/bench-results/ft_indicators.json
+          BENCH_ENFORCE: "0"
+        run: python -m pytest -m benchmark -s -q
+
+      - name: Upload benchmark results
+        if: matrix.os == 'ubuntu-latest' && !cancelled()
+        uses: actions/upload-artifact@v7
+        with:
+          name: bench-ft_indicators-${{ github.sha }}
+          path: bench-results/ft_indicators.json
+          if-no-files-found: error
