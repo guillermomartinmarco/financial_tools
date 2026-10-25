@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Estado | **Propuesto** — pendiente de aprobación del Tech Lead |
+| Estado | **Aprobado** (2026-10-25, Tech Lead) |
 | Fecha | 2026-10-25 |
 | Artículos afectados | Art. 5.3/5.4 (mayor precisión en el camino de datos) — **excepción**. Las salidas `Int16` ya no son excepción: las cubre el Art. 5.1 bis (RFC-0003) |
 | Alcance | Solo `packages/finances-analytics/.../ft_ta_lib/engine.py` (frontera `float64`) y las columnas enteras que persiste `ft_ta_lib` |
@@ -43,4 +43,4 @@ Solo `ft_ta_lib`. Consumidores que unan columnas de patrones deben aceptar `Int1
 enmendado por RFC-0003 (excepciones aprobadas por RFC según el 5.3).
 
 ## Aprobación
-- [ ] Aprobado por el Tech Lead — Firma: ________________ Fecha: __________
+- [X] Aprobado por el Tech Lead — Firma: Guillermo Martín Marco Fecha: 25/10/2026

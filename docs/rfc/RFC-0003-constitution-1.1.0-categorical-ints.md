@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Estado | **Propuesto** — pendiente de aprobación del Tech Lead |
+| Estado | **Aprobado** (2026-10-25, Tech Lead) — aplicado en `docs/constitution.md` v1.1.0 |
 | Fecha | 2026-10-25 |
 | Tipo | **Enmienda** (Gobernanza: RFC + aprobación + *bump* de versión) |
 | Versión | 1.0.0 → **1.1.0** (MINOR: amplía lo permitido; no rompe compatibilidad de proceso) |
@@ -45,6 +45,6 @@
 - **`float32` para categorías**: cumple la letra, pero oculta el tipo de dato y duplica el tamaño.
 
 ## Aprobación
-- [ ] Aprobado por el Tech Lead — Firma: ________________ Fecha: __________
+- [X] Aprobado por el Tech Lead — Firma: Guillermo Martín Marco Fecha: 25/10/2026
 
 Al aprobarse, se aplica el texto en `docs/constitution.md` y se actualiza el resumen de `AGENTS.md`.
