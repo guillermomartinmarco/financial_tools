@@ -8,41 +8,54 @@
 
 ## Fase 0: Fundación
 
-- [ ] **T0.0**: Verificar prerrequisito
+- [x] **T0.0**: Verificar prerrequisito
   - **Hecho cuando**: `from finances_core.indicators_store import store, manifest, view, runner, request, source` importa en `main` y `IndicatorStore(root, "ft_ta_lib")` acepta ids `talib_*` y rechaza los demás.
-- [ ] **T0.1**: `ta-lib>=0.8.2,<0.9` a runtime de `finances-analytics`, `numpy` explícito, script `ft_ta_lib`
+  - **Hecho**: `tests/ft_ta_lib/test_foundation.py::test_core_indicators_store_is_available` importa `store`, `manifest`, `view`, `runner`, `request`, `source`; `test_store_accepts_talib_ids_and_rejects_the_rest` escribe `talib_sma_2` y rechaza `sma_2`, `talib_` y `TALIB_SMA` con `NamespaceViolationError`.
+- [x] **T0.1**: `ta-lib>=0.8.2,<0.9` a runtime de `finances-analytics`, `numpy` explícito, script `ft_ta_lib`
   - **Hecho cuando**: `pip install -e packages/finances-analytics` (sin `[dev]`) instala la rueda binaria en Windows y Ubuntu (cp312) y `ft_ta_lib --help` responde.
-- [ ] **T0.2**: Esqueleto `src/finances_analytics/ft_ta_lib/` y `tests/ft_ta_lib/conftest.py` (reutiliza la fábrica de datasets sintéticos)
+  - **Hecho**: `ta-lib>=0.8.2,<0.9` y `numpy>=1.26` en `dependencies` (fuera de `[dev]`), script `ft_ta_lib`; `pip install --dry-run -e packages/finances-analytics` (sin `[dev]`) resuelve en Windows py3.12 con la rueda binaria ta-lib 0.8.2 (C 0.8.1) y `ft_ta_lib --help` responde; `test_talib_is_a_runtime_dependency_with_numpy` y `test_ft_ta_lib_console_script_is_declared` lo verifican en metadatos. Ubuntu cp312: rueda manylinux publicada (cp311–cp313); la CI (que instala `finances-analytics`) lo reconfirma. Override mypy `talib.*` con `follow_imports = "skip"` (sin stubs). El test de `ft_indicators` que exigía `ta-lib` solo en `[dev]` pasa a `test_talib_is_declared_and_core_dependencies_are_clean`.
+- [x] **T0.2**: Esqueleto `src/finances_analytics/ft_ta_lib/` y `tests/ft_ta_lib/conftest.py` (reutiliza la fábrica de datasets sintéticos)
   - **Hecho cuando**: `test_foundation.py` importa `cli` y `api.router`.
-- [ ] **T0.3**: Aislamiento Art. 4 (test AST)
+  - **Hecho**: `src/finances_analytics/ft_ta_lib/` (`__init__`, `cli` con `-v/-q/--log-format` y `component="ft_ta_lib"`, `api.router` con prefijo `/ta-lib`); la fábrica de datasets Hive pasa a `tests/datasets.py` + *fixtures* `settings`/`hive_dataset` en `tests/conftest.py`, compartidas con `ft_indicators` (sus tests no cambian); `tests/ft_ta_lib/test_foundation.py::test_cli_and_router_import` verde.
+- [x] **T0.3**: Aislamiento Art. 4 (test AST)
   - **Hecho cuando**: test falla si `ft_ta_lib` importa `finances_analytics.ft_indicators`, `finances_downloader`, `finances_api` o `pandas`, o si `talib` se importa fuera de `engine.py`, `catalog.py` y `resolver.py`; el test AST de `ft_indicators` (sin `talib`) sigue verde.
+  - **Hecho**: `tests/ft_ta_lib/test_isolation.py`: el checker AST detecta `finances_analytics.ft_indicators` (absoluto y relativo), `finances_downloader`, `finances_api`, `pandas`, `ft_*` y `talib` fuera de `engine.py`/`catalog.py`/`resolver.py`; `test_float64_only_appears_in_engine` (RFC-0002) y `test_ft_ta_lib_sources_respect_isolation` verdes; `tests/ft_indicators/test_isolation.py` (sin `talib`) sigue verde.
 
 ## Fase 1: Contratos
 
-- [ ] **T1.1**: `finances_core/schemas/ta_lib.py` (plan §1.1)
+- [x] **T1.1**: `finances_core/schemas/ta_lib.py` (plan §1.1)
   - **Hecho cuando**: tests: `TaLibComputeRequest` exige al menos `functions` o `groups`; `TaLibSpec.inputs` solo acepta columnas permitidas; ejemplos JSON del plan validan.
+  - **Hecho**: `finances_core/schemas/ta_lib.py`; `packages/finances-core/tests/unit/test_schemas_ta_lib.py` (37 tests): `TaLibComputeRequest` sin `functions` ni `groups` → error; `TaLibSpec.inputs` acepta `open/high/low/close/adj_close/volume` y rechaza el resto; parámetros estrictos (un booleano JSON no pasa a 0/1); el ejemplo de petición de RF-5, plan, catálogo y los nombres de RF-9 validan. Deriva documentada en plan §1.1: `MA_TYPE_NAMES` con los 14 tipos de TA-Lib C 0.8.1.
 
 ## Fase 2: Catálogo y Resolución
 
-- [ ] **T2.1**: `catalog.py`: `build_catalog()` desde `get_function_groups()` + `abstract.Function.info`
+- [x] **T2.1**: `catalog.py`: `build_catalog()` desde `get_function_groups()` + `abstract.Function.info`
   - **Hecho cuando**: tests: el catálogo contiene todas las funciones de `talib.get_functions()` (≈158) con su grupo; 61 en *Pattern Recognition*; `BBANDS` con 3 salidas y `matype`; `MAVP` → `supported=false`, `unavailable_input`; versiones de wrapper y C presentes; una función ficticia añadida a un `talib` simulado aparece sin cambios de código.
-- [ ] **T2.2**: Metadatos de parámetros (tipo, default, rango) y tipos de salida (`real`/`pattern`/`category`/`index`)
+  - **Hecho**: `catalog.py` (`build_catalog`, `build_catalog_from(lib)`, `build_function_table`); `tests/ft_ta_lib/test_catalog.py`: 201 funciones == `talib.get_functions()` con su grupo (el "≈158" de la spec es TA-Lib clásico; C 0.8.1 publica 201), 61 en *Pattern Recognition*, `BBANDS` 3 salidas + `matype`, `MAVP` → `unavailable_input` (única no soportada), versiones `0.8.2`/`0.8.1`, y una función `FAKEOSC` de un `talib` simulado aparece sin cambios de código.
+- [x] **T2.2**: Metadatos de parámetros (tipo, default, rango) y tipos de salida (`real`/`pattern`/`category`/`index`)
   - **Hecho cuando**: tests: `RSI.timeperiod` int con default 14 y rango de TA-Lib (si el wrapper lo expone; la vía concreta queda documentada aquí); `CDLENGULFING` → `pattern`/`Int16`; `HT_TRENDMODE` → `category`/`Int16`; `MINMAXINDEX` → `index`/`Int64`; reales → `Float32`.
-- [ ] **T2.3**: `resolver.py`: `resolve` + `probe` (RF-3, RF-4, RF-9)
+  - **Hecho**: `tests/ft_ta_lib/test_catalog.py`: `RSI.timeperiod` int, default 14; **rango**: ta-lib 0.8.2 no expone min/max de `TA_GetOptInputParameterInfo` (`_ta_getOptInputParameterInfo`, privado, solo da `name`/`display_name`/`type`/`help`/`default_value`), así que `min`/`max` = `None` y el rango lo valida la ejecución de prueba (`TA_BAD_PARAM`); `CDLENGULFING`/`CDLHIKKAKE` → `pattern`/`Int16`, `HT_TRENDMODE` → `category`/`Int16`, `MINMAXINDEX`/`MAXINDEX`/`MININDEX` → `index`/`Int64`, reales → `Float32`; `MA_TYPE_NAMES` == `talib.MA_Type`. Catálogo: 165 salidas `real`, 61 `pattern`, 4 `category` (`HT_TRENDMODE`, `FRACTAL`×2, `SUPERTREND.trend`), 4 `index`.
+- [x] **T2.3**: `resolver.py`: `resolve` + `probe` (RF-3, RF-4, RF-9)
   - **Hecho cuando**: tests: `rsi` → `talib_rsi_14`; `rsi:price=adj_close` → `talib_rsi_14_price_adj_close` y error sin `adj_close`; `bbands:matype=ema` == `bbands:matype=1`; `macd` → `talib_macd_12_26_9_{macd,macdsignal,macdhist}`; `cdlmorningstar` → `talib_cdlmorningstar_0p3`; parámetro inexistente, de tipo erróneo o `TA_BAD_PARAM` → validación con mensaje de TA-Lib; redefinir `prices` → validación; specs distintas nunca colisionan (propiedad sobre el catálogo).
-- [ ] **T2.4**: Petición: `--function`/`--group`/`--request-file` → `TaLibComputeRequest`; expansión y deduplicación
+  - **Hecho**: `resolver.py` (`lookup`, `resolve`, `probe`); `tests/ft_ta_lib/test_resolver.py`: `talib_rsi_14`, `talib_rsi_14_price_adj_close` (+ error sin `adj_close`), `bbands:matype=ema` == `matype=1`, `talib_macd_12_26_9_{macd,macdsignal,macdhist}`, `talib_cdlmorningstar_0p3`, parámetro inexistente / tipo erróneo / `TA_BAD_PARAM` (mensaje de TA-Lib vía *lookback* `-1` + probe) → `TaLibValidationError`, redefinir `prices` → validación; propiedad Hypothesis (300 ejemplos) sin colisiones de `series_id`/columnas entre specs canónicas distintas + unicidad de los 200 `series_id` por defecto.
+- [x] **T2.4**: Petición: `--function`/`--group`/`--request-file` → `TaLibComputeRequest`; expansión y deduplicación
   - **Hecho cuando**: tests: `-g "Pattern Recognition"` expande a las 61 funciones soportadas; claves de entrada vs parámetros separadas; > 200 funciones → validación; nombre sin distinción de mayúsculas.
+  - **Hecho**: `request.py` (`spec_from_token`, `build_request`, `request_from_payload`, `load_request_file`, `group_functions`, `expand`); `tests/ft_ta_lib/test_request.py`: `-g "Pattern Recognition"` → 61 funciones; claves de entrada → `inputs`, resto → `params`; > 200 tras expandir → validación (los 10 grupos completos = exactamente 200 soportadas; +1 → error); nombres de función y grupo sin distinción de mayúsculas; `--request-file` == cuerpo de la API == CLI.
 
 ## Fase 3: Motor y Propiedades
 
-- [ ] **T3.1**: `engine.py`: `compute_function` (frontera `float64`, NaN → nulo, nulos en calentamiento de salidas enteras, `Int16` con control de rango, índices → `open_time_ms`, subsecuencia sin nulos)
+- [x] **T3.1**: `engine.py`: `compute_function` (frontera `float64`, NaN → nulo, nulos en calentamiento de salidas enteras, `Int16` con control de rango, índices → `open_time_ms`, subsecuencia sin nulos)
   - **Hecho cuando**: tests: salida real == `talib` directo sobre los mismos arrays tras `cast` a `Float32` (bit a bit); `CDLHIKKAKE` conserva ±200 en `Int16`; filas `< lookback` nulas en `CDL*`; `MAXINDEX` devuelve el `open_time_ms` del máximo; fila nula en la entrada → nulo en la salida y resto sin `NaN`; valor fuera de `Int16` simulado → `output_out_of_range`; un único punto de conversión desde `float64` (verificación RFC-0002).
-- [ ] **T3.2**: Propiedad sin anticipación sobre **todo** el catálogo soportado con defaults (prefijo estable)
+  - **Hecho**: `engine.py` (`compute_function` → `FunctionResult`); `tests/ft_ta_lib/test_engine.py`: reales == `talib` directo sobre los mismos arrays tras `Float32` (bit a bit en la misma máquina: `RSI`/`KAMA`/`BBANDS`/`ATR`/`HT_DCPERIOD`); `CDLHIKKAKE` conserva ±200 en `Int16`; filas `< lookback` nulas en los 61 `CDL*` y `HT_TRENDMODE`; `MAXINDEX`/`MINMAXINDEX` == `open_time_ms` del extremo de la ventana; fila nula/`NaN` → nulo y resto sin `NaN` (la ventana salta la fila); valor simulado 40000 → `output_out_of_range`; AST: un único `cast(PERSIST_REAL)` en `_persist_real` y `float64` solo en la frontera de entrada (RFC-0002); dtypes persistidos `Float32`/`Int16`/`Int64` para todo el catálogo.
+- [x] **T3.2**: Propiedad sin anticipación sobre **todo** el catálogo soportado con defaults (prefijo estable)
   - **Hecho cuando**: para cada función y `t` aleatorios, calcular sobre `[0..t]` da el mismo valor en `t` que sobre la serie completa; las que fallen quedan en `NON_CAUSAL` con el test documentándolas.
-- [ ] **T3.3**: Alineación, calentamiento e idempotencia
+  - **Hecho**: `tests/ft_ta_lib/test_properties.py`: prefijo estable (bit a bit) para las 200 funciones soportadas con defaults, `t` deterministas (0…398, incl. *lookback* máx. 100 de `PERCENTRANK`) y Hypothesis (series de 1–180 filas con nulos/`NaN`, `t` aleatorio) + alterar filas `> t` no cambia el pasado; **ninguna** función falla con ta-lib 0.8.2 / C 0.8.1 (incl. `FRACTAL` y `DPO`) → `NON_CAUSAL` vacío y documentado; un test de control detecta una salida con anticipación simulada.
+- [x] **T3.3**: Alineación, calentamiento e idempotencia
   - **Hecho cuando**: tests: mismas filas y `open_time_ms` que la fuente para todo el catálogo soportado; dos ejecuciones dan contenido idéntico; historia insuficiente → columna nula + `insufficient_history`; configuración global de TA-Lib intacta tras una tarea.
-- [ ] **T3.4**: Estabilidad (RF-17)
+  - **Hecho**: `tests/ft_ta_lib/test_alignment.py`: mismas filas y `open_time_ms` que la fuente para todo el catálogo (0, 1, 5 y 300 filas, con nulos); dos ejecuciones → marcos idénticos y archivos Parquet con el mismo SHA-256 vía `IndicatorStore("ft_ta_lib")`; historia insuficiente → columnas nulas + `insufficient_history`; `engine.global_config()` (compatibilidad + *unstable period* de las 23 funciones con el *flag*) igual a 0 antes y después de calcular y escribir todo el catálogo.
+- [x] **T3.4**: Estabilidad (RF-17)
   - **Hecho cuando**: tests: `SMA` → primera fila no nula; `EMA`/`RSI`/`KAMA` → nulo con `unstable_period_unknown`; presente en manifiesto, resultado, progreso y catálogo; `stability=drop` sobre `talib_rsi_14` → validación.
+  - **Hecho**: `engine.stability`; `tests/ft_ta_lib/test_stability.py`: `SMA` → primera fila no nula (`first_non_null`); `EMA`/`RSI`/`KAMA`/`HT_TRENDMODE`/`MAMA` → `stable_from_ms` nulo + `unstable_period_unknown`; el catálogo publica `stability_rule`; una tarea real del runner compartido (`run_compute_task`, `plan_prefix="ta_lib_plan"`) con un `compute_dataset` mínimo de test sobre motor + `IndicatorStore` deja el `Stability` en `_manifest.ft_ta_lib.json`, `get_progress` y `get_result`; `build_wide_view(stability="drop")` sobre `talib_rsi_14` → `ExportValidationError` (el servicio de T4.1/T4.2 reutiliza estas mismas piezas).
 
 ## Fase 4: Servicio, CLI y API
 

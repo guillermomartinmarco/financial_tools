@@ -33,7 +33,8 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e "packages/finances-core[dev]"
           python -m pip install -e "packages/finances-downloader[dev]"
-          # [dev] incluye ta-lib (rueda binaria; contraste de ft_indicators, plan §3.11)
+          # ta-lib es dependencia de runtime de finances-analytics (ft_ta_lib) y la usan los tests
+          # de paridad de ft_indicators (rueda binaria, plan §3.11)
           python -m pip install -e "packages/finances-analytics[dev]"
           python -m pip install -e "packages/finances-api[service,dev]"
 

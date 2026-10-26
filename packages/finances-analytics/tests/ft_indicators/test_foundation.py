@@ -23,12 +23,12 @@ def test_core_prerequisites_from_yfinance_branch() -> None:
     assert ds.market_type == "equity"
 
 
-def test_talib_is_dev_only_dependency() -> None:
-    """T0.1: ``ta-lib`` solo en el extra ``dev``; nunca ``finances-downloader`` ni pandas."""
+def test_talib_is_declared_and_core_dependencies_are_clean() -> None:
+    """T0.1: ``ta-lib`` declarado (runtime desde ``ft_ta_lib`` T0.1; ``ft_indicators`` sigue
+    sin importarlo, ver ``test_isolation``); nunca ``finances-downloader`` ni pandas."""
     requires = importlib.metadata.requires("finances-analytics") or []
     talib = [r for r in requires if r.lower().startswith("ta-lib")]
-    assert talib, "ta-lib debe declararse en el extra dev"
-    assert all('extra == "dev"' in r for r in talib)
+    assert talib, "ta-lib debe declararse en finances-analytics"
     runtime = [r.split(";")[0].strip().lower() for r in requires if "extra ==" not in r]
     assert not any(r.startswith(("finances-downloader", "pandas")) for r in runtime)
     assert any(r.startswith("finances-core") for r in runtime)
