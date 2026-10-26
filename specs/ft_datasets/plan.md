@@ -11,7 +11,7 @@ YF_REPRODUCIBLE_TIMEFRAMES = ("1d", "1w", "1M")          # RF-2: sin intradía d
 class RecipeBlock(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     exchange: Exchange
-    market_type: str                                      # binance: spot|futures; yfinance: MARKET_TYPES - {"other"}
+    market_type: str                                      # binance: spot|futures; yfinance: valores de INSTRUMENT_TYPE_MAP
     symbols: list[str] = Field(min_length=1, max_length=100)
     timeframes: list[str] = Field(min_length=1)
     start: date                                           # 00:00 UTC
@@ -42,6 +42,12 @@ class RecipeItem(BaseModel):
 La regla de "rango asentado" (`end ≤ hoy − FT_DATASETS_SETTLE_DAYS`) depende del reloj y de la configuración, así que
 no vive en el modelo: la aplica `recipes.validate_reproducible(recipe, today, settle_days)` (§3.1).
 
+Precisiones de implementación (T1.1): `market_type` de `yfinance` = valores de `INSTRUMENT_TYPE_MAP`
+(`equity|etf|index|fx|crypto|future|fund`), los únicos que escribe el descargador de Yahoo (`spot`/`futures` son de
+Binance y `other` es el comodín de tipos desconocidos); `start`/`end` solo aceptan fechas TOML o texto `YYYY-MM-DD`
+(nunca fecha-hora, *timestamps* ni `now`); los símbolos no pueden estar vacíos, ser `.`/`..` ni contener separadores o
+espacios (forman parte de rutas Hive); `canonical_sha256()` devuelve `"sha256:<hex>"`.
+
 ### 1.2 *Lock* (`schemas/datasets.py`)
 ```python
 HASH_ALGORITHM = "ftds-v1"
@@ -49,8 +55,8 @@ HASH_ALGORITHM = "ftds-v1"
 class Probe(BaseModel):
     row: int                       # índice 0, n//2, n-1
     open_time_ms: int
-    close_bits: str                # "0x42f6e979" (patrón float32 exacto)
-    close: float                   # legible; no participa en comparaciones
+    close_bits: str | None         # "0x42f6e979" (patrón float32 exacto, NaN canónico); None = nulo
+    close: float | None            # legible; None si nulo o no finito (JSON); no participa en comparaciones
 
 class ItemLock(BaseModel):
     key: str
@@ -75,6 +81,8 @@ class RecipeLock(BaseModel):
     tool_versions: dict[str, str]              # informativo: finances-downloader, polars, yfinance
     items: list[ItemLock]                      # orden = DatasetRecipe.items()
 ```
+Los modelos del *lock* usan `extra="forbid"` y los hashes se validan como `^sha256:[0-9a-f]{64}$`: un *lock* con campos
+desconocidos o hashes mal formados es inválido (RF-12), nunca se reinterpreta.
 
 ### 1.3 Verificación, bloqueo y tarea
 ```python
@@ -409,6 +417,7 @@ packages/finances-core/src/finances_core/
 ├── schemas/datasets.py
 └── datasets/
     ├── __init__.py
+    ├── errors.py                             # errores tipados con `code` (RF-12)
     ├── recipes.py  hashing.py  store.py  verify.py  testing.py
 packages/finances-core/tests/unit/test_datasets_*.py
 packages/finances-downloader/src/finances_downloader/ft_datasets/

@@ -111,6 +111,12 @@ class FinancesSettings(BaseSettings):
     INDICATORS_DIR: pathlib.Path = pathlib.Path("./data/indicators")
     INDICATORS_MAX_CONCURRENT: int = Field(default=2, ge=1, le=16)
 
+    # Recetas de datasets reales (ft_datasets)
+    DATASETS_RECIPES_DIR: pathlib.Path = pathlib.Path("./datasets")
+    DATASETS_DIR: pathlib.Path = pathlib.Path("./data/datasets")
+    DATASETS_DOWNLOAD_TIMEOUT_S: int = Field(default=3600, ge=60)
+    DATASETS_SETTLE_DAYS: int = Field(default=7, ge=1)
+
     @model_validator(mode="after")
     def _resolve_paths(self) -> FinancesSettings:
         root = self.PROJECT_ROOT.resolve()
@@ -139,6 +145,26 @@ class FinancesSettings(BaseSettings):
             )
             raise ConfigError(msg)
         return indicators
+
+    def require_datasets_dir(self) -> pathlib.Path:
+        """``DATASETS_DIR`` validado (RF-11 de ``ft_datasets``).
+
+        El almacén de recetas es una caché reconstruible: no se mezcla con las descargas
+        del usuario. Se valida al usarlo, como :meth:`require_indicators_dir`.
+
+        Raises:
+            ConfigError: SI ``DATASETS_DIR`` está dentro de ``PARQUET_DIR``, lo contiene
+                o es el mismo directorio.
+        """
+        datasets = self.DATASETS_DIR.resolve()
+        parquet = self.PARQUET_DIR.resolve()
+        if datasets.is_relative_to(parquet) or parquet.is_relative_to(datasets):
+            msg = (
+                f"FT_DATASETS_DIR ({datasets}) no puede anidar con "
+                f"FT_PARQUET_DIR ({parquet}) en ningún sentido"
+            )
+            raise ConfigError(msg)
+        return datasets
 
 
 settings = FinancesSettings()

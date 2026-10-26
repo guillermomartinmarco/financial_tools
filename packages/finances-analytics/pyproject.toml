@@ -103,5 +103,8 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-markers = ["benchmark: benchmarks de desempeño (RF-14); excluidos por defecto"]
-addopts = "-v --tb=short -m 'not benchmark'"
+markers = [
+    "benchmark: benchmarks de desempeño (RF-14); excluidos por defecto",
+    "real_data: tests con datos reales materializados por ft_datasets; excluidos por defecto",
+]
+addopts = "-v --tb=short -m 'not benchmark and not real_data'"

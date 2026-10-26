@@ -8,36 +8,48 @@
 
 ## Fase 0: Fundación
 
-- [ ] **T0.1**: Marcador `real_data` en `finances-core`, `finances-downloader` y `finances-analytics` (`markers` + `addopts` con `-m 'not real_data'`, conservando `not benchmark`)
+- [x] **T0.1**: Marcador `real_data` en `finances-core`, `finances-downloader` y `finances-analytics` (`markers` + `addopts` con `-m 'not real_data'`, conservando `not benchmark`)
   - **Hecho cuando**: un test `real_data` de prueba no se ejecuta con `pytest -q` y sí con `pytest -m real_data` en los tres paquetes; CI por defecto sin cambios de resultado.
-- [ ] **T0.2**: Esqueleto `finances_downloader/ft_datasets/` (`__init__`, `cli`, `api.router`, `py.typed` heredado) y script `ft_datasets` en `pyproject.toml`
+  - **Hecho**: `markers` + `addopts` con `-m 'not real_data'` en `finances-core` y `finances-downloader`, `-m 'not benchmark and not real_data'` en `finances-analytics` (CI sigue seleccionando `-m benchmark`: 5 tests). Un test `real_data` temporal quedó `deselected` con `pytest -q` y `passed` con `pytest -m real_data` en los tres paquetes; `finances-core/tests/unit/test_datasets_real_data_marker.py` fija la configuración de los tres `pyproject.toml`. Conteos por defecto sin cambios salvo los tests nuevos (normal y con `CI=true GITHUB_ACTIONS=true`).
+- [x] **T0.2**: Esqueleto `finances_downloader/ft_datasets/` (`__init__`, `cli`, `api.router`, `py.typed` heredado) y script `ft_datasets` en `pyproject.toml`
   - **Hecho cuando**: `ft_datasets --help` responde y `test_foundation.py` importa `cli` y `api.router`.
-- [ ] **T0.3**: Aislamiento Art. 4 (test AST)
+  - **Hecho**: `finances_downloader/ft_datasets/` (`__init__`, `cli` con `-v/-q/--log-format` y `component="ft_datasets"`, `api.router` con prefijo `/datasets`; `py.typed` del paquete); script `ft_datasets` en `pyproject.toml` (reinstalación editable) y `ft_datasets --help` sale con 0; `tests/ft_datasets/test_foundation.py` verde.
+- [x] **T0.3**: Aislamiento Art. 4 (test AST)
   - **Hecho cuando**: el test falla si algún módulo de `ft_datasets` importa `finances_downloader.ft_*` (incluido relativo), `finances_analytics` o `finances_api`, y si `finances_core.datasets` importa `finances_downloader`; todos los módulos pasan.
+  - **Hecho**: `finances-downloader/tests/ft_datasets/test_isolation.py`: el checker AST detecta `finances_downloader.ft_*` hermanas (absoluto y relativo `..ft_*`), `finances_analytics`, `finances_api` y `ft_*`; `finances-core/tests/unit/test_datasets_isolation.py`: `finances_core.datasets` y `schemas/datasets.py` no importan `finances_downloader`/`finances_analytics`/`finances_api`; todos los módulos pasan.
 
 ## Fase 1: Contratos y configuración (núcleo)
 
-- [ ] **T1.1**: `schemas/datasets.py`: `RecipeBlock`, `DatasetRecipe`, `RecipeItem` (`items()`, `key`), validadores RF-1/RF-2 por exchange
+- [x] **T1.1**: `schemas/datasets.py`: `RecipeBlock`, `DatasetRecipe`, `RecipeItem` (`items()`, `key`), validadores RF-1/RF-2 por exchange
   - **Hecho cuando**: tests: `benchmark-v1` de plan §1.5 valida y expande a 7 ítems con claves estables; rechazos con mensaje: `exchange` desconocido, `market_type` inválido por exchange, `yfinance` con `1h`, `start ≥ end`, claves duplicadas, campo extra, `name` inválido, `schema_version ≠ 1`.
-- [ ] **T1.2**: `ItemLock`, `RecipeLock`, `Probe`, `ItemVerification`, `VerifyReport` (+ `to_markdown`), `LockResult`, contratos de tarea (`MaterializePlan`, `DownloadBlock`, `BlockRun`, `MaterializeProgress`, `MaterializeResult`)
+  - **Hecho**: `finances_core/schemas/datasets.py`; `tests/unit/test_schemas_datasets.py`: `benchmark-v1` (TOML de plan §1.5) valida y expande a 7 ítems con claves estables; rechazos con mensaje para `exchange` desconocido, `market_type` inválido por exchange, `yfinance` con `1h`, timeframe no canónico, `start ≥ end`, símbolos/timeframes/claves duplicados, campo extra, `name` inválido, `schema_version ≠ 1`, `end` ausente, `now`, *timestamps* y fecha-hora.
+- [x] **T1.2**: `ItemLock`, `RecipeLock`, `Probe`, `ItemVerification`, `VerifyReport` (+ `to_markdown`), `LockResult`, contratos de tarea (`MaterializePlan`, `DownloadBlock`, `BlockRun`, `MaterializeProgress`, `MaterializeResult`)
   - **Hecho cuando**: tests de *round-trip* JSON; `hash_algorithm ≠ "ftds-v1"` y `lock_version ≠ 1` rechazados; `to_markdown` produce una fila por ítem con estado y deriva.
-- [ ] **T1.3**: Settings `DATASETS_*` en `config.py` y `require_datasets_dir`
+  - **Hecho**: Contratos de plan §1.2–1.3 en `schemas/datasets.py` (+ `MATERIALIZE_PHASE_ORDER`); *round-trip* JSON de los 9 modelos; `hash_algorithm ≠ ftds-v1` y `lock_version ≠ 1` rechazados; `to_markdown` produce una fila por ítem con estado, deriva, factor, columnas y meses.
+- [x] **T1.3**: Settings `DATASETS_*` en `config.py` y `require_datasets_dir`
   - **Hecho cuando**: tests de defaults resueltos contra la raíz del proyecto, override con `FT_DATASETS_DIR`, y `ConfigError` si `DATASETS_DIR` anida con `PARQUET_DIR` en cualquier sentido.
-- [ ] **T1.4**: `datasets/recipes.py`: `load_recipe`, `list_recipes`, `validate_reproducible`, `lock_path`, `load_lock`, `write_lock` atómico, `canonical_sha256`
+  - **Hecho**: `DATASETS_RECIPES_DIR`, `DATASETS_DIR`, `DATASETS_DOWNLOAD_TIMEOUT_S` (≥ 60), `DATASETS_SETTLE_DAYS` (≥ 1) y `require_datasets_dir()`; `tests/unit/test_core_config_datasets.py`: defaults contra la raíz, override relativo/absoluto con `FT_DATASETS_*`, límites, y `ConfigError` si `DATASETS_DIR` está dentro de `PARQUET_DIR`, lo contiene o es el mismo.
+- [x] **T1.4**: `datasets/recipes.py`: `load_recipe`, `list_recipes`, `validate_reproducible`, `lock_path`, `load_lock`, `write_lock` atómico, `canonical_sha256`
   - **Hecho cuando**: tests: `name` del TOML distinto del archivo → error; `../x` y rutas absolutas rechazadas; `end` dentro del margen de asentamiento → error (reloj inyectado); `canonical_sha256` no cambia al reordenar bloques, añadir comentarios o cambiar `description`, y sí al cambiar un rango; fallo simulado de `replace` conserva el *lock* previo; el JSON escrito es estable (dos escrituras = bytes idénticos).
+  - **Hecho**: `finances_core/datasets/recipes.py` (+ `find_item`, `lock_json`) y `datasets/errors.py`; `tests/unit/test_datasets_recipes.py` (22 tests): `name` distinto del archivo, `../x`, rutas absolutas y nombres no válidos rechazados; `end` dentro del margen con reloj inyectado; `canonical_sha256` invariante a orden de bloques/símbolos, comentarios y `description`, sensible al rango; `Path.replace` simulado con fallo conserva el *lock* previo sin temporales; dos escrituras = bytes idénticos (LF, `indent=2`, claves ordenadas).
 
 ## Fase 2: Hash y verificación (núcleo)
 
 - [ ] **T2.1**: `datasets/hashing.py` — algoritmo `ftds-v1` (plan §3.2) en *streaming* por mes
   - **Hecho cuando**: vectores dorados con hex fijado en el test para un `DataFrame` con `-0.0`, subnormal, `±inf`, `float32::MAX`, NaN `0x7FC00000` y `0xFFC00000` (mismo hash), y nulos; `0.0` ≠ `-0.0`; cambiar un bit de un valor cambia `content_hash`, su columna y su mes; procesar por meses == procesar de una vez; el test pasa idéntico en Windows y Ubuntu (matriz de `ci.yml`).
-- [ ] **T2.2**: Independencia del escritor
+  - **Hecho**: `finances_core/datasets/hashing.py` (`ItemHasher`, `hash_frame`, `check_chunk`); `tests/unit/test_datasets_hashing.py`: vectores dorados con hex fijado (datos construidos desde patrones de bits `float32` explícitos: `-0.0`, subnormales, `±inf`, `float32::MAX`, NaN, nulos; más un vector binance con nulo `int64`), contrastados con una implementación de referencia independiente en `struct`; NaN `0x7FC00000`/`0xFFC00000`/`0x7FC00123` → mismo hash; `0.0 ≠ -0.0`; nulo ≠ `0.0` ≠ NaN; un bit cambia solo `content_hash`, su columna y su mes; trozos de 1..4 filas y por meses == de una vez. Verde en Windows; pendiente solo la confirmación en `ubuntu-24.04` de la matriz de `ci.yml`.
+- [x] **T2.2**: Independencia del escritor
   - **Hecho cuando**: test escribe el mismo `DataFrame` con `zstd`, `snappy` y sin compresión, `row_group_size` 1.000 y 100.000 y con/sin estadísticas → bytes de archivo distintos, hash idéntico.
-- [ ] **T2.3**: `datasets/store.py`: `scan_item` (solo meses que solapan, filtro `[start, end)`, validación de dtypes y orden) y `delete_item_partitions`
+  - **Hecho**: `tests/unit/test_datasets_hashing_writer.py`: el mismo `DataFrame` (5.000 filas, bits arbitrarios y nulos) escrito con `zstd`/`snappy`/sin compresión, `row_group_size` 1.000/100.000 y con/sin estadísticas → 4 archivos con bytes distintos y hash idéntico; también al partirlo en dos archivos.
+- [x] **T2.3**: `datasets/store.py`: `scan_item` (solo meses que solapan, filtro `[start, end)`, validación de dtypes y orden) y `delete_item_partitions`
   - **Hecho cuando**: tests con almacén Hive sintético (binance y yfinance): lee solo los meses necesarios (*spy* sobre lectura), excluye la vela en `end_ms`, `open_time_ms` duplicado o dtype no canónico → error de datos; `delete_item_partitions` no borra nada fuera de `datasets_dir` ni meses no solapados.
-- [ ] **T2.4**: `datasets/verify.py`: `compute_item_lock` (sondas, `missing_candles`) y `verify_recipe` con estados RF-5 y clasificación RF-6
+  - **Hecho**: `finances_core/datasets/store.py` (`scan_item`, `count_rows`, `scan_item_lazy`, `item_files`, `delete_item_partitions`); `tests/unit/test_datasets_store.py` (binance y yfinance, almacén escrito con `write_parquet_partitioned`): *spy* sobre `pl.scan_parquet` → solo los 3 meses que solapan; la vela en `end_ms` excluida; duplicado, dtype `Float64` o columna ausente → `DatasetDataError`; `delete_item_partitions` borra solo los meses solapados, nada en un almacén hermano y rechaza rutas fuera de `datasets_dir`.
+- [x] **T2.4**: `datasets/verify.py`: `compute_item_lock` (sondas, `missing_candles`) y `verify_recipe` con estados RF-5 y clasificación RF-6
   - **Hecho cuando**: tests: `OK`; `adj_close` cambiado → `OK_WITH_WARNINGS`; sin filas → `MISSING`; sin *lock* → `UNLOCKED`; fila quitada → `ROWS_CHANGED`; OHLC × 0,25 → `SCALE_RESTATED` con factor 0,25; un `close` alterado en marzo → `VALUES_CHANGED` con `columns_changed=["close"]` y `months_changed=["2024-03"]`; receta editada → `RECIPE_CHANGED`; `missing_candles` = 0 en un trimestre `1h` completo y = 3 tras quitar 3 velas.
-- [ ] **T2.5**: `datasets/testing.py`: `require_dataset`
+  - **Hecho**: `finances_core/datasets/verify.py` (`compute_item_lock`, `build_recipe_lock`, `verify_item`, `verify_recipe`, `classify_drift`, `expected_candles`); `tests/unit/test_datasets_verify.py` cubre todos los casos de la tarea (`OK`, `OK_WITH_WARNINGS`, `MISSING`, `UNLOCKED`, `ROWS_CHANGED`, `SCALE_RESTATED` factor 0,25, `VALUES_CHANGED` con `["close"]`/`["2024-03"]`, `RECIPE_CHANGED`, `missing_candles` 0 y 3). Medición local: `verify_recipe` sobre ~277 k filas sintéticas ≈ 1,0 s (RF-5: ≤ 5 s).
+- [x] **T2.5**: `datasets/testing.py`: `require_dataset`
   - **Hecho cuando**: tests: ítem `OK` devuelve `LazyFrame` del rango; ítem `MISMATCH`/`MISSING` → `pytest.fail` con el detalle; `import finances_core.datasets` no importa `pytest`.
+  - **Hecho**: `finances_core/datasets/testing.py`; `tests/unit/test_datasets_testing.py`: ítem `OK` → `LazyFrame` del rango (2.184 filas aunque el almacén tenga velas fuera); `MISMATCH`, `MISSING`, `UNLOCKED`, receta/ítem inexistente y almacén vacío → `pytest.fail` con el detalle; un subproceso comprueba que `import finances_core.datasets` (y `.testing`) no importa `pytest`.
 
 ## Fase 3: Materialización (herramienta)
 
