@@ -20,3 +20,10 @@
 - [x] **T6**: Montar router `/indicators` y depender de `finances-analytics` (ver `specs/ft_indicators` T7.1)
   - **Hecho cuando**: `test_openapi_includes_all_tool_routers` incluye el prefijo `/indicators/` y un test fija las 7 rutas de `specs/ft_indicators/plan.md` §2.2.
   - **Hecho**: `pyproject.toml` añade `finances-analytics`; `create_app()` incluye `finances_analytics.ft_indicators.api.router`; `test_openapi_includes_all_tool_routers` incluye `/indicators/`, `test_openapi_includes_the_seven_indicators_routes` fija las 7 rutas y `test_mounted_indicators_router_answers` obtiene las 12 entradas de `GET /indicators/catalog`. `GET /health` no cambia (`indicators_dir_accessible` es opcional en el plan de `ft_indicators` §7 y RF-4 no lo exige).
+
+- [x] **T7**: Montar router `/ta-lib` (ver `specs/ft_ta_lib` T6.1)
+  - **Hecho cuando**: `test_openapi_includes_all_tool_routers` incluye `/ta-lib/`, un test fija las 7 rutas de `specs/ft_ta_lib/plan.md` §2.2 y `test_composed_app_route_names_are_unique` sigue verde.
+  - **Hecho**: `create_app()` incluye `finances_analytics.ft_ta_lib.api.router` (sin cambios de dependencias: `finances-analytics` ya era dependencia); `test_openapi_includes_the_seven_ta_lib_routes`, `test_mounted_ta_lib_router_answers` (61 funciones de *Pattern Recognition*), `test_ta_lib_dispatch_urls_point_to_ta_lib_routes` (`poll_url`/`plan_url`/`result_url` bajo `/ta-lib`, *polling* hasta `COMPLETED`) y `test_ta_lib_route_names_resolve_to_ta_lib_routes`; `test_composed_app_route_names_are_unique` verde (rutas `ta_lib_*`).
+- [x] **T8**: Validación cruzada `ft_indicators` ↔ `ft_ta_lib` solo por HTTP (RF-6; ver `specs/ft_ta_lib` T6.2)
+  - **Hecho cuando**: `tests/test_cross_validation_indicators.py` compara todas las salidas con `talib_equivalent` dentro de la tolerancia publicada y no importa `finances_analytics`.
+  - **Hecho**: ver `specs/ft_ta_lib/tasks.md` T6.2 (18 columnas de 11 indicadores; `test_module_does_not_import_tools` verifica por AST que el módulo no importa `finances_analytics` ni `talib`).

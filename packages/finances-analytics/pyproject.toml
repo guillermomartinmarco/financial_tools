@@ -1,7 +1,7 @@
 [project]
 name = "finances-analytics"
 version = "0.1.0"
-description = "Analytics tools (technical indicators) for financial_tools suite"
+description = "Analytics tools (technical indicators, TA-Lib wrapper) for financial_tools suite"
 requires-python = ">=3.11"
 dependencies = [
     "finances-core",
@@ -14,10 +14,15 @@ dependencies = [
     "rich>=13.7",
     "uuid6>=1.11",
     "pyarrow>=16.0",
+    # ft_ta_lib (plan §5): rueda binaria de TA-Lib; versión menor fijada (sus valores son
+    # la referencia). numpy explícito: frontera float64 de ft_ta_lib/engine.py (RFC-0002).
+    "ta-lib>=0.8.2,<0.9",
+    "numpy>=1.26",
 ]
 
 [project.scripts]
 ft_indicators = "finances_analytics.ft_indicators.cli:app"
+ft_ta_lib = "finances_analytics.ft_ta_lib.cli:app"
 
 [project.optional-dependencies]
 dev = [
@@ -27,8 +32,6 @@ dev = [
     "ruff>=0.5",
     "mypy>=1.10",
     "hypothesis>=6.100",
-    # Referencia de contraste en CI (plan §3.11); versión menor fijada: sus valores son la referencia.
-    "ta-lib>=0.8.2,<0.9",
 ]
 
 [build-system]
@@ -87,10 +90,12 @@ mypy_path = "src"
 module = ["pyarrow", "pyarrow.*"]
 ignore_missing_imports = true
 
-# ta-lib no publica stubs (solo se importa en tests de contraste, plan §3.11)
+# ta-lib no publica stubs ni py.typed (ft_ta_lib y los tests de contraste de ft_indicators,
+# plan §3.11): sus módulos se tratan como ``Any`` en lugar de analizar su código sin tipar.
 [[tool.mypy.overrides]]
 module = ["talib", "talib.*"]
 ignore_missing_imports = true
+follow_imports = "skip"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

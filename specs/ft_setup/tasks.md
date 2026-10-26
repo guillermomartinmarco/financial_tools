@@ -46,6 +46,9 @@
 - [x] **T2.4**: Registrar `FT_INDICATORS_DIR` y `FT_INDICATORS_MAX_CONCURRENT` (`source_tool="ft_indicators"`) y crear `INDICATORS_DIR` en `init` (ver `specs/ft_indicators` T7.2, RF-15)
   - **Hecho cuando**: `test_doctor_lists_tool_variables_with_source_tool` incluye el caso `ft_indicators`; `test_init_env_template_includes_all_tool_variables` incluye ambas variables; `ft_setup init` crea `data/indicators`.
   - **Hecho**: ambas entradas en `templates/env_list.conf.j2` y `env_list.conf` (idénticos byte a byte, `test_bundled_env_list_matches_template`); `INDICATORS_DIR` añadido a `_DIRS_ATTRS` de `service.py` (`init` crea 9 directorios); tests `test_doctor_lists_tool_variables_with_source_tool[ft_indicators-…]`, `test_init_env_template_includes_all_tool_variables` (ampliado) y `test_init_creates_indicators_dir` verdes. La lista de directorios de RF-1 de `spec.md` (`data/{raw,processed,parquet}`, …) no enumera aún `data/indicators`: actualizarla queda fuera del alcance de esta rama.
+- [x] **T2.5**: Describir `FT_INDICATORS_DIR` y `FT_INDICATORS_MAX_CONCURRENT` como compartidas con `ft_ta_lib` (sin variables nuevas; ver `specs/ft_ta_lib` RF-16, T6.3)
+  - **Hecho cuando**: `ft_setup doctor` sigue verde y la descripción de ambas variables menciona `ft_ta_lib`.
+  - **Hecho**: descripciones actualizadas en `env_list.conf` y `templates/env_list.conf.j2` (idénticos, `test_bundled_env_list_matches_template`); `source_tool` sigue siendo `ft_indicators`; `test_doctor_describes_indicators_vars_as_shared_with_ft_ta_lib` verifica la descripción y que no existe ninguna `FT_TA_LIB*`/`FT_TALIB*`.
 
 ## Fase 3: Servicio Compartido (Lógica de Negocio)
 

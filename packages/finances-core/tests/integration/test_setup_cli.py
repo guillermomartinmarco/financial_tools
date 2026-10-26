@@ -237,6 +237,19 @@ def test_doctor_lists_tool_variables_with_source_tool(
     assert expected <= by_tool
 
 
+def test_doctor_describes_indicators_vars_as_shared_with_ft_ta_lib(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """``ft_ta_lib`` no añade variables: reutiliza las de ``ft_indicators`` (RF-16, T6.3)."""
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(cli.app, ["--quiet", "doctor", "--format", "json"])
+    specs = {v["spec"]["name"]: v["spec"] for v in json.loads(result.output)["vars"]}
+    for name in ("FT_INDICATORS_DIR", "FT_INDICATORS_MAX_CONCURRENT"):
+        assert specs[name]["source_tool"] == "ft_indicators"
+        assert "ft_ta_lib" in specs[name]["description"]
+    assert not any(n.startswith(("FT_TA_LIB", "FT_TALIB")) for n in specs)
+
+
 def test_doctor_no_longer_lists_yfinance_api_key(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

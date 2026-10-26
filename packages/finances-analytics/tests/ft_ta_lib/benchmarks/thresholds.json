@@ -1,0 +1,23 @@
+{
+  "description": "Umbrales RF-15 de ft_ta_lib (unica fuente; T5.2 los calibra con la primera ejecucion real en ubuntu-24.04)",
+  "status": "provisional",
+  "rows": 1000000,
+  "timeframe": "1m",
+  "seed": 20241025,
+  "repeats": 5,
+  "scenarios": {
+    "B1": {
+      "max_median_s": 1.0,
+      "description": "Motor en memoria (sin IO): las 13 funciones equivalentes al catalogo de ft_indicators, defaults de TA-Lib"
+    },
+    "B2": {
+      "max_median_s": 8.0,
+      "description": "Tarea extremo a extremo de B1: leer Parquet + calcular + reescribir particiones y manifiesto"
+    },
+    "B3": {
+      "max_median_s": 20.0,
+      "description": "Tarea extremo a extremo del grupo Pattern Recognition completo (61 funciones)"
+    }
+  },
+  "calibration": null
+}

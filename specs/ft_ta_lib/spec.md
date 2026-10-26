@@ -3,7 +3,7 @@
 ## Contexto e Historias de Usuario
 
 `ft_indicators` ofrece 12 indicadores propios en Polars, validados y con rol de oráculo. Muchos análisis necesitan
-además el resto del catálogo clásico: ~158 funciones de TA-Lib (medias KAMA/T3/MAMA, transformadas de Hilbert,
+además el resto del catálogo clásico: 201 funciones en TA-Lib C 0.8.1 (≈158 en el catálogo clásico) (medias KAMA/T3/MAMA, transformadas de Hilbert,
 estadísticas, operadores matemáticos y 61 patrones de velas). `pip install ta-lib` instala hoy ruedas binarias
 (ta-lib 0.8.2, TA-Lib C 0.8.1) para Windows y manylinux x86_64 (cp312), y `talib.abstract` /
 `talib.get_function_groups()` describen el catálogo completo. `ft_ta_lib` es una envoltura delgada sobre **todo** ese
@@ -50,7 +50,7 @@ La fuente es de **solo lectura**: **EL SISTEMA NO DEBE** escribir nunca bajo `FT
 
 ### RF-4 — Parámetros y Validación (Ubícuo)
 - **EL SISTEMA DEBE** validar los parámetros con los metadatos de TA-Lib: nombre existente, tipo (entero o real), y rango publicado por TA-Lib cuando exista.
-- Parámetros de tipo media móvil (`matype`, `slowk_matype`, `fastd_matype`, …) aceptan el nombre (`sma`, `ema`, `wma`, `dema`, `tema`, `trima`, `kama`, `mama`, `t3`) o su entero 0–8 (`talib.MA_Type`).
+- Parámetros de tipo media móvil (`matype`, `slowk_matype`, `fastd_matype`, …) aceptan el nombre (`sma`, `ema`, `wma`, `dema`, `tema`, `trima`, `kama`, `mama`, `t3`, `hma`, `disabled`, `default`, `zlema`, `rma`; los 14 de `talib.MA_Type` en TA-Lib C 0.8.1) o su entero 0–13 (`talib.MA_Type`).
 - **SI** TA-Lib rechaza una combinación de parámetros (`TA_BAD_PARAM`), **ENTONCES** exit 2 / HTTP 400 con el mensaje de TA-Lib; la validación se hace antes de despachar, sobre una serie sintética mínima.
 
 ### RF-5 — Petición (Ubícuo)

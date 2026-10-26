@@ -9,11 +9,12 @@ Se reutilizan los contratos genéricos de `finances_core.schemas.indicators` (de
 `output_columns`. Propios:
 ```python
 TaLibOutputKind = Literal["real", "pattern", "category", "index"]
-MA_TYPE_NAMES = ("sma", "ema", "wma", "dema", "tema", "trima", "kama", "mama", "t3")   # == talib.MA_Type 0..8
+MA_TYPE_NAMES = ("sma", "ema", "wma", "dema", "tema", "trima", "kama", "mama", "t3",
+                 "hma", "disabled", "default", "zlema", "rma")   # == talib.MA_Type 0..13 (TA-Lib C 0.8.1)
 
 class TaLibSpec(BaseModel):
     function: str                                  # nombre TA-Lib, sin distinción de mayúsculas (normalizado a MAYÚSCULAS)
-    params: dict[str, int | float | str] = {}      # str solo para *matype
+    params: dict[str, StrictInt | StrictFloat | StrictStr] = {}   # str solo para *matype; sin bool
     inputs: dict[str, PriceSource | Literal["volume"]] = {}   # solo price/price0/price1
 
 class TaLibComputeRequest(BaseModel):
@@ -25,7 +26,7 @@ class TaLibPlanItem(BaseModel):
     dataset: DatasetIdentifier
     series_id: str
     spec: TaLibSpec                                # con defaults resueltos
-    columns: dict[str, str]                        # columna -> dtype persistido
+    columns: dict[str, ColumnDtype]                # columna -> dtype persistido
     lookback: int
 
 class TaLibPlan(BaseModel):
@@ -64,6 +65,12 @@ class TaLibCatalog(BaseModel):
     groups: dict[str, list[str]]
     functions: list[TaLibCatalogEntry]
 ```
+
+> **Deriva (implementación T1.1/T2.2, 2026-10-25)**: TA-Lib C 0.8.1 publica 14 tipos de media
+> (`talib.MA_Type` 0–13: los 9 clásicos + `hma`, `disabled`, `default`, `zlema`, `rma`) y `KDJ` usa
+> `rma` (13) por defecto; `MA_TYPE_NAMES` los replica todos (posición = entero) y un test de `ft_ta_lib`
+> verifica que coincide con la versión instalada. RF-4 ("0–8") queda ampliado a 0–13. El catálogo
+> de esta versión tiene **201** funciones (no ≈158) y 200 soportadas (todas salvo `MAVP`).
 
 ### 1.2 Configuración
 Sin variables nuevas: `INDICATORS_DIR`, `INDICATORS_MAX_CONCURRENT`, `PARQUET_DIR`, `SHARE_DIR`, `TASKS_DB_PATH`.
@@ -110,8 +117,9 @@ comprueba datasets y bloqueos, crea la tarea `PENDING` y despacha con `finances_
   lee `talib.abstract.Function(name).info` (`group`, `display_name`, `function_flags`, `input_names`, `parameters`,
   `output_names`, `output_flags`) y `Function(name).lookback` con defaults.
 - **Tipo de parámetro**: `matype` si el nombre termina en `matype`; si no, por el tipo del default (`int`/`float`).
-  **Rango**: metadatos de TA-Lib C (`TA_GetOptInputParameterInfo`) a través del wrapper cuando estén disponibles
-  (T2.2 verifica la vía concreta en ta-lib 0.8.2); si no, `None` y la validación recae en la ejecución de prueba.
+  **Rango**: ta-lib 0.8.2 **no** expone el rango de `TA_GetOptInputParameterInfo` (su
+  `_ta_getOptInputParameterInfo` privado solo devuelve nombre, tipo, ayuda y default; verificado en T2.2), así que
+  `min`/`max` son `None` y la validación de rango recae en la ejecución de prueba (`TA_BAD_PARAM`, *lookback* `-1`).
 - **Tipo de salida** (`TaLibOutputKind`): salida `double` → `real`; entera en el grupo *Pattern Recognition* →
   `pattern`; entera en `INDEX_FUNCTIONS = {"MAXINDEX", "MININDEX", "MINMAXINDEX"}` → `index`; otra entera → `category`.
   El tipo entero se detecta por el `dtype` del array de salida en la ejecución de prueba sobre la serie sintética.
@@ -127,11 +135,12 @@ sobre una serie sintética de `max(64, 2·lookback)` filas para capturar `TA_BAD
 
 ### 3.3 Motor — `ft_ta_lib/engine.py` (único módulo que importa `talib`)
 ```python
-def compute_function(src: pl.DataFrame, fn: ResolvedFunction) -> pl.DataFrame:
+def compute_function(src: pl.DataFrame, fn: ResolvedFunction) -> FunctionResult:   # frame + Stability + warnings
     # 1. máscara de filas con todas las entradas no nulas/finitas; subsecuencia
     # 2. entradas -> np.ndarray float64 contiguo (frontera Float64, RFC-0002)
     # 3. talib.abstract.Function(name)(inputs_dict, **params) -> arrays
-    # 4. real: NaN -> null, cast Float32 | pattern/category: null en filas < lookback, comprobar rango, cast Int16
+    # 4. real: cast Float32 (único punto) y NaN/±inf (incl. desbordamiento Float32) -> null
+    #    | pattern/category: null en filas < lookback, comprobar rango, cast Int16
     #    | index: posición -> open_time_ms de la subsecuencia (Int64)
     # 5. re-alinear a todas las filas fuente (nulos en filas excluidas)
 ```
@@ -161,21 +170,49 @@ Ubicación: `finances-api` es la raíz de composición que ya monta ambos router
 4. Comparar columnas `Float32` con la tabla de tolerancias publicada en el catálogo de `ft_indicators`, desde
    `compare_from`/`stable_from_ms`, excluyendo las filas declaradas (`excluded_rows`).
 
+> **Deriva (implementación Fases 4–7, 2026-10-25)**:
+> - **Errores por item (RF-11)**: el runner compartido (`finances_core.indicators_store.runner`) solo transporta
+>   errores por dataset (`DatasetOutcome` no tiene `errors`). `service._ItemErrors` acumula los errores por item
+>   (`talib_error: {dataset}: {series_id}: …`, `output_out_of_range: …`) desde los hilos de cálculo y los fusiona en
+>   `errors_json` de `tasks.db` con cada progreso que publica el runner (tras registrar cada dataset y tras sus propias
+>   escrituras de `errors_json`), de modo que `status`/`result` los muestran antes de `COMPLETED`. Mejora propuesta
+>   (fuera de esta rama, Art. 15): `DatasetOutcome.errors` en el núcleo y retirar `_ItemErrors`.
+> - `compute_dataset(ds, items, ctx: ComputeContext)` agrupa almacén, *settings*, `task_id` y errores por item.
+> - El plan resuelve cada función **por dataset** (`resolve(spec, columnas_disponibles)`) para validar `adj_close`;
+>   `expand` (con la ejecución de prueba) corre una sola vez por petición.
+> - `GET /catalog?group=&function=` (y `ft_ta_lib catalog --group/--function`): filtro sin distinción de mayúsculas;
+>   `groups` solo lista los grupos/funciones devueltos; grupo o función inexistente → 400 / exit 2 con los grupos válidos.
+> - Rutas con nombre `ta_lib_{catalog,compute,status,plan,result,manifest,export}` (únicos en la app compuesta;
+>   `url_for` resuelve las URLs de *polling* hacia `/ta-lib`). Cabecera de exportación desactualizada:
+>   `X-FT-Indicators-Stale` (la misma que `ft_indicators`, vista compartida).
+> - Nombre de exportación: `{exchange}_{market_type}_{symbol}_{timeframe}_ta_lib.{ext}` (no colisiona con
+>   `…_indicators.{ext}` en un mismo directorio).
+> - `BBANDS` tiene `timeperiod=20` por defecto en TA-Lib C 0.8.1: el `series_id` por defecto es
+>   `talib_bbands_20_2_2_sma` (el ejemplo de RF-9 `talib_bbands_5_2_2_sma_upperband` corresponde a `timeperiod=5`).
+> - Benchmarks (RF-15): `tests/ft_ta_lib/benchmarks/{test_bench_ta_lib.py,thresholds.json}`; B1 usa las 13
+>   funciones equivalentes con los **defaults de TA-Lib**; el generador de 1M velas pasa a `tests/datasets.py`
+>   (compartido con `ft_indicators`). En CI corre en `ubuntu-24.04` (imagen fija, no `ubuntu-latest`) con
+>   `BENCH_ENFORCE: "0"` hasta la calibración de T5.2.
+> - Validación cruzada (§3.5): la escala de `atol_scaled` (media de `|close|`, `Σ|volume|` en `obv`) no es legible por
+>   máquina en el catálogo de `ft_indicators`; el test la fija según su plan §3.9 y añade 4 ULP de `Float32`
+>   relativos a la escala de la columna (`ft_ta_lib` persiste TA-Lib redondeado a `Float32`).
+
 ## 4. Estructura de Archivos Objetivo
 ```
 packages/finances-core/src/finances_core/schemas/ta_lib.py        # NUEVO: contratos §1.1
 packages/finances-analytics/src/finances_analytics/ft_ta_lib/
-├── __init__.py  catalog.py  resolver.py  engine.py  planner.py  exporter.py  service.py  errors.py  api.py  cli.py
+├── __init__.py  model.py  catalog.py  resolver.py  request.py  engine.py  planner.py  exporter.py  service.py
+├── errors.py  api.py  cli.py                                      # model.py: metadatos/función resuelta sin talib
 packages/finances-analytics/tests/ft_ta_lib/
 ├── conftest.py  test_*.py
-└── benchmarks/test_bench_ta_lib.py                               # marcador `benchmark` (RF-15)
+└── benchmarks/test_bench_ta_lib.py  thresholds.json               # marcador `benchmark` (RF-15)
 packages/finances-api/tests/test_cross_validation_indicators.py   # RF-18
 ```
 
 ## 5. Dependencias
 - `finances-analytics`: `ta-lib>=0.8.2,<0.9` pasa de `[dev]` a **runtime** (ruedas binarias cp312 Windows/manylinux
   x86_64); `numpy` explícito (frontera de `engine.py`). Script `ft_ta_lib = "finances_analytics.ft_ta_lib.cli:app"`.
-  mypy: override `talib.*`.
+  mypy: override `talib.*` (`ignore_missing_imports` + `follow_imports = "skip"`: sin stubs, se trata como `Any`).
 - `ft_indicators` sigue sin importar `talib` (su test AST se mantiene); solo `ft_ta_lib/engine.py` y
   `ft_ta_lib/catalog.py`/`resolver.py` (metadatos) lo importan en `src/`.
 - `finances-api`: sin cambios de dependencias (ya depende de `finances-analytics`).
@@ -200,6 +237,7 @@ packages/finances-api/tests/test_cross_validation_indicators.py   # RF-18
 - `finances_api.create_app()` monta `/ta-lib` (spec de `finances_api`).
 - `ft_setup`: sin variables nuevas; la descripción de `FT_INDICATORS_DIR`/`FT_INDICATORS_MAX_CONCURRENT` en
   `env_list.conf(.j2)` menciona que son compartidas con `ft_ta_lib`.
-- CI: sin cambios de instalación (ya instala `finances-analytics[dev]`); paso de benchmarks incluye B1–B3.
+- CI: sin cambios de instalación (ya instala `finances-analytics[dev]`); paso de benchmarks propio de `ft_ta_lib`
+  (B1–B3, `ubuntu-24.04`, `BENCH_ENFORCE: "0"` hasta calibrar) y artefacto `bench-ft_ta_lib-<sha>`.
 - README: mapa de utilidades y ejemplos de `ft_ta_lib catalog`/`compute`/`export`.
 - Constitución: `docs/rfc/RFC-0002-ft-ta-lib-int16-float64-boundary.md` (Propuesto) debe aprobarse antes del merge.

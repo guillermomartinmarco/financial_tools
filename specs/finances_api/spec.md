@@ -17,6 +17,9 @@ Cada herramienta `ft_*` expone un `APIRouter` de FastAPI, pero ninguna app los m
 - `ft_data_viewer` (prefijo `/data`)
 - `ft_market_data_yfinance` (prefijo `/market-data/yfinance`)
 - `ft_indicators` (prefijo `/indicators`, paquete `finances-analytics`)
+- `ft_ta_lib` (prefijo `/ta-lib`, paquete `finances-analytics`)
+
+Los nombres de ruta (`name`) **DEBEN** ser únicos en la app compuesta (`url_for` resuelve por nombre: cada herramienta usa su prefijo, p. ej. `indicators_*`, `ta_lib_*`).
 
 ### RF-2 — Comando de servicio (Ubicuo)
 **EL SISTEMA DEBE** proveer el comando CLI `ft_serve` con opciones `--host`, `--port` y `--log-level`.
@@ -32,3 +35,6 @@ Cada herramienta `ft_*` expone un `APIRouter` de FastAPI, pero ninguna app los m
 
 ### RF-5 — Aislamiento (No deseado)
 **SI** algún módulo `ft_*` importa de `finances_api`, **ENTONCES** es una violación del Art. 4. `finances_api` solo importa los `router` públicos de cada herramienta.
+
+### RF-6 — Validación cruzada entre herramientas (Ubicuo)
+**EL SISTEMA DEBE** alojar en `packages/finances-api/tests/` la validación cruzada `ft_indicators` ↔ `ft_ta_lib` (`specs/ft_ta_lib` RF-18): solo HTTP sobre `create_app()`, sin importar ninguna herramienta.

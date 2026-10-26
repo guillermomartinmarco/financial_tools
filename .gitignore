@@ -87,3 +87,4 @@ data/parquet/
 share/*.db
 share/*.db-*
 share/plans/
+.claude/worktrees/
