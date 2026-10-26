@@ -80,11 +80,9 @@
 - [x] **T5.1**: `benchmarks/test_bench_ta_lib.py`: escenarios B1–B3 sobre el generador de 1M velas compartido
   - **Hecho cuando**: `pytest -m benchmark` imprime la mediana de 5 repeticiones y falla si supera el umbral de `thresholds.json`.
   - **Hecho**: `tests/ft_ta_lib/benchmarks/test_bench_ta_lib.py` + `thresholds.json` (única fuente: filas, semilla, repeticiones y umbrales provisionales de RF-15, `status="provisional"`, `calibration=null`); el generador de 1M velas pasa a `tests/datasets.py` (`synthetic_ohlcv_1m`, compartido con `ft_indicators`, cuyos benchmarks siguen verdes). `python -m pytest -m benchmark -s tests/ft_ta_lib/benchmarks` imprime la mediana de 5 repeticiones y, con `BENCH_ENFORCE=1`, falla si supera el umbral; 8 tests sin marcador verifican la maquinaria (umbrales leídos del archivo, overrides `BENCH_*`, 13/61 funciones, JSON de resultados, fallo solo si se aplica, B2/B3 en miniatura). Local (Windows 11, 1M velas, mediana de 5): B1 0,233 s · B2 3,821 s · B3 17,390 s.
-- [ ] **T5.2**: Calibración en `ubuntu-latest` y umbral de regresión
+- [x] **T5.2**: Calibración en `ubuntu-24.04` (imagen fija) y umbral de regresión
   - **Hecho cuando**: umbrales = 1,5 × mediana registrados aquí y en RF-15 con fecha y run de CI; una regresión artificial hace fallar el job.
-  - **Preparado**: paso `Benchmarks ft_ta_lib (ubuntu-24.04, calibración)` en `.github/workflows/ci.yml` (solo `ubuntu-24.04`, imagen fija en lugar de `ubuntu-latest`; `BENCH_ENFORCE: "0"`; `BENCH_OUTPUT` → artefacto `bench-ft_ta_lib-<sha>` subido solo con `success()`); el paso de `ft_indicators` queda limitado a `tests/ft_indicators/benchmarks` con `BENCH_ENFORCE: "1"`.
-  - **Pendiente**: tras el primer run real de CI en *push*, leer las medianas del artefacto `bench-ft_ta_lib-<sha>`, fijar en `thresholds.json` `max_median_s = min(1,5 × mediana, provisional)` con `status="calibrated"` y el bloque `calibration` (fecha, `runner: github ubuntu-24.04`, commit, medianas, provisionales), registrarlo aquí y en RF-15, pasar `BENCH_ENFORCE` a `"1"` y comprobar con una regresión artificial (umbral temporal menor que la mediana) que el job falla. Nota: B3 local (17,4 s) está cerca del provisional de 20 s; lo domina la escritura de ~61 × meses archivos Parquet.
-
+  - **Hecho**: CI `85ee4e9` (ubuntu-24.04): medianas B1 0,168 s, B2 2,066 s, B3 10,140 s → umbrales 1,5× (0,25 / 3,10 / 15,21 s) en `thresholds.json` (calibrated) y RF-15; `BENCH_ENFORCE: "1"` en CI. Prueba de fallo: en una máquina más lenta (B1 0,440 s, B2 6,218 s, B3 31,080 s) los tres escenarios fallan con `mediana > umbral`.
 ## Fase 6: Integración con la Suite
 
 - [x] **T6.1**: `finances_api` monta `/ta-lib`

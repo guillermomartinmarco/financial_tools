@@ -127,13 +127,13 @@ La fuente es de **solo lectura**: **EL SISTEMA NO DEBE** escribir nunca bajo `FT
 ### RF-15 — Desempeño (Art. 20)
 Sobre el mismo dataset sintético de 1.000.000 velas `1m` que `ft_indicators`, en `ubuntu-latest`:
 
-| ID | Escenario | Umbral provisional |
+| ID | Escenario | Umbral calibrado (provisional original) |
 |---|---|---|
-| B1 | Motor en memoria: las 13 funciones equivalentes al catálogo de `ft_indicators` (defaults) | ≤ 1,0 s |
-| B2 | Tarea extremo a extremo de B1 | ≤ 8,0 s |
-| B3 | Tarea extremo a extremo del grupo *Pattern Recognition* completo (61 funciones) | ≤ 20,0 s |
+| B1 | Motor en memoria: las 13 funciones equivalentes al catálogo de `ft_indicators` (defaults) | ≤ 0,25 s (1,0 s) |
+| B2 | Tarea extremo a extremo de B1 | ≤ 3,10 s (8,0 s) |
+| B3 | Tarea extremo a extremo del grupo *Pattern Recognition* completo (61 funciones) | ≤ 15,21 s (20,0 s) |
 
-Calibración como en `ft_indicators` RF-14: 1,5 × mediana de 5 repeticiones en la primera ejecución real; después, umbral de regresión en CI.
+Calibración como en `ft_indicators` RF-14: 1,5 × mediana de 5 repeticiones en la primera ejecución real; después, umbral de regresión en CI. Calibrados el 2026-10-26 en `ubuntu-24.04` (commit `85ee4e9`; medianas B1 0,168 s, B2 2,066 s, B3 10,140 s).
 
 ### RF-16 — Configuración (Ubícuo)
 **EL SISTEMA DEBE** reutilizar `FT_INDICATORS_DIR` y `FT_INDICATORS_MAX_CONCURRENT` (compartidas con `ft_indicators`), `FT_PARQUET_DIR`, `FT_SHARE_DIR` y `FT_TASKS_DB_PATH`. No añade variables nuevas.
