@@ -49,6 +49,9 @@
 - [x] **T2.5**: Describir `FT_INDICATORS_DIR` y `FT_INDICATORS_MAX_CONCURRENT` como compartidas con `ft_ta_lib` (sin variables nuevas; ver `specs/ft_ta_lib` RF-16, T6.3)
   - **Hecho cuando**: `ft_setup doctor` sigue verde y la descripción de ambas variables menciona `ft_ta_lib`.
   - **Hecho**: descripciones actualizadas en `env_list.conf` y `templates/env_list.conf.j2` (idénticos, `test_bundled_env_list_matches_template`); `source_tool` sigue siendo `ft_indicators`; `test_doctor_describes_indicators_vars_as_shared_with_ft_ta_lib` verifica la descripción y que no existe ninguna `FT_TA_LIB*`/`FT_TALIB*`.
+- [x] **T2.6**: Registrar `FT_DATASETS_RECIPES_DIR`, `FT_DATASETS_DIR`, `FT_DATASETS_DOWNLOAD_TIMEOUT_S` y `FT_DATASETS_SETTLE_DAYS` (`source_tool="ft_datasets"`) y crear `DATASETS_DIR` en `init` (ver `specs/ft_datasets` T5.2)
+  - **Hecho cuando**: `test_doctor_lists_tool_variables_with_source_tool[ft_datasets]`, `test_bundled_env_list_matches_template` y un test de `init` que crea `data/datasets` pasan.
+  - **Hecho**: 4 entradas en `templates/env_list.conf.j2` y `env_list.conf` (idénticos); `DATASETS_DIR` en `_DIRS_ATTRS` (`init` crea 10 directorios); `test_doctor_lists_tool_variables_with_source_tool[ft_datasets]`, `test_init_env_template_includes_all_tool_variables` (ampliado), `test_init_creates_datasets_dir` y `test_bundled_env_list_matches_template` verdes. `datasets/` (recetas) no se crea: está versionado en el repo.
 
 ## Fase 3: Servicio Compartido (Lógica de Negocio)
 

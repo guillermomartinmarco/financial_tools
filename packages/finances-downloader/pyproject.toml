@@ -25,6 +25,7 @@ dependencies = [
 ft_market_data_binance = "finances_downloader.ft_market_data_binance.cli:app"
 ft_data_viewer = "finances_downloader.ft_data_viewer.cli:app"
 ft_market_data_yfinance = "finances_downloader.ft_market_data_yfinance.cli:app"
+ft_datasets = "finances_downloader.ft_datasets.cli:app"
 
 [project.optional-dependencies]
 dev = [
@@ -66,6 +67,8 @@ exclude = ["**/.venv/**", "**/__pycache__/**"]
 "src/finances_downloader/ft_market_data_yfinance/adapter.py" = ["PLR0913"]
 "src/finances_downloader/ft_market_data_yfinance/normalizer.py" = ["PLR0913"]
 "src/finances_downloader/ft_market_data_yfinance/service.py" = ["PLR0913", "PLR0917"]
+"src/finances_downloader/ft_datasets/runner.py" = ["PLR0913", "PLR0917"]
+"src/finances_downloader/ft_datasets/service.py" = ["PLR0913"]
 
 [tool.ruff.lint.flake8-bugbear]
 extend-immutable-calls = ["typer.Option", "typer.Argument", "fastapi.Query", "fastapi.Path", "fastapi.Depends"]
@@ -106,7 +109,8 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "-v --tb=short"
+markers = ["real_data: tests con datos reales materializados por ft_datasets; excluidos por defecto"]
+addopts = "-v --tb=short -m 'not real_data'"
 
 [tool.uv]
 dev-dependencies = [

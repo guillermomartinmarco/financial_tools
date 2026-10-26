@@ -14,6 +14,7 @@ dependencies = [
     "uuid6>=1.11",
     "polars>=1.6",
     "tenacity>=8.2",
+    "numpy>=1.26",
 ]
 
 [project.optional-dependencies]
@@ -83,4 +84,5 @@ mypy_path = "src"
 asyncio_mode = "auto"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-addopts = "-v --tb=short"
+markers = ["real_data: tests con datos reales materializados por ft_datasets; excluidos por defecto"]
+addopts = "-v --tb=short -m 'not real_data'"

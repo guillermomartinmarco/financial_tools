@@ -16,10 +16,11 @@ Cada herramienta `ft_*` expone un `APIRouter` de FastAPI, pero ninguna app los m
 - `ft_market_data_binance` (prefijo `/market-data/binance`)
 - `ft_data_viewer` (prefijo `/data`)
 - `ft_market_data_yfinance` (prefijo `/market-data/yfinance`)
+- `ft_datasets` (prefijo `/datasets`, paquete `finances-downloader`)
 - `ft_indicators` (prefijo `/indicators`, paquete `finances-analytics`)
 - `ft_ta_lib` (prefijo `/ta-lib`, paquete `finances-analytics`)
 
-Los nombres de ruta (`name`) **DEBEN** ser únicos en la app compuesta (`url_for` resuelve por nombre: cada herramienta usa su prefijo, p. ej. `indicators_*`, `ta_lib_*`).
+Los nombres de ruta (`name`) **DEBEN** ser únicos en la app compuesta (`url_for` resuelve por nombre: cada herramienta usa su prefijo, p. ej. `indicators_*`, `ta_lib_*`, `datasets_*`).
 
 ### RF-2 — Comando de servicio (Ubicuo)
 **EL SISTEMA DEBE** proveer el comando CLI `ft_serve` con opciones `--host`, `--port` y `--log-level`.
