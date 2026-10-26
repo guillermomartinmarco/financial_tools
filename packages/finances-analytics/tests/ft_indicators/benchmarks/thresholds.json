@@ -7,26 +7,43 @@
   "repeats": 5,
   "scenarios": {
     "B1": {
-      "max_median_s": 0.64,
+      "max_median_s": 1.07,
       "description": "Motor en memoria (sin IO), 12 indicadores por defecto"
     },
     "B2": {
-      "max_median_s": 2.51,
+      "max_median_s": 3.9,
       "description": "Tarea extremo a extremo: leer Parquet + calcular + reescribir particiones y manifiesto"
     }
   },
   "calibration": {
-    "date": "2026-10-25",
-    "runner": "github ubuntu-latest",
-    "commit": "86d23a2",
+    "date": "2026-10-26",
+    "runner": "github ubuntu-24.04 (pinned image)",
+    "commit": "1b879c3",
     "rule": "1.5 x median of 5 repeats, capped at provisional",
     "measured_median_s": {
-      "B1": 0.427,
-      "B2": 1.673
+      "B1": 0.715,
+      "B2": 2.6
     },
     "provisional_s": {
       "B1": 2.0,
       "B2": 8.0
+    },
+    "reason": "Runner image pinned to ubuntu-24.04; previous calibration ran on ubuntu-latest during its image migration. Measured code and generator unchanged."
+  },
+  "calibration_history": [
+    {
+      "date": "2026-10-25",
+      "runner": "github ubuntu-latest",
+      "commit": "86d23a2",
+      "rule": "1.5 x median of 5 repeats, capped at provisional",
+      "measured_median_s": {
+        "B1": 0.427,
+        "B2": 1.673
+      },
+      "provisional_s": {
+        "B1": 2.0,
+        "B2": 8.0
+      }
     }
-  }
+  ]
 }

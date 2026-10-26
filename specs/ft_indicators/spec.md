@@ -154,10 +154,10 @@ Restricciones de parámetros: enteros en `[2, 10000]` (`roc.period` en `[1, 1000
 
 | ID | Escenario | Umbral calibrado (provisional original) |
 |---|---|---|
-| B1 | Motor en memoria (sin IO) | ≤ 0,64 s (2,0 s) |
-| B2 | Tarea extremo a extremo (leer Parquet + calcular + reescribir particiones y manifiesto) | ≤ 2,51 s (8,0 s) |
+| B1 | Motor en memoria (sin IO) | ≤ 1,07 s (2,0 s) |
+| B2 | Tarea extremo a extremo (leer Parquet + calcular + reescribir particiones y manifiesto) | ≤ 3,90 s (8,0 s) |
 
-Calibrados el 2026-10-25 con la ejecución de `ubuntu-latest` del commit `86d23a2` (medianas B1 0,427 s y B2 1,673 s). Regla de calibración: con la primera ejecución real en `ubuntu-latest` (umbral = 1,5 × la mediana de 5 repeticiones, sin superar el provisional salvo decisión explícita del Tech Lead) y desde entonces un benchmark de regresión en CI **DEBE** fallar si se supera cualquiera.
+Recalibrados el 2026-10-26 en la imagen fija `ubuntu-24.04` (commit `1b879c3`; medianas B1 0,715 s y B2 2,600 s); la calibración previa (`ubuntu-latest`, `86d23a2`: 0,427/1,673 s) corrió durante la migración de imagen de esa etiqueta y queda en `calibration_history`. Cambiar de imagen exige recalibrar. Regla de calibración: con la primera ejecución real en `ubuntu-latest` (umbral = 1,5 × la mediana de 5 repeticiones, sin superar el provisional salvo decisión explícita del Tech Lead) y desde entonces un benchmark de regresión en CI **DEBE** fallar si se supera cualquiera.
 
 ### RF-15 — Configuración vía `FT_` Settings (Ubícuo)
 **EL SISTEMA DEBE** leer de `FinancesSettings` (prefijo `FT_`, rutas resueltas desde la raíz del proyecto): `FT_INDICATORS_DIR` (default `./data/indicators`) y `FT_INDICATORS_MAX_CONCURRENT` (datasets en paralelo por tarea, default 2), además de `FT_PARQUET_DIR`, `FT_SHARE_DIR` y `FT_TASKS_DB_PATH`. Las nuevas variables se registran en `env_list.conf` con `source_tool="ft_indicators"`.
