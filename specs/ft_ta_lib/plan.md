@@ -170,6 +170,33 @@ Ubicación: `finances-api` es la raíz de composición que ya monta ambos router
 4. Comparar columnas `Float32` con la tabla de tolerancias publicada en el catálogo de `ft_indicators`, desde
    `compare_from`/`stable_from_ms`, excluyendo las filas declaradas (`excluded_rows`).
 
+> **Deriva (implementación Fases 4–7, 2026-10-25)**:
+> - **Errores por item (RF-11)**: el runner compartido (`finances_core.indicators_store.runner`) solo transporta
+>   errores por dataset (`DatasetOutcome` no tiene `errors`). `service._ItemErrors` acumula los errores por item
+>   (`talib_error: {dataset}: {series_id}: …`, `output_out_of_range: …`) desde los hilos de cálculo y los fusiona en
+>   `errors_json` de `tasks.db` con cada progreso que publica el runner (tras registrar cada dataset y tras sus propias
+>   escrituras de `errors_json`), de modo que `status`/`result` los muestran antes de `COMPLETED`. Mejora propuesta
+>   (fuera de esta rama, Art. 15): `DatasetOutcome.errors` en el núcleo y retirar `_ItemErrors`.
+> - `compute_dataset(ds, items, ctx: ComputeContext)` agrupa almacén, *settings*, `task_id` y errores por item.
+> - El plan resuelve cada función **por dataset** (`resolve(spec, columnas_disponibles)`) para validar `adj_close`;
+>   `expand` (con la ejecución de prueba) corre una sola vez por petición.
+> - `GET /catalog?group=&function=` (y `ft_ta_lib catalog --group/--function`): filtro sin distinción de mayúsculas;
+>   `groups` solo lista los grupos/funciones devueltos; grupo o función inexistente → 400 / exit 2 con los grupos válidos.
+> - Rutas con nombre `ta_lib_{catalog,compute,status,plan,result,manifest,export}` (únicos en la app compuesta;
+>   `url_for` resuelve las URLs de *polling* hacia `/ta-lib`). Cabecera de exportación desactualizada:
+>   `X-FT-Indicators-Stale` (la misma que `ft_indicators`, vista compartida).
+> - Nombre de exportación: `{exchange}_{market_type}_{symbol}_{timeframe}_ta_lib.{ext}` (no colisiona con
+>   `…_indicators.{ext}` en un mismo directorio).
+> - `BBANDS` tiene `timeperiod=20` por defecto en TA-Lib C 0.8.1: el `series_id` por defecto es
+>   `talib_bbands_20_2_2_sma` (el ejemplo de RF-9 `talib_bbands_5_2_2_sma_upperband` corresponde a `timeperiod=5`).
+> - Benchmarks (RF-15): `tests/ft_ta_lib/benchmarks/{test_bench_ta_lib.py,thresholds.json}`; B1 usa las 13
+>   funciones equivalentes con los **defaults de TA-Lib**; el generador de 1M velas pasa a `tests/datasets.py`
+>   (compartido con `ft_indicators`). En CI corre en `ubuntu-24.04` (imagen fija, no `ubuntu-latest`) con
+>   `BENCH_ENFORCE: "0"` hasta la calibración de T5.2.
+> - Validación cruzada (§3.5): la escala de `atol_scaled` (media de `|close|`, `Σ|volume|` en `obv`) no es legible por
+>   máquina en el catálogo de `ft_indicators`; el test la fija según su plan §3.9 y añade 4 ULP de `Float32`
+>   relativos a la escala de la columna (`ft_ta_lib` persiste TA-Lib redondeado a `Float32`).
+
 ## 4. Estructura de Archivos Objetivo
 ```
 packages/finances-core/src/finances_core/schemas/ta_lib.py        # NUEVO: contratos §1.1
@@ -178,7 +205,7 @@ packages/finances-analytics/src/finances_analytics/ft_ta_lib/
 ├── errors.py  api.py  cli.py                                      # model.py: metadatos/función resuelta sin talib
 packages/finances-analytics/tests/ft_ta_lib/
 ├── conftest.py  test_*.py
-└── benchmarks/test_bench_ta_lib.py                               # marcador `benchmark` (RF-15)
+└── benchmarks/test_bench_ta_lib.py  thresholds.json               # marcador `benchmark` (RF-15)
 packages/finances-api/tests/test_cross_validation_indicators.py   # RF-18
 ```
 
@@ -210,6 +237,7 @@ packages/finances-api/tests/test_cross_validation_indicators.py   # RF-18
 - `finances_api.create_app()` monta `/ta-lib` (spec de `finances_api`).
 - `ft_setup`: sin variables nuevas; la descripción de `FT_INDICATORS_DIR`/`FT_INDICATORS_MAX_CONCURRENT` en
   `env_list.conf(.j2)` menciona que son compartidas con `ft_ta_lib`.
-- CI: sin cambios de instalación (ya instala `finances-analytics[dev]`); paso de benchmarks incluye B1–B3.
+- CI: sin cambios de instalación (ya instala `finances-analytics[dev]`); paso de benchmarks propio de `ft_ta_lib`
+  (B1–B3, `ubuntu-24.04`, `BENCH_ENFORCE: "0"` hasta calibrar) y artefacto `bench-ft_ta_lib-<sha>`.
 - README: mapa de utilidades y ejemplos de `ft_ta_lib catalog`/`compute`/`export`.
 - Constitución: `docs/rfc/RFC-0002-ft-ta-lib-int16-float64-boundary.md` (Propuesto) debe aprobarse antes del merge.

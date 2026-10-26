@@ -63,7 +63,18 @@ jobs:
         env:
           BENCH_OUTPUT: ${{ github.workspace }}/bench-results/ft_indicators.json
           BENCH_ENFORCE: "1"
-        run: python -m pytest -m benchmark -s -q
+        run: python -m pytest -m benchmark -s -q tests/ft_indicators/benchmarks
+
+      # RF-15 / T5.2 de ft_ta_lib: benchmarks B1/B2/B3 solo en ubuntu-24.04. Umbrales
+      # provisionales en tests/ft_ta_lib/benchmarks/thresholds.json: BENCH_ENFORCE "0" hasta
+      # calibrar con la primera ejecución real (1,5 x mediana); entonces pasa a "1".
+      - name: Benchmarks ft_ta_lib (ubuntu-24.04, calibración)
+        if: matrix.os == 'ubuntu-24.04'
+        working-directory: packages/finances-analytics
+        env:
+          BENCH_OUTPUT: ${{ github.workspace }}/bench-results/ft_ta_lib.json
+          BENCH_ENFORCE: "0"
+        run: python -m pytest -m benchmark -s -q tests/ft_ta_lib/benchmarks
 
       - name: Upload benchmark results
         if: matrix.os == 'ubuntu-24.04' && success()
@@ -71,4 +82,12 @@ jobs:
         with:
           name: bench-ft_indicators-${{ github.sha }}
           path: bench-results/ft_indicators.json
+          if-no-files-found: error
+
+      - name: Upload benchmark results ft_ta_lib
+        if: matrix.os == 'ubuntu-24.04' && success()
+        uses: actions/upload-artifact@v7
+        with:
+          name: bench-ft_ta_lib-${{ github.sha }}
+          path: bench-results/ft_ta_lib.json
           if-no-files-found: error

@@ -2,7 +2,8 @@
 
 Los adaptadores los traducen: :class:`TaLibValidationError` → CLI exit 2 / HTTP 400;
 :class:`OutputOutOfRangeError` es un error por item (``output_out_of_range``, la tarea sigue);
-:class:`TaLibExecutionError` es una excepción de TA-Lib durante el cálculo (error por item).
+:class:`TaLibExecutionError` es una excepción de TA-Lib durante el cálculo (error por item);
+:class:`EmptyExportError` → CLI exit 3 / HTTP 400.
 """
 
 from __future__ import annotations
@@ -52,4 +53,13 @@ class TaLibExecutionError(RuntimeError):
     code = "talib_error"
 
 
-__all__ = ["OutputOutOfRangeError", "TaLibExecutionError", "TaLibValidationError"]
+class EmptyExportError(Exception):
+    """El rango pedido no tiene filas que exportar (RF-10: CLI exit 3 / HTTP 400)."""
+
+
+__all__ = [
+    "EmptyExportError",
+    "OutputOutOfRangeError",
+    "TaLibExecutionError",
+    "TaLibValidationError",
+]

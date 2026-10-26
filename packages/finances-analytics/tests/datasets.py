@@ -1,7 +1,9 @@
 """Fábrica de datasets Hive sintéticos compartida por ``ft_indicators`` y ``ft_ta_lib``.
 
-Binance y yfinance, con y sin ``adj_close``. Las *fixtures* ``settings`` y ``hive_dataset``
-viven en ``tests/conftest.py``; este módulo solo contiene código de test (nunca de ``src``).
+Binance y yfinance, con y sin ``adj_close``, y el generador determinista de velas ``1m``
+de los benchmarks (:func:`synthetic_ohlcv_1m`, 1.000.000 velas en RF-14/RF-15). Las
+*fixtures* ``settings`` y ``hive_dataset`` viven en ``tests/conftest.py``; este módulo solo
+contiene código de test (nunca de ``src``).
 """
 
 from __future__ import annotations
@@ -10,6 +12,7 @@ import random
 from pathlib import Path
 from typing import Protocol
 
+import numpy as np
 import polars as pl
 from finances_core.marketdata.hive_writer import write_parquet_partitioned
 from finances_core.schemas.data_viewer import DatasetIdentifier
@@ -18,6 +21,10 @@ from finances_core.schemas.market_data_yfinance import YF_OHLCV_SCHEMA
 
 #: 2024-01-01T00:00:00Z en ms.
 JAN_2024_MS = 1_704_067_200_000
+#: Dataset sintético de los benchmarks (``binance/spot/BENCHUSDT/1m``).
+BENCH_DATASET = DatasetIdentifier.model_validate(
+    {"exchange": "binance", "market_type": "spot", "symbol": "BENCHUSDT", "timeframe": "1m"}
+)
 
 
 class DatasetFactory(Protocol):
@@ -98,4 +105,52 @@ def write_hive_dataset(
     write_parquet_partitioned(df, parquet_dir, exchange=exchange, schema=schema)
     return DatasetIdentifier.model_validate(
         {"exchange": exchange, "market_type": market_type, "symbol": symbol, "timeframe": timeframe}
+    )
+
+
+def synthetic_ohlcv_1m(
+    rows: int,
+    *,
+    seed: int,
+    start_ms: int = JAN_2024_MS,
+    dataset: DatasetIdentifier = BENCH_DATASET,
+) -> pl.DataFrame:
+    """Velas ``1m`` deterministas (paseo log-normal con semilla fija) en el esquema canónico
+    de Binance (``OHLCV_SCHEMA``) + ``year``/``month`` para el escritor Hive."""
+    rng = np.random.default_rng(seed)
+    close = 100.0 * np.exp(np.cumsum(rng.normal(0.0, 1e-3, rows)))
+    open_ = np.concatenate(([100.0], close[:-1]))
+    high = np.maximum(open_, close) * (1.0 + np.abs(rng.normal(0.0, 5e-4, rows)))
+    low = np.minimum(open_, close) * (1.0 - np.abs(rng.normal(0.0, 5e-4, rows)))
+    volume = np.abs(rng.normal(10.0, 3.0, rows))
+    times = start_ms + np.arange(rows, dtype=np.int64) * TF_MS_MAP["1m"]
+    frame = pl.DataFrame(
+        {
+            "symbol": dataset.symbol,
+            "timeframe": dataset.timeframe,
+            "market_type": dataset.market_type,
+            "open_time_ms": times,
+            "open": open_,
+            "high": high,
+            "low": low,
+            "close": close,
+            "volume": volume,
+            "quote_volume": volume * close,
+            "trades_count": np.full(rows, 10, dtype=np.int64),
+            "taker_buy_base_volume": volume / 2.0,
+            "taker_buy_quote_volume": volume * close / 2.0,
+        }
+    )
+    dt = pl.from_epoch(pl.col("open_time_ms"), time_unit="ms")
+    return frame.select([pl.col(c).cast(t) for c, t in OHLCV_SCHEMA.items()]).with_columns(
+        dt.dt.year().alias("year"), dt.dt.month().alias("month")
+    )
+
+
+def write_bench_source(
+    frame: pl.DataFrame, parquet_dir: Path, dataset: DatasetIdentifier = BENCH_DATASET
+) -> None:
+    """Escribe :func:`synthetic_ohlcv_1m` bajo ``parquet_dir`` con el escritor Hive del núcleo."""
+    write_parquet_partitioned(
+        frame, parquet_dir, exchange=dataset.exchange, schema=dict(OHLCV_SCHEMA)
     )

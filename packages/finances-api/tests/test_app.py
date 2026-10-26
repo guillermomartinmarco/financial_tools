@@ -56,6 +56,7 @@ async def test_openapi_includes_all_tool_routers() -> None:
         "/market-data/yfinance/",
         "/data/",
         "/indicators/",
+        "/ta-lib/",
     )
     for prefix in prefixes:
         assert any(path.startswith(prefix) for path in paths), prefix
@@ -163,6 +164,80 @@ async def test_indicators_dispatch_urls_point_to_indicators_routes() -> None:
         polled = await client.get(body["poll_url"])
     assert polled.status_code == 200
     assert polled.json()["status"] == "COMPLETED"
+
+
+async def test_openapi_includes_the_seven_ta_lib_routes() -> None:
+    """``ft_ta_lib`` (plan §2.2) queda montado con sus 7 rutas bajo ``/ta-lib``."""
+    transport = httpx.ASGITransport(app=create_app())
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        paths = (await client.get("/openapi.json")).json()["paths"]
+    ta_lib = {path: set(ops) for path, ops in paths.items() if path.startswith("/ta-lib/")}
+    dataset = "/ta-lib/datasets/{exchange}/{market_type}/{symbol}/{timeframe}"
+    assert ta_lib == {
+        "/ta-lib/catalog": {"get"},
+        "/ta-lib/compute": {"post"},
+        "/ta-lib/status/{task_id}": {"get"},
+        "/ta-lib/plan/{task_id}": {"get"},
+        "/ta-lib/result/{task_id}": {"get"},
+        dataset: {"get"},
+        f"{dataset}/export": {"post"},
+    }
+
+
+async def test_mounted_ta_lib_router_answers() -> None:
+    transport = httpx.ASGITransport(app=create_app())
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/ta-lib/catalog", params={"group": "Pattern Recognition"})
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body["functions"]) == 61
+    assert body["talib_version"]
+    assert body["ta_lib_c_version"]
+
+
+async def test_ta_lib_dispatch_urls_point_to_ta_lib_routes() -> None:
+    """En la app compuesta, las URLs de *polling* de ``POST /ta-lib/compute`` apuntan a
+    ``/ta-lib`` (nombres ``ta_lib_*`` únicos frente a ``/indicators`` y los descargadores)."""
+    _write_binance_dataset()
+    transport = httpx.ASGITransport(app=create_app())
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            "/ta-lib/compute",
+            json={
+                "datasets": [
+                    {
+                        "exchange": "binance",
+                        "market_type": "spot",
+                        "symbol": "BTCUSDT",
+                        "timeframe": "1h",
+                    }
+                ],
+                "functions": [{"function": "rsi"}, {"function": "cdlengulfing"}],
+            },
+        )
+        assert response.status_code == 202, response.text
+        body = response.json()
+        task_id = body["task_id"]
+        assert body["poll_url"] == f"http://test/ta-lib/status/{task_id}"
+        assert body["plan_url"] == f"http://test/ta-lib/plan/{task_id}"
+        assert body["result_url"] == f"http://test/ta-lib/result/{task_id}"
+        polled = await client.get(body["poll_url"])
+        result = await client.get(body["result_url"])
+    assert polled.status_code == 200
+    assert polled.json()["status"] == "COMPLETED"
+    assert [i["series_id"] for i in result.json()["items"]] == [
+        "talib_rsi_14",
+        "talib_cdlengulfing",
+    ]
+
+
+def test_ta_lib_route_names_resolve_to_ta_lib_routes() -> None:
+    app = create_app()
+    task_id = "0190b2a5-0000-7000-8000-000000000000"
+    for name in ("ta_lib_status", "ta_lib_plan", "ta_lib_result"):
+        assert app.url_path_for(name, task_id=task_id).startswith("/ta-lib/")
+    for name in ("indicators_status", "indicators_plan", "indicators_result"):
+        assert app.url_path_for(name, task_id=task_id).startswith("/indicators/")
 
 
 async def test_mounted_setup_router_answers() -> None:

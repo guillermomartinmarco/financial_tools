@@ -15,6 +15,7 @@ from typing import Literal
 from fastapi import FastAPI
 from fastapi.concurrency import run_in_threadpool
 from finances_analytics.ft_indicators.api import router as indicators_router
+from finances_analytics.ft_ta_lib.api import router as ta_lib_router
 from finances_core.config import FinancesSettings
 from finances_core.logging import configure_logging
 from finances_downloader.ft_data_viewer.api import router as viewer_router
@@ -52,8 +53,9 @@ def create_app(log_level: int = logging.INFO) -> FastAPI:
     """Crea la app con ``/health`` y los routers de todas las herramientas.
 
     Monta ``ft_setup`` (``/setup``), ``ft_market_data_binance`` (``/market-data/binance``),
-    ``ft_market_data_yfinance`` (``/market-data/yfinance``), ``ft_data_viewer`` (``/data``) e
-    ``ft_indicators`` (``/indicators``, paquete ``finances-analytics``).
+    ``ft_market_data_yfinance`` (``/market-data/yfinance``), ``ft_data_viewer`` (``/data``),
+    ``ft_indicators`` (``/indicators``) y ``ft_ta_lib`` (``/ta-lib``), estas dos del paquete
+    ``finances-analytics``.
     """
     app = FastAPI(
         title="financial_tools",
@@ -71,4 +73,5 @@ def create_app(log_level: int = logging.INFO) -> FastAPI:
     app.include_router(yfinance_router)
     app.include_router(viewer_router)
     app.include_router(indicators_router)
+    app.include_router(ta_lib_router)
     return app

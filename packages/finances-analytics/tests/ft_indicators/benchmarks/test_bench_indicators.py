@@ -1,7 +1,8 @@
 """T6.1: benchmarks de desempeño de ``ft_indicators`` (RF-14).
 
 Escenarios sobre un dataset sintético determinista de ``rows`` velas ``1m`` (por defecto
-1.000.000) y los 12 indicadores del catálogo con parámetros por defecto (19 columnas):
+1.000.000; generador compartido con ``ft_ta_lib`` en ``tests/datasets.py``) y los 12
+indicadores del catálogo con parámetros por defecto (19 columnas):
 
 - **B1**: motor en memoria (``engine.compute``, sin IO).
 - **B2**: tarea extremo a extremo (planificar + leer Parquet + calcular + reescribir
@@ -36,26 +37,23 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import polars as pl
 import pytest
 from finances_core.config import FinancesSettings
 from finances_core.logging import configure_logging
-from finances_core.marketdata.hive_writer import write_parquet_partitioned
-from finances_core.schemas.data_viewer import DatasetIdentifier
 from finances_core.schemas.indicators import IndicatorComputeRequest, IndicatorSpec
 from finances_core.schemas.market_data import OHLCV_SCHEMA, TF_MS_MAP
 
 from finances_analytics.ft_indicators import engine, service
 from finances_analytics.ft_indicators.catalog import CATALOG, ResolvedIndicator, resolve
 
+from ...datasets import BENCH_DATASET, JAN_2024_MS, synthetic_ohlcv_1m, write_bench_source
+
 THRESHOLDS_PATH = Path(__file__).resolve().parent / "thresholds.json"
 #: 2024-01-01T00:00:00Z en ms.
-START_MS = 1_704_067_200_000
+START_MS = JAN_2024_MS
 RESULTS_SCHEMA_VERSION = 1
-DATASET = DatasetIdentifier.model_validate(
-    {"exchange": "binance", "market_type": "spot", "symbol": "BENCHUSDT", "timeframe": "1m"}
-)
+DATASET = BENCH_DATASET
 INPUT_COLUMNS = ["open_time_ms", "open", "high", "low", "close", "volume"]
 
 
@@ -94,44 +92,9 @@ def bench_config(env: dict[str, str] | None = None) -> BenchConfig:
 # ------------------------------------------------------------------ datos
 
 
-def synthetic_ohlcv_1m(rows: int, *, seed: int, start_ms: int = START_MS) -> pl.DataFrame:
-    """Velas ``1m`` deterministas (paseo log-normal con semilla fija) en el esquema canónico
-    de Binance (``OHLCV_SCHEMA``) + ``year``/``month`` para el escritor Hive."""
-    rng = np.random.default_rng(seed)
-    close = 100.0 * np.exp(np.cumsum(rng.normal(0.0, 1e-3, rows)))
-    open_ = np.concatenate(([100.0], close[:-1]))
-    high = np.maximum(open_, close) * (1.0 + np.abs(rng.normal(0.0, 5e-4, rows)))
-    low = np.minimum(open_, close) * (1.0 - np.abs(rng.normal(0.0, 5e-4, rows)))
-    volume = np.abs(rng.normal(10.0, 3.0, rows))
-    times = start_ms + np.arange(rows, dtype=np.int64) * TF_MS_MAP["1m"]
-    frame = pl.DataFrame(
-        {
-            "symbol": DATASET.symbol,
-            "timeframe": DATASET.timeframe,
-            "market_type": DATASET.market_type,
-            "open_time_ms": times,
-            "open": open_,
-            "high": high,
-            "low": low,
-            "close": close,
-            "volume": volume,
-            "quote_volume": volume * close,
-            "trades_count": np.full(rows, 10, dtype=np.int64),
-            "taker_buy_base_volume": volume / 2.0,
-            "taker_buy_quote_volume": volume * close / 2.0,
-        }
-    )
-    dt = pl.from_epoch(pl.col("open_time_ms"), time_unit="ms")
-    return frame.select([pl.col(c).cast(t) for c, t in OHLCV_SCHEMA.items()]).with_columns(
-        dt.dt.year().alias("year"), dt.dt.month().alias("month")
-    )
-
-
 def write_source(frame: pl.DataFrame, settings: FinancesSettings) -> None:
     """Escribe el dataset sintético bajo ``FT_PARQUET_DIR`` con el escritor Hive del núcleo."""
-    write_parquet_partitioned(
-        frame, settings.PARQUET_DIR, exchange=DATASET.exchange, schema=dict(OHLCV_SCHEMA)
-    )
+    write_bench_source(frame, settings.PARQUET_DIR, DATASET)
 
 
 def default_indicators() -> list[ResolvedIndicator]:
