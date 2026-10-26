@@ -27,3 +27,6 @@
 - [x] **T8**: Validación cruzada `ft_indicators` ↔ `ft_ta_lib` solo por HTTP (RF-6; ver `specs/ft_ta_lib` T6.2)
   - **Hecho cuando**: `tests/test_cross_validation_indicators.py` compara todas las salidas con `talib_equivalent` dentro de la tolerancia publicada y no importa `finances_analytics`.
   - **Hecho**: ver `specs/ft_ta_lib/tasks.md` T6.2 (18 columnas de 11 indicadores; `test_module_does_not_import_tools` verifica por AST que el módulo no importa `finances_analytics` ni `talib`).
+- [x] **T9**: Montar router `/datasets` (ver `specs/ft_datasets` T5.1)
+  - **Hecho cuando**: `test_openapi_includes_all_tool_routers` incluye `/datasets/`, un test fija las 8 rutas de `specs/ft_datasets/plan.md` §2.2, las URLs de *polling* del `202` apuntan a `/datasets/...` y `test_composed_app_route_names_are_unique` sigue verde.
+  - **Hecho**: `create_app()` incluye `finances_downloader.ft_datasets.api.router` (sin cambios de dependencias); `test_openapi_includes_the_eight_datasets_routes`, `test_datasets_dispatch_urls_point_to_datasets_routes` (*runner* sin red vía `dependency_overrides`, *polling* hasta `COMPLETED`) y `test_datasets_route_names_resolve_to_datasets_routes`; `test_composed_app_route_names_are_unique` verde (rutas `datasets_*`; `/datasets` no colisiona con `/data`).

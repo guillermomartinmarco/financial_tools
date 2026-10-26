@@ -1,0 +1,38 @@
+# Receta ft_datasets (specs/ft_datasets/plan.md §1.5). Inmutable una vez bloqueada:
+# evolucionar = receta nueva (benchmark-v2), nunca editar esta (ADR-D10).
+# El lock benchmark-v1.lock.json se genera con `ft_datasets lock benchmark-v1` y se revisa en PR.
+schema_version = 1
+name = "benchmark-v1"
+description = "Datos reales para tests masivos: cripto 24/7 intradía y multi-activo diario."
+
+[[datasets]]                       # 2 × 2 ítems: 1m = 131.040 filas/símbolo, 1h = 2.184
+exchange = "binance"
+market_type = "spot"
+symbols = ["BTCUSDT", "ETHUSDT"]
+timeframes = ["1m", "1h"]
+start = 2024-01-01
+end = 2024-04-01                   # exclusivo: Q1 2024 (incluye 29-feb)
+
+[[datasets]]
+exchange = "yfinance"
+market_type = "equity"
+symbols = ["AAPL"]
+timeframes = ["1d"]
+start = 2015-01-01
+end = 2025-01-01
+
+[[datasets]]
+exchange = "yfinance"
+market_type = "index"
+symbols = ["^GSPC"]
+timeframes = ["1d"]
+start = 2015-01-01
+end = 2025-01-01
+
+[[datasets]]
+exchange = "yfinance"
+market_type = "fx"
+symbols = ["EURUSD=X"]
+timeframes = ["1d"]
+start = 2015-01-01
+end = 2025-01-01

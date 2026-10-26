@@ -191,6 +191,8 @@ el almacén de recetas es una caché reconstruible y no se mezcla con las descar
 | Descargador `COMPLETED` pero sin filas para un ítem (símbolo inexistente) | La tarea sigue; el ítem queda `MISSING` en la verificación |
 | *Lock* corrupto o de otro algoritmo (`hash_algorithm ≠ ftds-v1`) | exit 2 / HTTP 400; nunca se reinterpreta |
 | Error de IO al leer/escribir el almacén o el *lock* | exit 4 / HTTP 500 |
+| Datos del almacén no canónicos (`DatasetDataError`: dtype, columnas, orden, `open_time_ms` duplicado o archivo ilegible) en `verify` / `lock` | exit 5 / HTTP 409: fallo de integridad de datos, como un `MISMATCH` (no de IO); en `materialize` el ítem se trata como `MISMATCH` (pre-verificación y verificación final) y `--refetch` lo re-descarga |
+| `FT_DATASETS_DIR` anidado con `FT_PARQUET_DIR` (`ConfigError`, RF-11) | exit 2 / HTTP 500 |
 
 ---
 

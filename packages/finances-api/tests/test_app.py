@@ -12,7 +12,9 @@ import polars as pl
 import pytest
 from finances_core.config import FinancesSettings
 from finances_core.marketdata.hive_writer import write_parquet_partitioned
+from finances_core.schemas.datasets import BlockRun
 from finances_core.schemas.market_data import OHLCV_SCHEMA
+from finances_downloader.ft_datasets.api import get_runner
 from typer.testing import CliRunner
 
 from finances_api import __version__, cli
@@ -55,6 +57,7 @@ async def test_openapi_includes_all_tool_routers() -> None:
         "/market-data/binance/",
         "/market-data/yfinance/",
         "/data/",
+        "/datasets/",
         "/indicators/",
         "/ta-lib/",
     )
@@ -322,3 +325,84 @@ def test_yfinance_poll_urls_resolve_to_yfinance_routes() -> None:
         assert app.url_path_for(name, task_id=task_id).startswith("/market-data/yfinance/")
     for name in ("binance_status", "binance_plan", "binance_result"):
         assert app.url_path_for(name, task_id=task_id).startswith("/market-data/binance/")
+
+
+async def test_openapi_includes_the_eight_datasets_routes() -> None:
+    """``ft_datasets`` (plan §2.2) queda montado con sus 8 rutas bajo ``/datasets``."""
+    transport = httpx.ASGITransport(app=create_app())
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        paths = (await client.get("/openapi.json")).json()["paths"]
+    datasets = {path: set(ops) for path, ops in paths.items() if path.startswith("/datasets/")}
+    assert datasets == {
+        "/datasets/recipes": {"get"},
+        "/datasets/recipes/{name}": {"get"},
+        "/datasets/materialize/{name}": {"post"},
+        "/datasets/status/{task_id}": {"get"},
+        "/datasets/plan/{task_id}": {"get"},
+        "/datasets/result/{task_id}": {"get"},
+        "/datasets/verify/{name}": {"post"},
+        "/datasets/lock/{name}": {"post"},
+    }
+
+
+_DATASETS_RECIPE = """schema_version = 1
+name = "api-v1"
+
+[[datasets]]
+exchange = "binance"
+market_type = "spot"
+symbols = ["BTCUSDT"]
+timeframes = ["1h"]
+start = 2024-01-01
+end = 2024-01-02
+"""
+
+
+class _NoDataRunner:
+    """*Runner* sin red ni subprocesos: el descargador "termina bien" sin escribir filas."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def run_block(self, block: int, argv: Any, env: Any, timeout_s: float) -> BlockRun:
+        self.calls += 1
+        return BlockRun(
+            block=block,
+            exit_code=0,
+            duration_ms=0,
+            timed_out=False,
+            stderr_tail=[],
+            downloader_task_id=None,
+        )
+
+
+async def test_datasets_dispatch_urls_point_to_datasets_routes(tmp_path: Path) -> None:
+    """En la app compuesta, las URLs de *polling* de ``POST /datasets/materialize`` apuntan a
+    ``/datasets`` (nombres ``datasets_*`` únicos; ``/datasets`` no choca con ``/data``)."""
+    (tmp_path / "datasets").mkdir()
+    (tmp_path / "datasets" / "api-v1.toml").write_text(_DATASETS_RECIPE, encoding="utf-8")
+    fake = _NoDataRunner()
+    app = create_app()
+    app.dependency_overrides[get_runner] = lambda: fake
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post("/datasets/materialize/api-v1")
+        assert response.status_code == 202, response.text
+        body = response.json()
+        task_id = body["task_id"]
+        assert body["poll_url"] == f"http://test/datasets/status/{task_id}"
+        assert body["plan_url"] == f"http://test/datasets/plan/{task_id}"
+        assert body["result_url"] == f"http://test/datasets/result/{task_id}"
+        polled = await client.get(body["poll_url"])
+        result = await client.get(body["result_url"])
+    assert polled.json()["status"] == "COMPLETED"
+    assert result.json()["outcome"] == "MISMATCH"  # ítem MISSING: el descargador no dejó filas
+    assert fake.calls == 1
+
+
+def test_datasets_route_names_resolve_to_datasets_routes() -> None:
+    app = create_app()
+    task_id = "0190b2a5-0000-7000-8000-000000000000"
+    for name in ("datasets_status", "datasets_plan", "datasets_result"):
+        assert app.url_path_for(name, task_id=task_id).startswith("/datasets/")
+    assert app.url_path_for("datasets_verify", name="x") == "/datasets/verify/x"

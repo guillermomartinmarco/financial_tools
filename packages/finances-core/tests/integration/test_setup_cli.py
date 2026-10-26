@@ -223,6 +223,15 @@ def test_status_unknown_task_exits_1(monkeypatch: pytest.MonkeyPatch, tmp_path: 
             },
         ),
         ("ft_indicators", {"FT_INDICATORS_DIR", "FT_INDICATORS_MAX_CONCURRENT"}),
+        (
+            "ft_datasets",
+            {
+                "FT_DATASETS_RECIPES_DIR",
+                "FT_DATASETS_DIR",
+                "FT_DATASETS_DOWNLOAD_TIMEOUT_S",
+                "FT_DATASETS_SETTLE_DAYS",
+            },
+        ),
     ],
 )
 def test_doctor_lists_tool_variables_with_source_tool(
@@ -273,6 +282,8 @@ def test_init_env_template_includes_all_tool_variables(
         "FT_YFINANCE_TIMEOUT_S",
         "FT_INDICATORS_DIR",
         "FT_INDICATORS_MAX_CONCURRENT",
+        "FT_DATASETS_DIR",
+        "FT_DATASETS_RECIPES_DIR",
     ):
         assert name in template
 
@@ -283,6 +294,14 @@ def test_init_creates_indicators_dir(monkeypatch: pytest.MonkeyPatch, tmp_path: 
     result = runner.invoke(cli.app, ["--quiet", "init"])
     assert result.exit_code == cli.EXIT_OK, result.output
     assert (tmp_path / "data" / "indicators").is_dir()
+
+
+def test_init_creates_datasets_dir(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """``ft_setup init`` crea ``DATASETS_DIR`` (plan de ``ft_datasets`` §7, T5.2)."""
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(cli.app, ["--quiet", "init"])
+    assert result.exit_code == cli.EXIT_OK, result.output
+    assert (tmp_path / "data" / "datasets").is_dir()
 
 
 def test_bundled_env_list_matches_template() -> None:

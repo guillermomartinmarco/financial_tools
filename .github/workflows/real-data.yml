@@ -1,0 +1,133 @@
+# Suite opt-in de datos reales de ft_datasets (spec RF-10 / RF-10 bis, plan §3.8).
+# Separada de ci.yml: la suite por defecto sigue sin red y determinista.
+# - Disparo: manual, semanal (lunes 05:00 UTC) o etiqueta `real-data` en un PR.
+# - Caché de FT_DATASETS_DIR con clave = hash de recetas + locks; se guarda SOLO tras una
+#   materialización verificada OK (nunca se cachean datos que no coinciden).
+# - Fallo semanal -> issue de-duplicado por tipo (scripts/ci/real_data_issue.sh), solo con
+#   el GITHUB_TOKEN del workflow.
+name: Real data
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 5 * * 1"
+  pull_request:
+    types: [labeled, synchronize]
+
+jobs:
+  real-data:
+    name: real-data / benchmark-v1
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'real-data')
+    # Misma imagen fijada que ci.yml (ADR-D15): cambiarla es una decisión explícita.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      issues: write
+    concurrency:
+      group: real-data-${{ github.ref }}
+      cancel-in-progress: true
+    defaults:
+      run:
+        shell: bash
+    env:
+      RECIPE: benchmark-v1
+      FT_PROJECT_ROOT: ${{ github.workspace }}
+      FT_DATASETS_DIR: ${{ github.workspace }}/.ft-datasets
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install packages (editable, core first)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e "packages/finances-core[dev]"
+          python -m pip install -e "packages/finances-downloader[dev]"
+          python -m pip install -e "packages/finances-analytics[dev]"
+          python -m pip install -e "packages/finances-api[service,dev]"
+
+      - name: ft_setup init
+        run: ft_setup init
+
+      - name: Restore datasets cache
+        id: cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .ft-datasets
+          key: ft-datasets-ftds-v1-${{ hashFiles('datasets/*.toml', 'datasets/*.lock.json') }}
+          restore-keys: ft-datasets-ftds-v1-
+
+      # Exit codes: 0 OK · 3 descarga FAILED (red/proveedor) · 5 deriva (MISMATCH/MISSING/
+      # RECIPE_CHANGED) · 6 sin bloquear. Con caché caliente no se lanza ningún descargador.
+      - name: Materializar y verificar
+        id: materialize
+        timeout-minutes: 30
+        run: |
+          mkdir -p reports
+          set +e
+          ft_datasets --log-format json materialize "$RECIPE" --refetch > reports/materialize.json
+          code=$?
+          set -e
+          echo "exit=$code" >> "$GITHUB_OUTPUT"
+          python - <<'PY'
+          import json
+          result = json.load(open("reports/materialize.json", encoding="utf-8"))
+          blocks = result.get("blocks", [])
+          print(f"outcome={result.get('outcome')} blocks={len(blocks)}")
+          PY
+          exit "$code"
+
+      - name: Save datasets cache (solo tras verificación OK)
+        if: success() && steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .ft-datasets
+          key: ft-datasets-ftds-v1-${{ hashFiles('datasets/*.toml', 'datasets/*.lock.json') }}
+
+      # finances-core registra el marcador pero no tiene tests real_data (pytest saldría con 5).
+      - name: Tests real_data
+        id: tests
+        timeout-minutes: 20
+        run: |
+          set -o pipefail
+          status=0
+          for pkg in finances-downloader finances-analytics; do
+            echo "::group::$pkg"
+            (cd "packages/$pkg" && python -m pytest -m real_data -q -rfE) 2>&1 \
+              | tee -a reports/pytest.txt || status=1
+            echo "::endgroup::"
+          done
+          exit "$status"
+
+      - name: Informe de verificación
+        if: always()
+        run: |
+          mkdir -p reports
+          ft_datasets -q verify "$RECIPE" --format markdown > reports/verify.md || true
+          ft_datasets -q verify "$RECIPE" --format json > "reports/$RECIPE.json" || true
+          if [ -s reports/verify.md ]; then
+            cat reports/verify.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Sin informe de verificación (fallo temprano)." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: real-data-${{ github.run_id }}
+          path: reports/
+          if-no-files-found: warn
+
+      # RF-10 bis: solo la ejecución programada abre/comenta issues (manual y PR no).
+      - name: Issue de fallo semanal
+        if: failure() && github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          bash scripts/ci/real_data_issue.sh "$RECIPE"
+          "${{ steps.materialize.outputs.exit }}" "${{ steps.tests.outcome }}"

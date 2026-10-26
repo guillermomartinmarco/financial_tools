@@ -237,6 +237,14 @@ Exit: 0 OK · 1 no encontrado/genérico · 2 validación · 3 tarea FAILED · 4 
 `materialize` termina con el código de su `outcome`: `DOWNLOAD_FAILED` → 3, `MISMATCH`/`RECIPE_CHANGED` → 5,
 `UNLOCKED` → 6, `OK`/`NOT_VERIFIED` → 0.
 
+Precisiones de implementación (T4.1): `verify` sale con el código de su estado global (0/5/6) también con
+`--format markdown`; `lock` imprime siempre el `LockResult` JSON y sale con 5 si es `REJECTED` (diferencias o algún
+ítem `MISSING`). Errores de dominio (`errors.py` de la herramienta): `RecipeNotFoundError` → 1,
+`InvalidRecipeError`/`InvalidLockError`/`ConfigError` → 2, `OSError` → 4 y `DatasetDataError` (datos del almacén
+no canónicos) → **5**: es un fallo de integridad de datos como un *mismatch*, no de IO (RF-12). `list` devuelve
+`RecipeSummary {name, description, items, lock: LOCKED|UNLOCKED|RECIPE_CHANGED|INVALID_LOCK|INVALID_RECIPE,
+error}` (una receta inválida no rompe el listado) y `show` `RecipeDetail {recipe, items: [{key, …}], lock}`.
+
 ### 2.2 API (FastAPI) — `.../ft_datasets/api.py`, `router = APIRouter(prefix="/datasets")`
 | Método | Ruta | Nombre de ruta | Respuesta |
 |---|---|---|---|
@@ -250,6 +258,10 @@ Exit: 0 OK · 1 no encontrado/genérico · 2 validación · 3 tarea FAILED · 4 
 | POST | `/lock/{name}` (query: `update=false`) | `datasets_lock` | `LockResult` · 409 si `REJECTED` |
 
 - Nombres de ruta únicos (lección de T7.1 de `ft_indicators`: `url_for` resuelve por nombre en toda la app compuesta).
+- Errores: `RecipeNotFoundError` → 404; `InvalidRecipeError`/`InvalidLockError` → 400; `DatasetDataError` → **409**
+  (también en `POST /verify`); `ConfigError`/`OSError` → 500; `name`/`task_id` que no cumplen el patrón → 422
+  (validación de FastAPI). `POST /lock` rechazado responde 409 con el `LockResult` en el cuerpo. El *runner* se
+  inyecta con `Depends(get_runner)` (los tests lo sustituyen con `dependency_overrides`).
 - `POST /materialize` crea la tarea y lanza el trabajo con `BackgroundTasks` (subprocesos con
   `asyncio.create_subprocess_exec`); `verify`/`lock` corren en `run_in_threadpool` (Art. 3).
 - `task_id` validado con `^[0-9a-f-]{36}$`; `name` con `RecipeName`.
@@ -341,6 +353,18 @@ y devuelve `scan_parquet` del rango; `pytest.fail` con el `ItemVerification` si 
    `FT_TASKS_DB_PATH` (absolutos), para que el hijo escriba exactamente donde el padre lee. Bloques en secuencia.
    `downloader_task_id` = primer `task_id` encontrado en las líneas JSON de `stderr`.
    `Runner` es un `Protocol` inyectable: los tests usan un *runner* falso que escribe Parquet sintético.
+
+   Precisiones de implementación (T3.1-T3.3): las listas se pasan repitiendo el flag (`--symbol S1 --symbol S2
+   --timeframe 1m --timeframe 1h`, opciones `list[str]` de Typer), con los flags globales antes de `download`. El
+   `Runner` es síncrono (`run_block(block, argv, env, timeout_s) -> BlockRun`) y el servicio lo ejecuta con
+   `asyncio.to_thread`; el *runner* real usa `subprocess.Popen` + `communicate(timeout)` (al vencer: `kill` y
+   `stderr` con la marca de *timeout*) en lugar de `asyncio.create_subprocess_exec`, porque `BackgroundTasks` corre
+   en un hilo con su propio event loop y en Windows ese loop puede ser `Selector` (sin soporte de subprocesos). Con
+   `-q` los descargadores solo emiten WARNING+ en JSON, así que `downloader_task_id` cae a la fila `Task ID` de su
+   tabla de resultado en `stdout` si ningún log JSON lo trae. Un ítem con datos no canónicos cuenta como
+   `MISMATCH` en la pre-verificación y en la verificación final (nunca aborta la tarea). `FAILED` se usa además ante
+   errores inesperados del propio `ft_datasets` (p. ej. receta editada entre el despacho y la ejecución), con
+   `outcome = DOWNLOAD_FAILED` y el error en `errors`. Ante el primer bloque fallido no se lanzan los siguientes.
 5. `VERIFYING`: `verify_recipe` completo (salvo `--no-verify`).
 6. Cierre con `TaskRecorder` de `finances_core.marketdata.tasks_lifecycle` (fases monótonas, `datasets_plan` como
    prefijo de plan).
@@ -375,7 +399,8 @@ jobs:
         if: success() && steps.cache.outputs.cache-hit != 'true'
       - id: tests
         name: Tests real_data              # timeout-minutes: 20; resumen de fallos en reports/pytest.txt
-        run: pytest -m real_data en finances-core, finances-downloader y finances-analytics
+        run: pytest -m real_data en finances-downloader y finances-analytics
+             # finances-core registra el marcador pero no tiene tests real_data (pytest saldría con 5)
       - if: always(): ft_datasets verify benchmark-v1 --format markdown > reports/verify.md (y >> $GITHUB_STEP_SUMMARY)
                       y ft_datasets verify --format json > reports/benchmark-v1.json (artifact)
       - name: Issue de fallo semanal       # RF-10 bis
