@@ -43,7 +43,12 @@
 > **Deriva 8**: **SI** la nueva versión tiene el mismo hash que la última, **ENTONCES** se rechaza con "No changes detected" (API 400, CLI exit 2) y no se crea versión.
 > **Deriva 9**: `update` sobre una estrategia soft-deleted responde como inexistente (API 404, CLI exit 1).
 >
-> **Decisión abierta (no decidida por el usuario)**: si un cambio solo de metadatos (`description`/`tags`, sin cambio de `parameters`) debería crear una nueva versión. Comportamiento actual: se rechaza como "No changes detected" porque el hash de parámetros no cambia. No es una regla cerrada; pendiente de decisión.
+> **Deriva 10 (decisión del usuario, 2026-11-02 — snapshot de metadatos por versión)**: cada versión congela los metadatos vigentes (`description`, `tags`) junto a sus `parameters`.
+> - **SI** `update` recibe solo `description` y/o `tags` (sin `parameters` ni `parameters_patch`), **ENTONCES** el sistema DEBE crear una nueva versión que conserva los `parameters` de la última y registra los metadatos nuevos. El `hash` sigue calculándose solo sobre `parameters` (RF-1 no cambia), por lo que esa versión repite el hash de la anterior.
+> - Los metadatos no informados en un `update` heredan los de la versión anterior.
+> - **SI** `parameters` (resultantes) y metadatos efectivos (`description`, `tags`) son iguales a los de la última versión, **ENTONCES** "No changes detected" (API 400, CLI exit 2) y no se crea versión (reemplaza el criterio de solo-hash de Deriva 8).
+> - `update` sin `parameters`, `parameters_patch`, `description` ni `tags` es inválido (API 422, CLI exit 2).
+> - `description` y `tags` de la estrategia reflejan siempre los de la última versión. Las versiones previas a esta deriva no tienen snapshot (`tags: null`), salvo la última de cada estrategia, que se completa al migrar con los metadatos vigentes.
 
 ### RF-4 — Eliminar Estrategia (Ubícuo)
 **EL SISTEMA DEBE** proveer operación `delete` (CLI: `ft_strategy_manager delete <id> [--purge]`, API: `DELETE /strategies/{id}?purge=false`) que:
@@ -69,6 +74,8 @@
 **EL SISTEMA DEBE** proveer operación `diff` (CLI: `ft_strategy_manager diff <id> --from v1 --to v3`, API: `GET /strategies/{id}/diff?from=1&to=3`) que retorne diff semántico JSON (added/removed/changed keys con old/new values).
 **SI** versiones no existen, **ENTONCES** error 404/CLI exit 1.
 
+> **Deriva 10**: `DiffResult` añade `metadata_changed` (`{"description": [old, new], "tags": [old, new]}`, solo claves que difieren; los metadatos se comparan solo si ambas versiones tienen snapshot). La CLI lo muestra como filas `metadatos` y "Sin diferencias" solo aparece si tampoco hay cambios de metadatos.
+
 ### RF-7 — Validación de Parámetros contra Schema (Evento-Driven)
 **EL SISTEMA DEBE** validar `parameters` en `create`/`update` contra un **JSON Schema** definido por el usuario al crear la estrategia (campo opcional `parameter_schema` en `create`).
 **SI** `parameter_schema` existe y `parameters` no validan, **ENTONCES** rechazar con error detallado (JSON Schema validation errors).
@@ -77,8 +84,10 @@
 ### RF-8 — Persistencia en SQLite WAL (Estado-Driven)
 **EL SISTEMA DEBE** almacenar estrategias y versiones en `strategies.db` (SQLite WAL) con tablas:
 - `strategies` (id, name, description, parameter_schema, created_at_ms, deleted_at_ms)
-- `strategy_versions` (id, strategy_id, version, parameters_json, hash, created_at_ms, created_by)
+- `strategy_versions` (id, strategy_id, version, parameters_json, hash, created_at_ms, created_by, description, tags) — `description` y `tags` (JSON) son el snapshot de Deriva 10, nulos en versiones anteriores.
 - Índices en `strategies.name` (unique), `strategy_versions.strategy_id + version` (unique).
+
+> **Deriva 10 (migración)**: **SI** `strategies.db` existe sin las columnas `description`/`tags` en `strategy_versions`, **ENTONCES** `init_db` DEBE añadirlas (`ALTER TABLE ... ADD COLUMN`, idempotente y segura ante procesos concurrentes), completar la última versión de cada estrategia con sus metadatos vigentes y no alterar `parameters_json`, `hash` ni versiones previas.
 
 > **Deriva 2**: la ruta original (`packages/finances-core/share/strategies.db`) se sustituye por `FinancesSettings.STRATEGIES_DB_PATH` (env `FT_STRATEGIES_DB_PATH`, máxima prioridad) con valor por defecto `<SHARE_DIR>/strategies.db` bajo el `share/` de la raíz del proyecto (AGENTS.md; Art. 2: ruta absoluta, nunca relativa al directorio de trabajo). `strategies` almacena además `tags` (JSON). `FT_STRATEGIES_DB_PATH` figura en `ft_setup/env_list.conf` y en su plantilla `.j2`.
 

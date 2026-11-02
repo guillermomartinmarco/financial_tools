@@ -1,6 +1,6 @@
 # Plan — `ft_strategy_manager` (MVP v1.0)
 
-> **Sincronización Art. 15 (2026-11-02)**: este plan se alinea con la implementación; el texto original se conserva y las derivas se marcan "Deriva N". Índice: 1 layout (§4), 2 ruta de la DB (§1.3/§7), 3 conexiones (§1.3/§7), 4 esquemas (§1.1), 5 CLI `export`/`--user`/`--format` (§2.1), 6 export con `Response` (§2.2), 7 `/health` y montaje en `finances_api` (§7), 8 mapeo de errores (§2.1/§3.2), 9 soft-delete reserva el nombre (§3.1). Decisión abierta: cambio solo de metadatos (§3.2).
+> **Sincronización Art. 15 (2026-11-02)**: este plan se alinea con la implementación; el texto original se conserva y las derivas se marcan "Deriva N". Índice: 1 layout (§4), 2 ruta de la DB (§1.3/§7), 3 conexiones (§1.3/§7), 4 esquemas (§1.1), 5 CLI `export`/`--user`/`--format` (§2.1), 6 export con `Response` (§2.2), 7 `/health` y montaje en `finances_api` (§7), 8 mapeo de errores (§2.1/§3.2), 9 soft-delete reserva el nombre (§3.1), 10 snapshot de `description`/`tags` por versión (§1.1/§3.1/§3.2/§7).
 
 ## 1. Modelo de Datos y Contratos (Pydantic v2)
 
@@ -353,23 +353,29 @@ FUNCTION update_strategy(strategy_id: str, payload: StrategyUpdate) -> StrategyV
     2. latest = SELECT * FROM strategy_versions WHERE strategy_id = ? ORDER BY version DESC LIMIT 1
     3. new_params = IF payload.parameters:
                           payload.parameters
-                      ELSE:
+                      ELIF payload.parameters_patch:
                           apply_json_patch(latest.parameters, payload.parameters_patch)
+                      ELSE:                                  # Deriva 10: solo metadatos
+                          latest.parameters
     4. valid, err = validate_parameters(new_params, strategy.parameter_schema)
        IF NOT valid: raise 422(err)
-    5. new_hash = compute_hash(new_params)
-       IF new_hash == latest.hash: raise 400("No changes detected")   # Deriva 8: API 400 / CLI exit 2
-       # Decisión abierta: ¿un cambio solo de description/tags debería crear versión? Hoy se rechaza.
+    5. new_hash = compute_hash(new_params)                   # solo parámetros (RF-1)
+       new_description = payload.description IF not None ELSE latest.description (o strategies.description si la versión es legada)
+       new_tags        = payload.tags        IF not None ELSE latest.tags        (o strategies.tags si la versión es legada)
+       IF new_hash == latest.hash AND new_description == (efectiva previa) AND new_tags == (efectivos previos):
+           raise 400("No changes detected")                  # Deriva 8/10: API 400 / CLI exit 2
     6. new_version = latest.version + 1
     7. now_ms = current_timestamp_ms()
-    8. INSERT INTO strategy_versions (strategy_id, version, parameters_json, hash, created_at_ms, created_by)
-       VALUES (strategy_id, new_version, new_params_json, new_hash, now_ms, current_user_or_none())
-    9. IF payload.description: UPDATE strategies SET description = ? WHERE id = ?
-    10. IF payload.tags is not null: UPDATE strategies SET tags = ? WHERE id = ?
-    11. diff_summary = compute_diff(latest.parameters, new_params)
-    12. log_audit("update", strategy_id, version=new_version, hash_before=latest.hash, hash_after=new_hash, diff_summary=diff_summary)
-    13. RETURN StrategyVersion(version=new_version, parameters=new_params, hash=new_hash, created_at_ms=now_ms)
+    8. INSERT INTO strategy_versions (strategy_id, version, parameters_json, hash, created_at_ms, created_by, description, tags)
+       VALUES (strategy_id, new_version, new_params_json, new_hash, now_ms, current_user_or_none(), new_description, new_tags_json)
+    9. UPDATE strategies SET description = new_description, tags = new_tags WHERE id = ?   # reflejan la última versión
+    10. diff_summary = compute_diff(latest.parameters, new_params) + metadata_changed
+    11. log_audit("update", strategy_id, version=new_version, hash_before=latest.hash, hash_after=new_hash, diff_summary=diff_summary)
+    12. RETURN StrategyVersion(version=new_version, parameters=new_params, hash=new_hash, created_at_ms=now_ms,
+                               description=new_description, tags=new_tags)
 ```
+
+> **Deriva 10**: `StrategyUpdate` exige al menos uno de `parameters` | `parameters_patch` | `description` | `tags` (`parameters` y `parameters_patch` siguen siendo excluyentes). `StrategyVersion` gana `description: str | None` y `tags: list[str] | None` (`None` en `tags` = versión sin snapshot). `create` (§3.1, paso 7) también inserta `description`/`tags` en la versión 1. `DiffResult` gana `metadata_changed: dict[str, tuple[Any, Any]]`. Migración en `db.init_db` (§7): `PRAGMA table_info` → `ALTER TABLE strategy_versions ADD COLUMN description TEXT` / `tags TEXT` dentro de `BEGIN IMMEDIATE` (tolera la carrera con otro proceso), y backfill de la última versión de cada estrategia con los metadatos de `strategies`.
 
 > **Deriva 9**: `update` sobre estrategia soft-deleted → 404 (paso 1); `get`/`diff`/`export` sí la devuelven.
 
