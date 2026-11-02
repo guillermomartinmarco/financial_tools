@@ -1,5 +1,6 @@
 from finances_core.schemas.data_viewer import (
     AnomalyReport,
+    CandlesPage,
     ColumnStats,
     CompareRequest,
     CompareResult,
@@ -58,6 +59,7 @@ __all__ = [
     "DatasetSummary",
     "ColumnStats",
     "GapInfo",
+    "CandlesPage",
     "AnomalyReport",
     "ExportRequest",
     "CompareRequest",

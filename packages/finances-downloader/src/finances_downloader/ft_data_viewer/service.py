@@ -21,6 +21,7 @@ from finances_core.config import FinancesSettings
 from finances_core.export import ExportFormat, stream_export
 from finances_core.schemas.data_viewer import (
     AnomalyReport,
+    CandlesPage,
     CompareResult,
     DatasetIdentifier,
     DatasetListResponse,
@@ -57,6 +58,10 @@ from finances_downloader.ft_data_viewer.scanner import (
 )
 
 logger = structlog.get_logger(__name__, component="ft_data_viewer")
+
+#: Límites de ``candles`` (RF-10): los mismos 10000 que ``/rows``.
+CANDLES_DEFAULT_LIMIT = 1000
+CANDLES_MAX_LIMIT = 10000
 
 
 @dataclass(frozen=True)
@@ -230,6 +235,51 @@ def get_rows(
         rows = sample_rows(lf, n, mode, cols, seed=seed).to_dicts()
         extra.update(mode=mode, rows_returned=len(rows))
         return rows
+
+
+def get_candles(  # noqa: PLR0913
+    identifier: DatasetIdentifier,
+    *,
+    start_ms: int | None = None,
+    end_ms: int | None = None,
+    cols: list[str] | None = None,
+    limit: int = CANDLES_DEFAULT_LIMIT,
+    after_ms: int | None = None,
+) -> CandlesPage:
+    """RF-10: velas en ``[start_ms, end_ms]`` (inclusivo), ascendentes, paginadas por cursor.
+
+    Lee ``limit + 1`` filas para saber si quedan más; ``next_after_ms`` es el
+    ``open_time_ms`` de la última fila devuelta o ``None`` en la última página.
+
+    Raises:
+        InvalidArgumentError: ``limit`` fuera de rango, rango invertido o columnas desconocidas.
+        DatasetNotFoundError: SI el dataset no existe.
+    """
+    cfg = _settings()
+    if not 1 <= limit <= CANDLES_MAX_LIMIT:
+        msg = f"limit debe estar entre 1 y {CANDLES_MAX_LIMIT}"
+        raise InvalidArgumentError(msg)
+    if start_ms is not None and end_ms is not None and start_ms > end_ms:
+        msg = f"start_ms ({start_ms}) debe ser <= end_ms ({end_ms})"
+        raise InvalidArgumentError(msg)
+    path = resolve_dataset_path(cfg.PARQUET_DIR, identifier)
+    lf = _filter_range(scan_dataset(path), start_ms, end_ms)
+    _check_columns(lf, cols)
+    if after_ms is not None:
+        lf = lf.filter(pl.col(TS_COL) > after_ms)
+    with _measure("candles", identifier, path) as extra:
+        selected = [TS_COL, *(c for c in cols if c != TS_COL)] if cols else None
+        if selected:
+            lf = lf.select(selected)
+        df = lf.sort(TS_COL).head(limit + 1).collect()
+        has_more = df.height > limit
+        df = df.head(limit)
+        next_after = int(df[TS_COL][-1]) if has_more else None
+        if cols and TS_COL not in cols:
+            df = df.drop(TS_COL)
+        items = df.to_dicts()
+        extra.update(rows_returned=len(items), has_more=has_more)
+        return CandlesPage(items=items, count=len(items), next_after_ms=next_after)
 
 
 def get_gaps(

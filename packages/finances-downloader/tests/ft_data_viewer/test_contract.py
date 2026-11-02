@@ -73,6 +73,27 @@ def _cli(args: list[str]) -> object:
         (["tail", *DS, "-n", "3", "-f", "json"], f"{BASE}/rows?mode=tail&n=3"),
         (["gaps", *DS, "--min-gap", "1", "-f", "json"], f"{BASE}/gaps?min_gap_candles=1"),
         (["anomalies", *DS, "-f", "json"], f"{BASE}/anomalies"),
+        (
+            [
+                "candles",
+                *DS,
+                "--start-ms",
+                str(JAN_2024_MS + 3 * HOUR_MS),
+                "--end-ms",
+                str(JAN_2024_MS + 60 * HOUR_MS),
+                "--cols",
+                "open_time_ms,close",
+                "--limit",
+                "9",
+                "--after-ms",
+                str(JAN_2024_MS + 10 * HOUR_MS),
+                "-f",
+                "json",
+            ],
+            f"{BASE}/candles?start_ms={JAN_2024_MS + 3 * HOUR_MS}"
+            f"&end_ms={JAN_2024_MS + 60 * HOUR_MS}&columns=open_time_ms,close"
+            f"&limit=9&after_ms={JAN_2024_MS + 10 * HOUR_MS}",
+        ),
     ],
 )
 def test_cli_and_api_return_same_json(

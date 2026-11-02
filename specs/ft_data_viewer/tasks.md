@@ -152,11 +152,14 @@
 
 ## Fase 10: Lectura de velas por rango para clientes (RF-10, Deriva 10)
 
-- [ ] **T10.1**: `service.get_candles` + `CandlesPage` en `finances_core/schemas/data_viewer.py`: rango inclusivo, proyección de columnas, orden ascendente, `limit` y cursor `after_ms`, con `scan_parquet` lazy
+- [x] **T10.1**: `service.get_candles` + `CandlesPage` en `finances_core/schemas/data_viewer.py`: rango inclusivo, proyección de columnas, orden ascendente, `limit` y cursor `after_ms`, con `scan_parquet` lazy
   - **Hecho cuando**: tests unitarios con dataset temporal: rango, `limit` + `next_after_ms` (recorrer todas las páginas reproduce el dataset sin repetir ni perder filas), cursor tras agregar datos al final, rango vacío → `items: []`, `start_ms > end_ms` y columnas desconocidas → error de argumentos, dataset inexistente → 404.
+  - **Hecho**: `service.get_candles` + `CandlesPage`; `pytest packages/finances-downloader/tests/ft_data_viewer/test_candles.py` → 25 passed (servicio: rango inclusivo, paginación completa sin repetir/perder filas, cursor tras append, rango vacío, 4 casos inválidos, 404).
 
-- [ ] **T10.2**: `GET /data/datasets/{...}/candles` en `api.py` y comando `candles` en la CLI (`--start-ms`, `--end-ms`, `--cols`, `--limit`, `--after-ms`, `--format table|json`)
+- [x] **T10.2**: `GET /data/datasets/{...}/candles` en `api.py` y comando `candles` en la CLI (`--start-ms`, `--end-ms`, `--cols`, `--limit`, `--after-ms`, `--format table|json`)
   - **Hecho cuando**: tests de integración API (`httpx.AsyncClient`) y CLI; 400/404 y exit 2/1 según RF-10; límite máximo (`limit=10001` → 422).
+  - **Hecho**: ruta `/candles` en `api.py` y comando `candles` en `cli.py`; cubiertos en `test_candles.py` (API 400/404/422, CLI exit 2/1, JSON CLI == API).
 
-- [ ] **T10.3**: Contrato CLI ↔ API y documentación: el mismo input devuelve el mismo resultado; README y `specs/finances_api` actualizados
+- [x] **T10.3**: Contrato CLI ↔ API y documentación: el mismo input devuelve el mismo resultado; README y `specs/finances_api` actualizados
   - **Hecho cuando**: `pytest packages/finances-downloader/tests/ft_data_viewer -v` y `pytest packages/finances-api -v` pasan; cobertura del viewer ≥ 90%; ruff + `mypy --strict src` limpios.
+  - **Hecho**: caso `candles` en `test_contract.py`; README actualizado (`specs/finances_api` no enumera rutas del viewer). `pytest packages/finances-downloader/tests/ft_data_viewer packages/finances-api packages/finances-core` → 922 passed, 1 failed (`test_api.py::test_openapi_exposes_seven_endpoints`: conjunto exacto de rutas pendiente de añadir `/candles`); cobertura `ft_data_viewer` 96%; ruff y `mypy --strict src` (core y downloader) limpios.

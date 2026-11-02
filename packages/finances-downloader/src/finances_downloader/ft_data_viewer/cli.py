@@ -358,6 +358,48 @@ def sample(
 
 
 @app.command()
+def candles(
+    ctx: typer.Context,
+    exchange: str = typer.Option(..., "--exchange", "-e"),
+    market_type: str = typer.Option(..., "--market", "-m"),
+    symbol: str = typer.Option(..., "--symbol", "-s"),
+    timeframe: str = typer.Option(..., "--timeframe", "-t"),
+    start_ms: int | None = typer.Option(
+        None, "--start-ms", help="open_time_ms inicial (inclusivo)"
+    ),
+    end_ms: int | None = typer.Option(None, "--end-ms", help="open_time_ms final (inclusivo)"),
+    cols: str | None = typer.Option(None, "--cols", help=_COLS_HELP),
+    limit: int = typer.Option(
+        service.CANDLES_DEFAULT_LIMIT, "--limit", min=1, max=service.CANDLES_MAX_LIMIT
+    ),
+    after_ms: int | None = typer.Option(None, "--after-ms", help="Cursor: open_time_ms > after-ms"),
+    output_format: OutputFormat | None = typer.Option(None, "--format", "-f"),
+) -> None:
+    """Velas por rango con paginación por cursor (RF-10)."""
+    fmt = _fmt(ctx, output_format)
+    with _cli_errors():
+        ident = service.make_identifier(exchange, market_type, symbol, timeframe)
+        page = service.get_candles(
+            ident,
+            start_ms=start_ms,
+            end_ms=end_ms,
+            cols=service.parse_columns(cols),
+            limit=limit,
+            after_ms=after_ms,
+        )
+        if fmt == "json":
+            _print_json(page.model_dump(mode="json"))
+        elif not page.items:
+            console.print("[yellow]No rows[/yellow]")
+        elif fmt == "csv":
+            _print_csv(page.items)
+        else:
+            _print_table(page.items)
+            if page.next_after_ms is not None:
+                err_console.print(f"next_after_ms: {page.next_after_ms}")
+
+
+@app.command()
 def gaps(
     ctx: typer.Context,
     exchange: str = typer.Option(..., "--exchange", "-e"),

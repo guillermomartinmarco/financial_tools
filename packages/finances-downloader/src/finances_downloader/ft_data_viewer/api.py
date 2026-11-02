@@ -22,6 +22,7 @@ from fastapi.responses import StreamingResponse
 from finances_core.export import MEDIA_TYPES
 from finances_core.schemas.data_viewer import (
     AnomalyReport,
+    CandlesPage,
     CompareRequest,
     CompareResult,
     DatasetIdentifier,
@@ -119,6 +120,36 @@ async def get_rows(
     return await _run(
         lambda: service.get_rows(
             _ident(exchange, market_type, symbol, timeframe), mode, n, service.parse_columns(cols)
+        )
+    )
+
+
+@router.get(
+    "/datasets/{exchange}/{market_type}/{symbol}/{timeframe}/candles",
+    response_model=CandlesPage,
+)
+async def get_candles(
+    exchange: str = ExchangeParam,
+    market_type: str = MarketParam,
+    symbol: str = SymbolParam,
+    timeframe: str = TimeframeParam,
+    start_ms: int | None = Query(None, description="open_time_ms inicial (inclusivo)"),
+    end_ms: int | None = Query(None, description="open_time_ms final (inclusivo)"),
+    columns: str | None = Query(None, description="Columnas separadas por coma"),
+    limit: int = Query(service.CANDLES_DEFAULT_LIMIT, ge=1, le=service.CANDLES_MAX_LIMIT),
+    after_ms: int | None = Query(
+        None, description="Cursor: solo filas con open_time_ms > after_ms"
+    ),
+) -> CandlesPage:
+    """Velas por rango con paginación por cursor (RF-10)."""
+    return await _run(
+        lambda: service.get_candles(
+            _ident(exchange, market_type, symbol, timeframe),
+            start_ms=start_ms,
+            end_ms=end_ms,
+            cols=service.parse_columns(columns),
+            limit=limit,
+            after_ms=after_ms,
         )
     )
 

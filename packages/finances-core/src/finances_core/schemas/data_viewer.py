@@ -109,6 +109,14 @@ class ExportRequest(BaseModel):
     output_dir: str | None = None
 
 
+class CandlesPage(BaseModel):
+    """Página de velas (RF-10). ``next_after_ms`` es el cursor de la siguiente página."""
+
+    items: list[dict[str, Any]]
+    count: int
+    next_after_ms: int | None = None
+
+
 class CompareRequest(BaseModel):
     dataset_a: DatasetIdentifier
     dataset_b: DatasetIdentifier
