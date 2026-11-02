@@ -26,6 +26,7 @@ ft_market_data_binance = "finances_downloader.ft_market_data_binance.cli:app"
 ft_data_viewer = "finances_downloader.ft_data_viewer.cli:app"
 ft_market_data_yfinance = "finances_downloader.ft_market_data_yfinance.cli:app"
 ft_datasets = "finances_downloader.ft_datasets.cli:app"
+ft_market_data_manager = "finances_downloader.ft_market_data_manager.cli:app"
 
 [project.optional-dependencies]
 dev = [

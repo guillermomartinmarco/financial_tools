@@ -29,6 +29,7 @@ from finances_core.schemas.market_data_manager import (
 from finances_downloader.ft_market_data_manager import planner
 from finances_downloader.ft_market_data_manager.errors import (
     ConfirmationRequiredError,
+    InvalidArgumentError,
     PartitionReadError,
 )
 
@@ -39,6 +40,9 @@ TS_COL = "open_time_ms"
 Action = Literal["compact", "dedupe", "prune"]
 #: ``(datos leídos, nº de archivos) -> (nuevo contenido | None si no cambia, detalle)``.
 Transform = Callable[[pl.DataFrame, int], tuple[pl.DataFrame | None, str | None]]
+#: Gancho de progreso opcional: ``(particiones procesadas, total, resultado de la última)``.
+#: Lo usan la CLI (barra Rich) y la API (contadores de la tarea); no altera el resultado.
+PartitionCallback = Callable[[int, int, PartitionResult], None]
 
 
 # --- Lectura y forma canónica -----------------------------------------------------------
@@ -226,25 +230,37 @@ def _rewrite_partition(
     return _commit_rewrite(partition, out, rows, detail, parquet_dir)
 
 
-def _run_rewrite(action: Action, request: ManagerRequest, transform: Transform) -> ManagerResult:
+def _run_rewrite(
+    action: Action,
+    request: ManagerRequest,
+    transform: Transform,
+    on_partition: PartitionCallback | None,
+) -> ManagerResult:
     started = time.monotonic()
     parquet_dir = FinancesSettings().PARQUET_DIR
+    partitions = planner.plan(request, parquet_dir)
     results: list[PartitionResult] = []
-    for partition in planner.plan(request, parquet_dir):
+    for partition in partitions:
         result = _rewrite_partition(partition, parquet_dir, transform, dry_run=request.dry_run)
         _audit(action, result, dry_run=request.dry_run)
         results.append(result)
+        if on_partition is not None:
+            on_partition(len(results), len(partitions), result)
     return _finish(action, request, results, started)
 
 
-def run_compact(request: ManagerRequest) -> ManagerResult:
+def run_compact(
+    request: ManagerRequest, on_partition: PartitionCallback | None = None
+) -> ManagerResult:
     """RF-1: un único ``data.parquet`` ordenado por partición, sin descartar filas."""
-    return _run_rewrite("compact", request, _compact_transform)
+    return _run_rewrite("compact", request, _compact_transform, on_partition)
 
 
-def run_dedupe(request: ManagerRequest) -> ManagerResult:
+def run_dedupe(
+    request: ManagerRequest, on_partition: PartitionCallback | None = None
+) -> ManagerResult:
     """RF-2: elimina ``open_time_ms`` repetidos conservando la última fila en orden de lectura."""
-    return _run_rewrite("dedupe", request, _dedupe_transform)
+    return _run_rewrite("dedupe", request, _dedupe_transform, on_partition)
 
 
 # --- prune -------------------------------------------------------------------------------
@@ -281,7 +297,19 @@ def _prune_partition(
     return _after(_result(partition, "changed", rows_before=rows, detail=note), 0, 0)
 
 
-def run_prune(request: PruneRequest) -> ManagerResult:
+def _prune_candidates(request: PruneRequest, parquet_dir: Path) -> list[planner.Partition]:
+    """Particiones del selector; con ``before_ms`` solo las que terminan en o antes de T."""
+    partitions = planner.plan(request, parquet_dir)
+    cutoff = request.before_ms
+    if cutoff is None:
+        return partitions
+    # La que contiene T o es posterior no se toca: el borrado nunca recorta filas.
+    return [p for p in partitions if month_bounds(p.year, p.month)[1] <= cutoff]
+
+
+def run_prune(
+    request: PruneRequest, on_partition: PartitionCallback | None = None
+) -> ManagerResult:
     """RF-3: borra particiones mensuales completas (``before_ms`` o ``all``).
 
     Raises:
@@ -292,13 +320,24 @@ def run_prune(request: PruneRequest) -> ManagerResult:
         raise ConfirmationRequiredError(msg)
     started = time.monotonic()
     parquet_dir = FinancesSettings().PARQUET_DIR
+    candidates = _prune_candidates(request, parquet_dir)
     results: list[PartitionResult] = []
-    for partition in planner.plan(request, parquet_dir):
-        if request.before_ms is not None:
-            month_end = month_bounds(partition.year, partition.month)[1]
-            if month_end > request.before_ms:
-                continue  # contiene T o es posterior: el borrado nunca recorta filas
+    for partition in candidates:
         result = _prune_partition(partition, parquet_dir, dry_run=request.dry_run)
         _audit("prune", result, dry_run=request.dry_run)
         results.append(result)
+        if on_partition is not None:
+            on_partition(len(results), len(candidates), result)
     return _finish("prune", request, results, started)
+
+
+def validate_selector(request: ManagerRequest) -> None:
+    """Valida el rango temporal del selector (compartido por la CLI y la API).
+
+    Raises:
+        InvalidArgumentError: SI ``start_ms`` es posterior a ``end_ms``.
+    """
+    start, end = request.start_ms, request.end_ms
+    if start is not None and end is not None and start > end:
+        msg = "start_ms no puede ser posterior a end_ms"
+        raise InvalidArgumentError(msg)

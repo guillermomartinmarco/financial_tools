@@ -17,6 +17,7 @@ class HealthResponse(BaseModel):
 | * | `/market-data/binance/*` | ver `specs/ft_market_data_binance/plan.md` | `finances_downloader.ft_market_data_binance.api.router` |
 | * | `/data/*` | ver `specs/ft_data_viewer/plan.md` | `finances_downloader.ft_data_viewer.api.router` |
 | * | `/market-data/yfinance/*` | ver `specs/ft_market_data_yfinance/plan.md` | `finances_downloader.ft_market_data_yfinance.api.router` |
+| * | `/market-data/manager/*` | ver `specs/ft_market_data_manager/plan.md` §2.2 (rutas `manager_*`) | `finances_downloader.ft_market_data_manager.api.router` |
 | * | `/datasets/*` | ver `specs/ft_datasets/plan.md` §2.2 (rutas `datasets_*`) | `finances_downloader.ft_datasets.api.router` |
 | * | `/indicators/*` | ver `specs/ft_indicators/plan.md` §2.2 | `finances_analytics.ft_indicators.api.router` |
 | * | `/ta-lib/*` | ver `specs/ft_ta_lib/plan.md` §2.2 (rutas `ta_lib_*`) | `finances_analytics.ft_ta_lib.api.router` |
@@ -29,6 +30,7 @@ def create_app() -> FastAPI:
     app.include_router(binance_router)
     app.include_router(viewer_router)
     app.include_router(yfinance_router)
+    app.include_router(manager_router)
     app.include_router(datasets_router)
     app.include_router(indicators_router)
     app.include_router(ta_lib_router)

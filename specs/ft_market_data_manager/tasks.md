@@ -34,16 +34,19 @@ Cada tarea cierra con su **"Hecho cuando"**. Flujo: test en rojo → implementac
 
 ## Fase 4: CLI
 
-- [ ] **T4.1**: Typer `cli.py` con `compact`, `dedupe`, `prune` (flags globales, `--format table|json`, barra Rich, confirmación en `prune`)
+- [x] **T4.1**: Typer `cli.py` con `compact`, `dedupe`, `prune` (flags globales, `--format table|json`, barra Rich, confirmación en `prune`)
   - **Hecho cuando**: `ft_market_data_manager --help` lista los comandos; tests de integración con almacén temporal cubren cada comando; códigos de salida de RF-10 (incluido el rechazo de confirmación → exit 1).
+  - **Hecho**: `ft_market_data_manager/cli.py` (`compact`, `dedupe`, `prune`; flags globales `--verbose/--quiet/--log-format/--format`, selectores repetibles, `--dry-run`, `--before-ms`/`--all`, `--force`, barra Rich en stderr, confirmación `typer.confirm(abort=True)` tras mostrar el plan) y script `ft_market_data_manager` en `pyproject.toml`; `pytest packages/finances-downloader/tests/ft_market_data_manager/test_cli.py`: 26 passed (ayuda, entry point, cada comando, `--dry-run` sin escribir, confirmación rechazada -> exit 1 sin borrar, exit 2 en argumentos inválidos, `conflict`/`error` de partición -> exit 0, mapeo 1/3/4).
 
 ## Fase 5: API
 
-- [ ] **T5.1**: `api.py`: `POST /compact`, `/dedupe`, `/prune`, `GET /status/{task_id}`, `GET /result/{task_id}` con `SQLTaskManager` y `BackgroundTasks` (Art. 18)
+- [x] **T5.1**: `api.py`: `POST /compact`, `/dedupe`, `/prune`, `GET /status/{task_id}`, `GET /result/{task_id}` con `SQLTaskManager` y `BackgroundTasks` (Art. 18)
   - **Hecho cuando**: tests con `httpx.AsyncClient`: 202 con `task_id` y `poll_url`; polling hasta `COMPLETED`; `prune` sin `confirm` → 400; `/result` de una tarea no terminada → 409; errores de partición no hacen fallar la tarea.
+  - **Hecho**: `ft_market_data_manager/api.py` (`POST /compact|/dedupe|/prune`, `GET /status|/result/{task_id}`; tarea en `SQLTaskManager`, trabajo en `BackgroundTasks`/*threadpool*; `prune` sin `confirm` ni `dry_run` -> 400) y gancho opcional `on_partition` en `service.run_*` (comportamiento por defecto idéntico); `pytest .../test_api.py`: 18 passed (202 con `task_id`/`poll_url`, polling a `COMPLETED`, contadores, 400/422, `/result` no terminado -> 409, 404, `error`/`conflict` no fallan la tarea, excepción -> `FAILED` y 500 en `/result`). Contrato CLI↔API parcial de T7.2 (`test_contract.py`, compact/dedupe/prune): 7 passed.
 
-- [ ] **T5.2**: Montar el router en `finances_api` y actualizar `specs/finances_api`
+- [x] **T5.2**: Montar el router en `finances_api` y actualizar `specs/finances_api`
   - **Hecho cuando**: `pytest packages/finances-api -v` pasa y `/openapi.json` incluye las rutas `/market-data/manager/*`.
+  - **Hecho**: `create_app()` monta `ft_market_data_manager.api.router`; `specs/finances_api` (spec RF-1, plan, T11) actualizado; `pytest packages/finances-api`: 29 passed (rutas en `/openapi.json`, `poll_url` bajo `/market-data/manager`, nombres de ruta únicos). Cierre: `finances-core` + `finances-downloader` + `finances-api` 1388 passed; `--cov=finances_downloader.ft_market_data_manager`: 98 %; ruff, `ruff format` y `mypy --strict src` (core, downloader, api) limpios.
 
 ## Fase 6: Importación
 

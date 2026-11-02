@@ -12,7 +12,10 @@ from finances_core.schemas import ManagerRequest, ManagerResult, PruneRequest
 from structlog.testing import capture_logs
 
 from finances_downloader.ft_market_data_manager import planner, service
-from finances_downloader.ft_market_data_manager.errors import ConfirmationRequiredError
+from finances_downloader.ft_market_data_manager.errors import (
+    ConfirmationRequiredError,
+    InvalidArgumentError,
+)
 
 from .conftest import (
     FEB_2024_MS,
@@ -568,3 +571,28 @@ def test_compact_leftover_cleanup_failure_is_reported_and_dedupe_heals(
     (healed,) = service.run_dedupe(ManagerRequest()).partitions
     assert healed.result == "changed"
     assert _names(month) == ["data.parquet"]
+
+
+def test_progress_callback_reports_every_partition(parquet_dir: Path) -> None:
+    """El gancho opcional recibe ``(hechas, total, resultado)`` sin alterar el resultado."""
+    for month in (1, 2):
+        start = JAN_2024_MS if month == 1 else FEB_2024_MS
+        write_partition_files(parquet_dir, 2024, month, [make_ohlcv(hours(start, 3))])
+    calls: list[tuple[int, int, str]] = []
+
+    def record(done: int, total: int, result: object) -> None:
+        calls.append((done, total, getattr(result, "result", "")))
+
+    plain = service.run_compact(ManagerRequest(dry_run=True))
+    with_hook = service.run_compact(ManagerRequest(dry_run=True), record)
+    assert with_hook == plain
+    service.run_dedupe(ManagerRequest(dry_run=True), record)
+    service.run_prune(PruneRequest(all=True, exchange=["binance"], dry_run=True), record)
+    assert [c[:2] for c in calls] == [(1, 2), (2, 2)] * 3
+
+
+def test_validate_selector_rejects_inverted_range() -> None:
+    service.validate_selector(ManagerRequest(start_ms=1, end_ms=1))
+    service.validate_selector(ManagerRequest(start_ms=5))
+    with pytest.raises(InvalidArgumentError):
+        service.validate_selector(ManagerRequest(start_ms=2, end_ms=1))
