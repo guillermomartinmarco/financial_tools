@@ -37,6 +37,7 @@ async def test_health_returns_ok_and_version() -> None:
         "status": "ok",
         "version": __version__,
         "parquet_dir_accessible": False,
+        "strategies_db_accessible": True,
     }
 
 
@@ -46,6 +47,25 @@ async def test_health_reports_accessible_parquet_dir(tmp_path: Path) -> None:
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.get("/health")
     assert response.json()["parquet_dir_accessible"] is True
+
+
+async def test_health_reports_strategies_db_accessibility(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    transport = httpx.ASGITransport(app=create_app())
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        # La base aún no existe pero se puede crear bajo la raíz del proyecto.
+        assert (await client.get("/health")).json()["strategies_db_accessible"] is True
+        # Una vez creada (primer uso del router) sigue accesible.
+        created = await client.post("/strategies", json={"name": "alpha", "parameters": {}})
+        assert created.status_code == 201
+        assert (tmp_path / "share" / "strategies.db").is_file()
+        assert (await client.get("/health")).json()["strategies_db_accessible"] is True
+        # Un destino sin ancestro escribible (un archivo en lugar de directorio) no lo es.
+        blocker = tmp_path / "blocker"
+        blocker.write_text("x", encoding="utf-8")
+        monkeypatch.setenv("FT_STRATEGIES_DB_PATH", str(blocker / "sub" / "s.db"))
+        assert (await client.get("/health")).json()["strategies_db_accessible"] is False
 
 
 async def test_openapi_includes_all_tool_routers() -> None:
@@ -60,6 +80,7 @@ async def test_openapi_includes_all_tool_routers() -> None:
         "/datasets/",
         "/indicators/",
         "/ta-lib/",
+        "/strategies",
     )
     for prefix in prefixes:
         assert any(path.startswith(prefix) for path in paths), prefix
@@ -406,3 +427,47 @@ def test_datasets_route_names_resolve_to_datasets_routes() -> None:
     for name in ("datasets_status", "datasets_plan", "datasets_result"):
         assert app.url_path_for(name, task_id=task_id).startswith("/datasets/")
     assert app.url_path_for("datasets_verify", name="x") == "/datasets/verify/x"
+
+
+async def test_openapi_includes_the_eight_strategies_routes() -> None:
+    """``ft_strategy_manager`` (plan §2.2) queda montado con sus rutas bajo ``/strategies``."""
+    transport = httpx.ASGITransport(app=create_app())
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        paths = (await client.get("/openapi.json")).json()["paths"]
+    strategies = {path: set(ops) for path, ops in paths.items() if path.startswith("/strategies")}
+    assert strategies == {
+        "/strategies": {"get", "post"},
+        "/strategies/{strategy_id}": {"get", "put", "delete"},
+        "/strategies/{strategy_id}/versions": {"get"},
+        "/strategies/{strategy_id}/diff": {"get"},
+        "/strategies/{strategy_id}/export": {"get"},
+    }
+
+
+async def test_mounted_strategies_router_round_trip() -> None:
+    transport = httpx.ASGITransport(app=create_app())
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        created = await client.post(
+            "/strategies", json={"name": "alpha", "parameters": {"window": 10}, "tags": ["fx"]}
+        )
+        strategy_id = created.json()["strategy_id"]
+        listing = await client.get("/strategies", params={"tag": "fx"})
+        fetched = await client.get(f"/strategies/{strategy_id}")
+    assert created.status_code == 201
+    assert created.headers["Location"] == f"/strategies/{strategy_id}"
+    assert [item["id"] for item in listing.json()["items"]] == [strategy_id]
+    assert fetched.json()["versions"][0]["parameters"] == {"window": 10}
+
+
+def test_strategies_route_names_are_prefixed() -> None:
+    names: list[str] = []
+    pending: list[Any] = list(create_app().routes)
+    while pending:
+        route = pending.pop()
+        included = getattr(route, "original_router", None)
+        if included is not None:
+            pending.extend(included.routes)
+        elif getattr(route, "path", "").startswith("/strategies"):
+            names.append(route.name)
+    assert len(names) == 8
+    assert all(name.startswith("strategies_") for name in names)

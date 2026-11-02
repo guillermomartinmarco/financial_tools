@@ -6,6 +6,7 @@ class HealthResponse(BaseModel):
     status: Literal["ok"]
     version: str
     parquet_dir_accessible: bool
+    strategies_db_accessible: bool
 ```
 
 ## 2. Rutas FastAPI — `packages/finances-api/src/finances_api/app.py`
@@ -19,6 +20,7 @@ class HealthResponse(BaseModel):
 | * | `/datasets/*` | ver `specs/ft_datasets/plan.md` §2.2 (rutas `datasets_*`) | `finances_downloader.ft_datasets.api.router` |
 | * | `/indicators/*` | ver `specs/ft_indicators/plan.md` §2.2 | `finances_analytics.ft_indicators.api.router` |
 | * | `/ta-lib/*` | ver `specs/ft_ta_lib/plan.md` §2.2 (rutas `ta_lib_*`) | `finances_analytics.ft_ta_lib.api.router` |
+| * | `/strategies/*` | ver `specs/ft_strategy_manager/plan.md` §2.2 (rutas `strategies_*`) | `ft_strategy_manager.api.router` (paquete `finances-core`) |
 
 ```python
 def create_app() -> FastAPI:
@@ -30,6 +32,7 @@ def create_app() -> FastAPI:
     app.include_router(datasets_router)
     app.include_router(indicators_router)
     app.include_router(ta_lib_router)
+    app.include_router(strategies_router)
     return app
 ```
 

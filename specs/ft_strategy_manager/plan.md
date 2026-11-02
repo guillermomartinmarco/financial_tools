@@ -1,5 +1,7 @@
 # Plan — `ft_strategy_manager` (MVP v1.0)
 
+> **Sincronización Art. 15 (2026-11-02)**: este plan se alinea con la implementación; el texto original se conserva y las derivas se marcan "Deriva N". Índice: 1 layout (§4), 2 ruta de la DB (§1.3/§7), 3 conexiones (§1.3/§7), 4 esquemas (§1.1), 5 CLI `export`/`--user`/`--format` (§2.1), 6 export con `Response` (§2.2), 7 `/health` y montaje en `finances_api` (§7), 8 mapeo de errores (§2.1/§3.2), 9 soft-delete reserva el nombre (§3.1). Decisión abierta: cambio solo de metadatos (§3.2).
+
 ## 1. Modelo de Datos y Contratos (Pydantic v2)
 
 ### 1.1 Esquemas Core (`packages/finances-core/schemas/strategy.py`)
@@ -34,6 +36,7 @@ class StrategyUpdate(BaseModel):
         return self
 
 class StrategyVersion(BaseModel):
+    strategy_id: str  # Deriva 4
     version: int = Field(ge=1)
     parameters: dict[str, Any]
     hash: str = Field(pattern=r"^[a-f0-9]{64}$")  # SHA-256 hex
@@ -48,6 +51,7 @@ class Strategy(BaseModel):
     tags: list[str]
     created_at_ms: int
     deleted_at_ms: Optional[int] = None
+    selected_version: Optional[int] = None  # Deriva 4: versión pedida en get (None = latest)
     versions: list[StrategyVersion] = Field(default_factory=list)
 
     @property
@@ -61,6 +65,14 @@ class StrategySummary(BaseModel):
     updated_at_ms: int
     tags: list[str]
     hash_latest: str
+    deleted_at_ms: Optional[int] = None  # Deriva 4
+
+class StrategyListFilters(BaseModel):  # Deriva 4: filtros compartidos CLI/API/service
+    tag: Optional[str] = None
+    name_contains: Optional[str] = None
+    include_deleted: bool = False
+    limit: int = Field(default=50, ge=1, le=500)
+    offset: int = Field(default=0, ge=0)
 
 class StrategyListResponse(BaseModel):
     items: list[StrategySummary]
@@ -75,6 +87,8 @@ class DiffResult(BaseModel):
     removed: dict[str, Any]
     changed: dict[str, tuple[Any, Any]]  # key -> (old, new)
 ```
+
+> **Deriva 4 (implementación)**: el código vive en `packages/finances-core/src/finances_core/schemas/strategy.py` y usa sintaxis `X | None`; añade `StrategyVersion.strategy_id`, `Strategy.selected_version`, `StrategySummary.deleted_at_ms` y `StrategyListFilters` (límite máx. 500).
 
 ### 1.2 Utilidades de Hash y Validación
 
@@ -103,6 +117,9 @@ def validate_parameters(parameters: dict[str, Any], schema: Optional[dict[str, A
 ```
 
 ### 1.3 Esquema SQLite (`packages/finances-core/src/ft_strategy_manager/db.py`)
+
+> **Deriva 2**: la ruta de la base la resuelve `db.resolve_db_path()`: `FinancesSettings.STRATEGIES_DB_PATH` (env `FT_STRATEGIES_DB_PATH`) o, por defecto, `<SHARE_DIR>/strategies.db` bajo la raíz del proyecto (`share/`), no `packages/finances-core/share/`. `FT_STRATEGIES_DB_PATH` figura en `ft_setup/env_list.conf` y en su plantilla `templates/env_list.conf.j2`.
+> **Deriva 3**: no hay *pool* thread-local literal; como `SQLTaskManager`, `db.get_connection` abre **una conexión por llamada** (WAL, `timeout=30`) y las escrituras usan `BEGIN IMMEDIATE` con commit/rollback al salir para serializar la asignación de versiones.
 
 ```sql
 -- strategies table
@@ -152,6 +169,11 @@ app = typer.Typer(
     rich_markup_mode="rich",
     no_args_is_help=True,
 )
+
+# Deriva 5: los comandos de escritura aceptan --user (auditoría) y los de lectura --format;
+# se añade un 8.º subcomando `export <id> [--format json|yaml]` (simetría con GET /strategies/{id}/export).
+# Deriva 8: exit codes 0 ok, 1 no encontrado o confirmación de --purge rechazada, 2 validación
+# o "No changes detected", 3 conflicto de nombre, 4 E/S.
 
 @app.command()
 def create(
@@ -233,7 +255,7 @@ def main(
 
 ```python
 from fastapi import APIRouter, HTTPException, Query, Path, status, Response
-from fastapi.responses import FileResponse
+# Deriva 6: export devuelve `Response` con Content-Disposition: attachment (no FileResponse)
 from typing import Optional, Literal
 import yaml
 
@@ -307,6 +329,8 @@ async def export_strategy(
 ```
 FUNCTION create_strategy(payload: StrategyCreate) -> StrategyVersion:
     1. validate_name_unique(payload.name) → raise 409 if exists
+       # Deriva 9: incluye estrategias soft-deleted (reservan el nombre hasta purge);
+       # el mensaje pide elegir otro nombre: la soft-deleted conserva su nombre hasta ser purgada
     2. valid, err = validate_parameters(payload.parameters, payload.parameter_schema)
        IF NOT valid: raise 422(err)
     3. hash = compute_hash(payload.parameters)
@@ -334,7 +358,8 @@ FUNCTION update_strategy(strategy_id: str, payload: StrategyUpdate) -> StrategyV
     4. valid, err = validate_parameters(new_params, strategy.parameter_schema)
        IF NOT valid: raise 422(err)
     5. new_hash = compute_hash(new_params)
-       IF new_hash == latest.hash: raise 400("No changes detected")
+       IF new_hash == latest.hash: raise 400("No changes detected")   # Deriva 8: API 400 / CLI exit 2
+       # Decisión abierta: ¿un cambio solo de description/tags debería crear versión? Hoy se rechaza.
     6. new_version = latest.version + 1
     7. now_ms = current_timestamp_ms()
     8. INSERT INTO strategy_versions (strategy_id, version, parameters_json, hash, created_at_ms, created_by)
@@ -345,6 +370,8 @@ FUNCTION update_strategy(strategy_id: str, payload: StrategyUpdate) -> StrategyV
     12. log_audit("update", strategy_id, version=new_version, hash_before=latest.hash, hash_after=new_hash, diff_summary=diff_summary)
     13. RETURN StrategyVersion(version=new_version, parameters=new_params, hash=new_hash, created_at_ms=now_ms)
 ```
+
+> **Deriva 9**: `update` sobre estrategia soft-deleted → 404 (paso 1); `get`/`diff`/`export` sí la devuelven.
 
 ### 3.3 `diff` — Diff Semántico
 
@@ -384,6 +411,25 @@ FUNCTION list_strategies(filters) -> StrategyListResponse:
 
 ## 4. Estructura de Archivos Objetivo
 
+> **Deriva 1**: la herramienta vive en `packages/finances-core/src/ft_strategy_manager/` (como `ft_setup`), no en `finances_core/ft_strategy_manager/`. El árbol original se conserva abajo como referencia histórica; el layout real es:
+
+```
+packages/finances-core/src/
+├── finances_core/schemas/strategy.py   # modelos Pydantic
+└── ft_strategy_manager/
+    ├── __init__.py
+    ├── cli.py        # Typer app
+    ├── api.py        # FastAPI router
+    ├── service.py    # lógica compartida
+    ├── db.py         # SQLite WAL, resolve_db_path, get_connection
+    ├── errors.py     # errores de negocio -> HTTP / exit codes
+    ├── logging.py
+    └── utils.py
+share/strategies.db   # raíz del proyecto (Deriva 2)
+```
+
+Layout original (histórico):
+
 ```
 packages/finances-core/
 ├── src/
@@ -400,7 +446,7 @@ packages/finances-core/
 │           ├── service.py           # Lógica compartida (CRUD, diff, validación)
 │           ├── db.py                # SQLite init, queries, connection pool
 │           ├── utils.py             # hash, json_canonical, jsonschema validation
-│           └── logging.py           # configure_logging (reutiliza patrón ft_setup)
+│           └── logging.py           # capa fina sobre finances_core.logging.configure_logging
 └── share/
     ├── tasks.db                     # SQLite WAL (ft_setup)
     └── strategies.db                # SQLite WAL (ESTA tool)
@@ -439,7 +485,7 @@ dependencies = [
 
 ## 7. Integración con `finances-core` Existente
 
-- Reutiliza `FinancesSettings` para `STRATEGIES_DB_PATH` (default `./share/strategies.db`)
-- Reutiliza `configure_logging` de `ft_setup.logging` (DRY)
-- Reutiliza `SQLTaskManager` patrón para conexiones WAL thread-safe
-- Registra router en `ft_api_service` main app via `include_router(strategy_router)`
+- Reutiliza `FinancesSettings` para `STRATEGIES_DB_PATH` (default `<SHARE_DIR>/strategies.db`; Deriva 2)
+- Reutiliza `configure_logging` de `finances_core.logging` (DRY); no importa de `ft_setup` (Aislamiento Cruzado, AGENTS.md §1)
+- Reutiliza el patrón de `SQLTaskManager`: una conexión por llamada, escrituras con `BEGIN IMMEDIATE` (Deriva 3)
+- Registra router en la app de `finances_api` (`create_app()`, `include_router(strategies_router)`; Deriva 7). `GET /health` añade `strategies_db_accessible` (ver `specs/finances_api`).

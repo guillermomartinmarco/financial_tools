@@ -21,10 +21,16 @@
 - `tags` (list[str], opcional, para categorización)
 - **Y DEBE** retornar: `strategy_id` (UUID v7), `version: 1`, `created_at_ms` (int64), `hash` (SHA-256 del JSON canónico de parámetros).
 
+**SI** `name` ya existe, **ENTONCES** conflicto (API 409, CLI exit 3).
+
+> **Deriva 9 (decisión del usuario, 2026-11-02)**: una estrategia con soft-delete **sigue reservando su `name` hasta ser purgada**. **SI** se crea una estrategia con el `name` de una soft-deleted, **ENTONCES** el sistema DEBE fallar con el mismo conflicto (API 409 / CLI exit 3) cuyo mensaje indica elegir otro nombre porque una estrategia soft-deleted conserva su nombre hasta ser purgada. No hay sobrescritura ni herencia implícita de parámetros.
+
 ### RF-2 — Leer Estrategia (Ubícuo)
 **EL SISTEMA DEBE** proveer operación `get` (CLI: `ft_strategy_manager get <id> [--version N]`, API: `GET /strategies/{id}?version=N`) que retorne la estrategia completa con sus parámetros.
 **SI** `version` no se especifica, **ENTONCES** retornar la **última versión**.
 **SI** `strategy_id` no existe, **ENTONCES** CLI exit code 1 + mensaje; API 404 con body `{detail: "Strategy not found"}`.
+
+> **Deriva 9**: `get` (y `diff`/`export`) siguen devolviendo estrategias soft-deleted, con `deleted_at_ms` informado, para auditoría.
 
 ### RF-3 — Actualizar Estrategia — Nueva Versión (Ubícuo)
 **EL SISTEMA DEBE** proveer operación `update` (CLI: `ft_strategy_manager update <id>`, API: `PUT /strategies/{id}`) que:
@@ -34,11 +40,19 @@
 - Retorne `strategy_id`, `new_version`, `new_hash`, `updated_at_ms`.
 **SI** `strategy_id` no existe, **ENTONCES** error 404/CLI exit 1.
 
+> **Deriva 8**: **SI** la nueva versión tiene el mismo hash que la última, **ENTONCES** se rechaza con "No changes detected" (API 400, CLI exit 2) y no se crea versión.
+> **Deriva 9**: `update` sobre una estrategia soft-deleted responde como inexistente (API 404, CLI exit 1).
+>
+> **Decisión abierta (no decidida por el usuario)**: si un cambio solo de metadatos (`description`/`tags`, sin cambio de `parameters`) debería crear una nueva versión. Comportamiento actual: se rechaza como "No changes detected" porque el hash de parámetros no cambia. No es una regla cerrada; pendiente de decisión.
+
 ### RF-4 — Eliminar Estrategia (Ubícuo)
 **EL SISTEMA DEBE** proveer operación `delete` (CLI: `ft_strategy_manager delete <id> [--purge]`, API: `DELETE /strategies/{id}?purge=false`) que:
 - Por defecto (`purge=false`): **soft-delete** — marca `deleted_at_ms`, oculta de listados normales, pero preserva historial para auditoría.
 - Con `--purge` / `purge=true`: **hard-delete** — elimina **todas** versiones y metadatos **irreversiblemente** (requiere confirmación explícita en CLI).
 **SI** estrategia no existe, **ENTONCES** idempotente: éxito silencioso (API 204, CLI exit 0).
+
+> **Deriva 8**: **SI** el usuario rechaza la confirmación de `--purge` en CLI, **ENTONCES** el comando aborta con exit 1 sin borrar nada. `--force` omite la confirmación.
+> **Deriva 9**: el soft-delete no libera el `name` (ver RF-1); solo `--purge` lo libera.
 
 ### RF-5 — Listar Estrategias (Ubícuo)
 **EL SISTEMA DEBE** proveer operación `list` (CLI: `ft_strategy_manager list`, API: `GET /strategies`) con filtros:
@@ -48,6 +62,8 @@
 - `limit` (int, default 50, max 500)
 - `offset` (int, default 0)
 - Retornar: array de `StrategySummary` {id, name, latest_version, updated_at_ms, tags, hash_latest} + `total_count`.
+
+> **Deriva 4**: `StrategySummary` añade `deleted_at_ms` (informado con `include_deleted`); los filtros se modelan como `StrategyListFilters`.
 
 ### RF-6 — Diff de Versiones (Ubícuo)
 **EL SISTEMA DEBE** proveer operación `diff` (CLI: `ft_strategy_manager diff <id> --from v1 --to v3`, API: `GET /strategies/{id}/diff?from=1&to=3`) que retorne diff semántico JSON (added/removed/changed keys con old/new values).
@@ -59,10 +75,12 @@
 **SI** no se provee schema, **ENTONCES** aceptar cualquier JSON object (modo permisivo).
 
 ### RF-8 — Persistencia en SQLite WAL (Estado-Driven)
-**EL SISTEMA DEBE** almacenar estrategias y versiones en `packages/finances-core/share/strategies.db` (SQLite WAL) con tablas:
+**EL SISTEMA DEBE** almacenar estrategias y versiones en `strategies.db` (SQLite WAL) con tablas:
 - `strategies` (id, name, description, parameter_schema, created_at_ms, deleted_at_ms)
 - `strategy_versions` (id, strategy_id, version, parameters_json, hash, created_at_ms, created_by)
 - Índices en `strategies.name` (unique), `strategy_versions.strategy_id + version` (unique).
+
+> **Deriva 2**: la ruta original (`packages/finances-core/share/strategies.db`) se sustituye por `FinancesSettings.STRATEGIES_DB_PATH` (env `FT_STRATEGIES_DB_PATH`, máxima prioridad) con valor por defecto `<SHARE_DIR>/strategies.db` bajo el `share/` de la raíz del proyecto (AGENTS.md; Art. 2: ruta absoluta, nunca relativa al directorio de trabajo). `strategies` almacena además `tags` (JSON). `FT_STRATEGIES_DB_PATH` figura en `ft_setup/env_list.conf` y en su plantilla `.j2`.
 
 ### RF-9 — Logging Dual y Auditoría (Ubícuo)
 **EL SISTEMA DEBE** loguear toda operación mutante (`create`, `update`, `delete`) con `structlog` incluyendo: `strategy_id`, `version`, `action`, `user` (si auth futuro), `hash_before`, `hash_after`, `diff_summary`.
@@ -70,7 +88,7 @@
 - **API**: JSON estructurado a stdout (Art. 9 Constitución).
 
 ### RF-10 — Endpoints API Completos (Ubícuo)
-**EL SISTEMA DEBE** exponer bajo FastAPI (prefijo `/strategies`):
+**EL SISTEMA DEBE** exponer bajo FastAPI (prefijo `/strategies`, montado en `finances_api` — Deriva 7; `GET /health` añade `strategies_db_accessible`, ver `specs/finances_api`):
 | Método | Ruta | Descripción |
 |--------|------|-------------|
 | POST | `/strategies` | Crear (retorna 201 + Location header) |
@@ -80,7 +98,9 @@
 | DELETE | `/strategies/{id}` | Soft/hard delete (query `purge`) |
 | GET | `/strategies/{id}/versions` | Listar versiones (paginado) |
 | GET | `/strategies/{id}/diff` | Diff entre versiones (query `from`, `to`) |
-| GET | `/strategies/{id}/export` | Exportar estrategia + versiones a JSON/YAML |
+| GET | `/strategies/{id}/export` | Exportar estrategia + versiones a JSON/YAML (`format`); respuesta `Response` con `Content-Disposition: attachment` — Deriva 6 |
+
+> **Deriva 5**: la CLI expone un 8.º subcomando `export` (`ft_strategy_manager export <id> [--format json|yaml]`) para simetría CLI/API (Art. 1), y las opciones `--user` (auditoría, equivalente a `X-User-ID`) en `create`/`update`/`delete` y `--format` en los comandos de lectura.
 
 ---
 

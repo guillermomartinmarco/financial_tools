@@ -15,6 +15,9 @@ dependencies = [
     "polars>=1.6",
     "tenacity>=8.2",
     "numpy>=1.26",
+    "jsonschema>=4.21",
+    "jsonpatch>=1.33",
+    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
@@ -25,10 +28,13 @@ dev = [
     "ruff>=0.5",
     "mypy>=1.10",
     "hypothesis>=6.100",
+    "types-PyYAML>=6.0",
+    "types-jsonschema>=4.21",
 ]
 
 [project.scripts]
 ft_setup = "ft_setup.cli:app"
+ft_strategy_manager = "ft_strategy_manager.cli:app"
 
 [build-system]
 requires = ["setuptools>=68.0", "wheel"]
@@ -36,10 +42,11 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["finances_core*", "ft_setup*"]
+include = ["finances_core*", "ft_setup*", "ft_strategy_manager*"]
 
 [tool.setuptools.package-data]
 ft_setup = ["env_list.conf", "templates/*.j2", "py.typed"]
+ft_strategy_manager = ["py.typed"]
 finances_core = ["py.typed"]
 
 [tool.ruff]
@@ -64,6 +71,8 @@ indent-style = "space"
 "src/finances_core/marketdata/hive_writer.py" = ["PLR0913"]
 # Firma de run_compute_task exigida por specs/ft_indicators/plan.md §3.8
 "src/finances_core/indicators_store/runner.py" = ["PLR0913", "PLR0917"]
+# Opciones Typer de ft_strategy_manager: una por parámetro de RF-1/RF-3/RF-5 (plan.md §2.1)
+"src/ft_strategy_manager/cli.py" = ["PLR0913", "PLR0917"]
 
 [tool.mypy]
 strict = true
@@ -86,3 +95,7 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 markers = ["real_data: tests con datos reales materializados por ft_datasets; excluidos por defecto"]
 addopts = "-v --tb=short -m 'not real_data'"
+
+[[tool.mypy.overrides]]
+module = ["jsonpatch", "jsonpointer"]
+ignore_missing_imports = true

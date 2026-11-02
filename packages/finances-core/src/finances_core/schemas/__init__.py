@@ -30,6 +30,16 @@ from finances_core.schemas.setup import (
     SetupDoctorResponse,
     VarSource,
 )
+from finances_core.schemas.strategy import (
+    DiffResult,
+    Strategy,
+    StrategyCreate,
+    StrategyListFilters,
+    StrategyListResponse,
+    StrategySummary,
+    StrategyUpdate,
+    StrategyVersion,
+)
 
 __all__ = [
     "MarketType",
@@ -58,4 +68,12 @@ __all__ = [
     "InitTaskResult",
     "VarSource",
     "SecretLevel",
+    "StrategyCreate",
+    "StrategyUpdate",
+    "StrategyVersion",
+    "Strategy",
+    "StrategySummary",
+    "StrategyListFilters",
+    "StrategyListResponse",
+    "DiffResult",
 ]
