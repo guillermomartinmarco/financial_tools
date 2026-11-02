@@ -90,6 +90,7 @@ class ImportPlan(BaseModel):
     partitions_new: list[str]
     partitions_modified: list[str]
     max_close_divergence: float | None  # solo con conflictos
+    rejected_examples: list[str] = Field(default_factory=list)  # con skip_invalid
 
 
 class ManagerTaskResponse(BaseModel):  # 202

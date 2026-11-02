@@ -80,13 +80,14 @@ async def _run(client: httpx.AsyncClient, route: str, payload: dict[str, Any]) -
     return body
 
 
-async def test_openapi_exposes_the_five_routes() -> None:
+async def test_openapi_exposes_the_six_routes() -> None:
     async with _client() as client:
         paths = (await client.get("/openapi.json")).json()["paths"]
     assert {p: set(ops) for p, ops in paths.items()} == {
         f"{BASE}/compact": {"post"},
         f"{BASE}/dedupe": {"post"},
         f"{BASE}/prune": {"post"},
+        f"{BASE}/import": {"post"},
         f"{BASE}/status/{{task_id}}": {"get"},
         f"{BASE}/result/{{task_id}}": {"get"},
     }

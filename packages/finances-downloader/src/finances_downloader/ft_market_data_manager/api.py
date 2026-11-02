@@ -1,6 +1,6 @@
 """Router FastAPI ``/market-data/manager`` (lo monta ``finances-api``; aquí no hay app).
 
-- ``POST /compact|/dedupe|/prune`` validan de forma síncrona, registran la tarea ``PENDING``
+- ``POST /compact|/dedupe|/prune|/import`` validan de forma síncrona, registran la tarea ``PENDING``
   en ``SQLTaskManager`` y responden ``202`` de inmediato; el trabajo Polars/Parquet corre en
   ``BackgroundTasks`` (función síncrona => *threadpool*, nunca en el event loop; Art. 3, 18).
 - Los ``GET`` delegan las lecturas SQLite en ``run_in_threadpool``.
@@ -26,6 +26,7 @@ from finances_core.marketdata.tasks_lifecycle import (
     load_task_row,
 )
 from finances_core.schemas.market_data_manager import (
+    ImportRequest,
     ManagerRequest,
     ManagerResult,
     ManagerTaskResponse,
@@ -36,15 +37,48 @@ from finances_core.tasks import SQLTaskManager
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
-from finances_downloader.ft_market_data_manager import service
-from finances_downloader.ft_market_data_manager.errors import InvalidArgumentError
+from finances_downloader.ft_market_data_manager import importer, service
+from finances_downloader.ft_market_data_manager.errors import (
+    ConflictError,
+    DatasetNotFoundError,
+    ImportValidationError,
+    InvalidArgumentError,
+)
 
 router = APIRouter(prefix="/market-data/manager", tags=["market-data-manager"])
 logger = structlog.get_logger(__name__, component="ft_market_data_manager")
 
 TASK_ID_PATTERN = r"^[0-9a-f-]{36}$"
 TaskId = Annotated[str, Path(pattern=TASK_ID_PATTERN)]
-Action = Literal["compact", "dedupe", "prune"]
+Action = Literal["compact", "dedupe", "prune", "import"]
+AnyRequest = ManagerRequest | ImportRequest
+
+#: Estado HTTP de ``GET /result`` para una tarea ``FAILED`` por un error tipado de negocio
+#: (``import`` valida el archivo dentro de la tarea; RF-10). Cualquier otra causa => 500.
+HTTP_422_UNPROCESSABLE = 422  # nombre de la constante de Starlette cambia entre versiones
+FAILURE_STATUS = {
+    "validation": HTTP_422_UNPROCESSABLE,
+    "conflict": status.HTTP_409_CONFLICT,
+    "not_found": status.HTTP_404_NOT_FOUND,
+}
+
+
+class TaskFailedError(RuntimeError):
+    """La tarea terminó en ``FAILED``; ``kind`` clasifica la causa (``unexpected`` por defecto)."""
+
+    def __init__(self, message: str, kind: str = "unexpected") -> None:
+        super().__init__(message)
+        self.kind = kind
+
+
+def _error_kind(exc: Exception) -> str:
+    if isinstance(exc, InvalidArgumentError | ImportValidationError):
+        return "validation"
+    if isinstance(exc, ConflictError):
+        return "conflict"
+    if isinstance(exc, DatasetNotFoundError):
+        return "not_found"
+    return "unexpected"
 
 
 class ManagerProgress(BaseModel):
@@ -106,10 +140,12 @@ def _runner(action: Action) -> Callable[[Any, service.PartitionCallback], Manage
         return service.run_compact
     if action == "dedupe":
         return service.run_dedupe
+    if action == "import":
+        return service.run_import
     return service.run_prune
 
 
-def run_manager_task(action: Action, request: ManagerRequest, task_id: str) -> None:
+def run_manager_task(action: Action, request: AnyRequest, task_id: str) -> None:
     """Entrada para ``BackgroundTasks``: ejecuta el servicio y persiste progreso y resultado.
 
     Nunca propaga excepciones: el fallo (IO o inesperado) queda registrado como ``FAILED``.
@@ -142,6 +178,7 @@ def run_manager_task(action: Action, request: ManagerRequest, task_id: str) -> N
             error=str(exc),
             stats_json=counters.stats(),
             errors_json=counters.errors,
+            result_summary_json={"error_kind": _error_kind(exc)},
         )
 
 
@@ -166,19 +203,33 @@ def get_result(task_id: str) -> ManagerResult | None:
 
     Raises:
         TaskNotFinishedError: la tarea aún no está en ``COMPLETED``/``FAILED``.
-        RuntimeError: la tarea terminó en ``FAILED`` (no hay resultado).
+        TaskFailedError: la tarea terminó en ``FAILED`` (no hay resultado).
     """
     row = load_task_row(task_id)
     if row is None:
         return None
     if ensure_finished(task_id, row) == "FAILED":
         msg = str(row.get("error") or "la tarea falló")
-        raise RuntimeError(msg)
+        kind = json_field(row, "result_summary_json", {}).get("error_kind", "unexpected")
+        raise TaskFailedError(msg, kind)
     summary: dict[str, Any] = json_field(row, "result_summary_json", {})
     return ManagerResult.model_validate(summary["result"])
 
 
 # --- Despacho -------------------------------------------------------------------------------
+
+
+async def _enqueue(
+    action: Action, request: AnyRequest, http_request: Request, tasks: BackgroundTasks
+) -> ManagerTaskResponse:
+    task_id = new_task_id()
+    summary = {"action": action, "request": request.model_dump(mode="json")}
+    await run_in_threadpool(create_download_task, task_id, summary)
+    tasks.add_task(run_manager_task, action, request, task_id)
+    return ManagerTaskResponse(
+        task_id=task_id,
+        poll_url=str(http_request.url_for("manager_status", task_id=task_id)),
+    )
 
 
 async def _dispatch(
@@ -188,14 +239,7 @@ async def _dispatch(
         service.validate_selector(request)
     except InvalidArgumentError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-    task_id = new_task_id()
-    summary = {"action": action, "request": request.model_dump(mode="json")}
-    await run_in_threadpool(create_download_task, task_id, summary)
-    tasks.add_task(run_manager_task, action, request, task_id)
-    return ManagerTaskResponse(
-        task_id=task_id,
-        poll_url=str(http_request.url_for("manager_status", task_id=task_id)),
-    )
+    return await _enqueue(action, request, http_request, tasks)
 
 
 @router.post(
@@ -242,6 +286,36 @@ async def prune_endpoint(
     return await _dispatch("prune", body, request, tasks)
 
 
+@router.post(
+    "/import",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=ManagerTaskResponse,
+    name="manager_import",
+)
+async def import_endpoint(
+    body: ImportRequest, request: Request, tasks: BackgroundTasks
+) -> ManagerTaskResponse:
+    """RF-4/RF-5: importa un archivo; 400 sin ``confirm`` y sin ``dry_run``.
+
+    Antes de crear la tarea valida de forma síncrona el origen (existencia y ubicación fuera
+    de ``FT_PARQUET_DIR``), el formato y el destino (404 si no existe y no hay ``create``).
+    El contenido del archivo se valida dentro de la tarea: un archivo inválido deja la tarea
+    en ``FAILED`` y ``GET /result`` responde 422 (409 por conflicto) sin escribir nada.
+    """
+    if not (body.confirm or body.dry_run):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="import exige confirm=true salvo con dry_run",
+        )
+    try:
+        await run_in_threadpool(importer.resolve_target, body, FinancesSettings().PARQUET_DIR)
+    except DatasetNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except InvalidArgumentError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return await _enqueue("import", body, request, tasks)
+
+
 @router.get("/status/{task_id}", response_model=ManagerProgress, name="manager_status")
 async def status_endpoint(task_id: TaskId) -> ManagerProgress:
     """Estado (``PENDING`` -> ``RUNNING`` -> ``COMPLETED``/``FAILED``) y contadores (RF-7)."""
@@ -260,10 +334,9 @@ async def result_endpoint(task_id: TaskId) -> ManagerResult:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail=f"Task not finished: {exc.status}"
         ) from exc
-    except RuntimeError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Task failed: {exc}"
-        ) from exc
+    except TaskFailedError as exc:
+        code = FAILURE_STATUS.get(exc.kind, status.HTTP_500_INTERNAL_SERVER_ERROR)
+        raise HTTPException(status_code=code, detail=f"Task failed: {exc}") from exc
     if result is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
     return result

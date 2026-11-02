@@ -20,13 +20,15 @@ from finances_core.config import FinancesSettings
 from finances_core.marketdata.hive_writer import DEFAULT_FILE_NAME
 from finances_core.marketdata.months import month_bounds
 from finances_core.schemas.market_data_manager import (
+    ImportPlan,
+    ImportRequest,
     ManagerRequest,
     ManagerResult,
     PartitionResult,
     PruneRequest,
 )
 
-from finances_downloader.ft_market_data_manager import planner
+from finances_downloader.ft_market_data_manager import importer, planner
 from finances_downloader.ft_market_data_manager.errors import (
     ConfirmationRequiredError,
     InvalidArgumentError,
@@ -37,7 +39,7 @@ logger = structlog.get_logger(__name__, component="ft_market_data_manager")
 
 TS_COL = "open_time_ms"
 
-Action = Literal["compact", "dedupe", "prune"]
+Action = Literal["compact", "dedupe", "prune", "import"]
 #: ``(datos leídos, nº de archivos) -> (nuevo contenido | None si no cambia, detalle)``.
 Transform = Callable[[pl.DataFrame, int], tuple[pl.DataFrame | None, str | None]]
 #: Gancho de progreso opcional: ``(particiones procesadas, total, resultado de la última)``.
@@ -119,17 +121,23 @@ def _audit(action: Action, result: PartitionResult, *, dry_run: bool) -> None:
 
 
 def _finish(
-    action: Action, request: ManagerRequest, results: list[PartitionResult], started: float
+    action: Action,
+    dry_run: bool,
+    results: list[PartitionResult],
+    started: float,
+    import_plan: ImportPlan | None = None,
 ) -> ManagerResult:
     logger.info(
         "market_data_manager_run",
         action=action,
-        dry_run=request.dry_run,
+        dry_run=dry_run,
         duration_ms=int((time.monotonic() - started) * 1000),
         partitions_scanned=len(results),
         rows_processed=sum(r.rows_before for r in results),
     )
-    return ManagerResult(action=action, dry_run=request.dry_run, partitions=results)
+    return ManagerResult(
+        action=action, dry_run=dry_run, partitions=results, import_plan=import_plan
+    )
 
 
 def _result(
@@ -246,7 +254,7 @@ def _run_rewrite(
         results.append(result)
         if on_partition is not None:
             on_partition(len(results), len(partitions), result)
-    return _finish(action, request, results, started)
+    return _finish(action, request.dry_run, results, started)
 
 
 def run_compact(
@@ -328,7 +336,68 @@ def run_prune(
         results.append(result)
         if on_partition is not None:
             on_partition(len(results), len(candidates), result)
-    return _finish("prune", request, results, started)
+    return _finish("prune", request.dry_run, results, started)
+
+
+# --- import ------------------------------------------------------------------------------
+
+
+def _import_detail(work: importer.PartitionWork, on_conflict: importer.OnConflict) -> str:
+    kept = "reemplazados" if on_conflict == "replace" else "conservados"
+    return f"filas nuevas: {work.new_rows}; conflictos {kept}: {work.conflicts}"
+
+
+def _import_partition(
+    work: importer.PartitionWork,
+    request: ImportRequest,
+    parquet_dir: Path,
+) -> PartitionResult:
+    partition = work.partition
+    rows_before = work.existing.height if work.existing is not None else 0
+    if not importer.modifies(work, request.on_conflict):
+        return _result(
+            partition,
+            "unchanged",
+            rows_before=rows_before,
+            rows_after=rows_before,
+            detail=_import_detail(work, request.on_conflict),
+        )
+    merged = importer.merge_rows(work, request.on_conflict)
+    detail = _import_detail(work, request.on_conflict)
+    if request.dry_run:
+        planned = _result(
+            partition, "planned", rows_before=rows_before, rows_after=merged.height, detail=detail
+        )
+        return _after(planned, 1, _encoded_size(merged))
+    return _commit_rewrite(partition, merged, rows_before, detail, parquet_dir)
+
+
+def run_import(
+    request: ImportRequest, on_partition: PartitionCallback | None = None
+) -> ManagerResult:
+    """RF-4/RF-5: importa velas de un archivo en dos fases (validar y planear; luego escribir).
+
+    Raises:
+        ConfirmationRequiredError: SI no es ``dry_run`` y faltan ``confirm`` y ``force``.
+        InvalidArgumentError: destino, origen o formato inválidos (``ImportValidationError``
+            para columnas, valores, timestamp, alineación o duplicados).
+        DatasetNotFoundError: origen inexistente o destino inexistente sin ``create``.
+        ConflictError: ``fail`` con conflictos o ``replace`` con divergencia > 1 % sin ``force``.
+    """
+    if not (request.dry_run or request.confirm or request.force):
+        msg = "import exige confirm=true (o --force en la CLI) salvo con dry_run"
+        raise ConfirmationRequiredError(msg)
+    started = time.monotonic()
+    parquet_dir = FinancesSettings().PARQUET_DIR
+    prepared = importer.prepare_import(request, parquet_dir)
+    results: list[PartitionResult] = []
+    for work in prepared.works:
+        result = _import_partition(work, request, parquet_dir)
+        _audit("import", result, dry_run=request.dry_run)
+        results.append(result)
+        if on_partition is not None:
+            on_partition(len(results), len(prepared.works), result)
+    return _finish("import", request.dry_run, results, started, prepared.plan)
 
 
 def validate_selector(request: ManagerRequest) -> None:

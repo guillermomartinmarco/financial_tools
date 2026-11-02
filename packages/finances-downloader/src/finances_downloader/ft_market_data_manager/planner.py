@@ -158,6 +158,7 @@ def commit(partition: Partition, df: pl.DataFrame | None, parquet_dir: Path) -> 
         _remove_empty_hive_dirs(partition.directory, parquet_dir)
         return "changed"
     target = partition.directory / DEFAULT_FILE_NAME
+    target.parent.mkdir(parents=True, exist_ok=True)  # particiones nuevas (import --create)
     atomic_write(df, target)
     leftovers: list[Path] = []
     first_error: OSError | None = None

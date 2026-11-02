@@ -72,6 +72,7 @@ class ImportPlan(BaseModel):
     partitions_new: list[str]
     partitions_modified: list[str]
     max_close_divergence: float | None  # solo con conflictos
+    rejected_examples: list[str] = []   # ejemplos de filas rechazadas (con skip_invalid; Deriva 1)
 
 
 class ManagerTaskResponse(BaseModel):   # 202
@@ -177,11 +178,20 @@ FASE 2 — escribir (tras dry_run/confirmación)
 
 `merge_partition` de `hive_writer` hace prevalecer lo nuevo (contrato de los descargadores); aquí el valor por defecto es el contrario (`skip`), por eso el manager implementa su propia combinación en `planner.py` y reutiliza solo `atomic_write`/`partition_dir`.
 
+### 3.5 Derivas de implementación de `import` (Art. 15)
+
+- **Deriva 1 — `ImportPlan.rejected_examples`**: RF-4 exige informar "el total rechazado y ejemplos" con `--skip-invalid`; el plan lleva `rows_rejected` y hasta 3 ejemplos (`rejected_examples`). `partitions_new`/`partitions_modified` usan el formato `YYYY-MM`.
+- **Deriva 2 — opciones de `import`**: en `import`, `--format` es el formato del archivo (`parquet|csv|jsonl`, §2.1). El formato de salida se elige con el `--format/-f` global (`ft_market_data_manager -f json import ...`) o con `--output/-o table|json` del propio comando.
+- **Deriva 3 — errores de contenido en la API**: el POST valida de forma síncrona origen, formato y destino (400/404) y despacha la tarea; el contenido del archivo se valida dentro de la tarea (no bloquea el event loop). Un `ImportValidationError`/`ConflictError` deja la tarea en `FAILED` (sin escribir nada) y `GET /result` responde 422 / 409 (RF-10) en lugar de 500; `status` muestra el mensaje en `errors_json`. El resto de excepciones sigue siendo 500.
+- **Deriva 4 — esquema y grilla**: columnas esperadas = esquema de los archivos del dataset destino si existe; si no (con `--create`), el canónico de `binance` (`OHLCV_SCHEMA`) o `yfinance` (`YF_OHLCV_SCHEMA`) sin `symbol`/`timeframe`/`market_type`; otro exchange no puede crearse. Los timeframes de duración fija (`TF_MS_MAP`, incluido `3d`) se alinean a múltiplos de la duración desde la época Unix; `1w` y `1M` usan reglas de calendario (`marketdata/timeframes.py`). Las unidades `us`/`ns` solo se aceptan si la conversión a ms es exacta (sin redondeo).
+- **Fusión**: `planner.commit` crea el directorio de una partición nueva; la combinación (`importer.merge_rows`) conserva las filas existentes (`skip`) o sustituye solo los valores de las filas con el mismo `open_time_ms` (`replace`); una partición cuyo contenido no cambiaría se informa `unchanged` y no se reescribe (idempotencia).
+
 ## 4. Estructura de Archivos Objetivo
 
 ```
 packages/finances-core/src/finances_core/
 ├── marketdata/dataset_layout.py        # extraído de ft_data_viewer/scanner.py (T1.1)
+├── marketdata/timeframes.py            # grilla de timeframes: is_aligned / aligned_expr (T6.1)
 └── schemas/market_data_manager.py      # §1.1
 
 packages/finances-downloader/src/finances_downloader/ft_market_data_manager/

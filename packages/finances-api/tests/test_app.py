@@ -87,7 +87,7 @@ async def test_openapi_includes_all_tool_routers() -> None:
         assert any(path.startswith(prefix) for path in paths), prefix
 
 
-async def test_openapi_includes_the_five_manager_routes() -> None:
+async def test_openapi_includes_the_six_manager_routes() -> None:
     transport = httpx.ASGITransport(app=create_app())
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         paths = (await client.get("/openapi.json")).json()["paths"]
@@ -98,6 +98,7 @@ async def test_openapi_includes_the_five_manager_routes() -> None:
         "/market-data/manager/compact": {"post"},
         "/market-data/manager/dedupe": {"post"},
         "/market-data/manager/prune": {"post"},
+        "/market-data/manager/import": {"post"},
         "/market-data/manager/status/{task_id}": {"get"},
         "/market-data/manager/result/{task_id}": {"get"},
     }

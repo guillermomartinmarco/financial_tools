@@ -50,14 +50,17 @@ Cada tarea cierra con su **"Hecho cuando"**. Flujo: test en rojo → implementac
 
 ## Fase 6: Importación
 
-- [ ] **T6.1**: `importer.py`: lectura de Parquet/CSV/JSONL con esquema explícito, conversión de `--ts-column`/`--ts-unit`, plausibilidad, alineación a la grilla del timeframe y duplicados en el origen (RF-4, RF-5)
+- [x] **T6.1**: `importer.py`: lectura de Parquet/CSV/JSONL con esquema explícito, conversión de `--ts-column`/`--ts-unit`, plausibilidad, alineación a la grilla del timeframe y duplicados en el origen (RF-4, RF-5)
   - **Hecho cuando**: tests por regla: columnas faltantes/sobrantes → error sin escribir; segundos tomados por milisegundos → rechazo con pista; `open_time_ms` desalineado (p. ej. +3 h) → rechazo con conteo y ejemplo, sin redondear; `1d`/`1w`/`1M` con su grilla; duplicados en el origen → error; ISO-8601 no aceptado.
+  - **Hecho**: `ft_market_data_manager/importer.py` (fase 1: lectura Parquet/CSV/JSONL con esquema explícito, `--ts-column`/`--ts-unit`, plausibilidad 2000-01-01..ahora+1d con pista de unidad, alineación a la grilla, duplicados, columnas faltantes/sobrantes, filas inválidas con `skip_invalid`) y `finances_core/marketdata/timeframes.py` (`is_aligned`, `aligned_expr`, `timeframe_duration_ms`); `pytest packages/finances-core/tests/unit/test_marketdata_timeframes.py`: 30 passed; `pytest .../ft_market_data_manager/test_import.py`: 64 passed (segundos como ms -> pista `--ts-unit s`, +30 min y +3 h rechazados con conteo y ejemplo sin escribir, grillas `1d`/`1w`/`1M`, ISO-8601 rechazado en CSV/JSONL/Parquet, duplicados, columnas, `us`/`ns` exactos, esquema yfinance).
 
-- [ ] **T6.2**: `service.run_import`: destino explícito (`--create`), dos fases, `--on-conflict skip|fail|replace`, divergencia de `close`, vista previa
+- [x] **T6.2**: `service.run_import`: destino explícito (`--create`), dos fases, `--on-conflict skip|fail|replace`, divergencia de `close`, vista previa
   - **Hecho cuando**: tests: dataset inexistente sin `--create` → 404; `skip` conserva las filas existentes; `fail` aborta con conflictos; `replace` con divergencia > 1 % aborta sin `--force`; ninguna fila existente cambia de `open_time_ms`; un archivo inválido no escribe ninguna partición; `--dry-run` devuelve el `ImportPlan` sin escribir; una partición modificada en paralelo → `conflict`.
+  - **Hecho**: `service.run_import` (dos fases; `planner.commit` con verificación optimista y `atomic_write`; `importer.merge_rows` propio, sin `merge_partition`) con auditoría RF-8; `test_import.py`: destino inexistente sin `--create` -> `DatasetNotFoundError`, con `--create` crea particiones, `skip` conserva las filas existentes idénticas, `fail` aborta, `replace` solo cambia valores y la divergencia > 1 % aborta sin `force`, ninguna fila existente cambia de `open_time_ms`, archivo inválido (2.º mes) deja el almacén idéntico (huella SHA-256 del árbol), `dry_run` devuelve el `ImportPlan` sin escribir, partición modificada en paralelo -> `conflict`, sin `confirm`/`force` -> `ConfirmationRequiredError`.
 
-- [ ] **T6.3**: Comando `import` en la CLI y `POST /import` en la API (confirmación en CLI, `confirm`/`dry_run` en API)
+- [x] **T6.3**: Comando `import` en la CLI y `POST /import` en la API (confirmación en CLI, `confirm`/`dry_run` en API)
   - **Hecho cuando**: tests de integración CLI y API; el round-trip `ft_data_viewer export` → `import` en un dataset vacío devuelve las mismas filas; paridad CLI/API (T7.2).
+  - **Hecho**: CLI `import` (vista previa siempre en stderr, `typer.confirm` salvo `--force`/`--dry-run`, rechazo -> exit 1) y `POST /market-data/manager/import` (400 sin `confirm`/`dry_run`, 404/400 síncronos de origen y destino, 202 + `task_id`/`poll_url`); `test_import_cli.py`: 21 passed, `test_import_api.py`: 11 passed, `test_contract_import.py`: 5 passed (secuencia dry-run y confirmada CLI vs API sobre dos almacenes independientes, mapeo de errores 2/3/1 vs 422/409/404); ida y vuelta `export` (`stream_export`) -> `import --create` parquet/csv/jsonl da las mismas filas y esquema. Derivas 1-4 en `plan.md` §3.5.
 
 ## Fase 7: Calidad, Contrato y Cierre
 
