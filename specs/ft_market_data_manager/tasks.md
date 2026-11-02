@@ -4,8 +4,9 @@ Cada tarea cierra con su **"Hecho cuando"**. Flujo: test en rojo → implementac
 
 ## Fase 1: Fundaciones
 
-- [ ] **T1.1**: Extraer el descubrimiento Hive (`_discover`, `dataset_files`, `resolve_dataset_path`, identificadores) de `ft_data_viewer/scanner.py` a `finances_core/marketdata/dataset_layout.py`; el viewer lo importa desde ahí
+- [x] **T1.1**: Extraer el descubrimiento Hive (`_discover`, `dataset_files`, `resolve_dataset_path`, identificadores) de `ft_data_viewer/scanner.py` a `finances_core/marketdata/dataset_layout.py`; el viewer lo importa desde ahí
   - **Hecho cuando**: `pytest packages/finances-downloader/tests/ft_data_viewer -v` pasa sin cambios de comportamiento y sin imports entre `ft_*`.
+  - **Hecho**: nuevo `finances_core/marketdata/dataset_layout.py` (`discover_datasets`, `dataset_files`, `partition_key`, `find_dataset_path`, `dataset_label`, `MARKET_TYPES`) con 7 tests; `ft_data_viewer/scanner.py` lo consume y reexporta los nombres públicos (`__all__`), sin cambios de comportamiento: `finances-core` + `finances-downloader` + `finances-api` 1245 passed; ruff y `mypy --strict src` de `finances-core` limpios (el único error de mypy de `finances-downloader` es el preexistente de `pandas-stubs` en el adaptador de yfinance).
 
 - [ ] **T1.2**: Esquemas Pydantic (`schemas/market_data_manager.py`)
   - **Hecho cuando**: tests de validación (`PruneRequest` exige exactamente uno de `before_ms`/`all` y filtro de dataset con `all`; `ImportRequest` exige destino completo); ruff + `mypy --strict` limpios.
