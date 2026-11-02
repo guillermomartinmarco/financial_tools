@@ -1,0 +1,11 @@
+schema_version = 1
+name = "btc-weekly"
+description = "BTCUSDT futures weekly, 2018 to 2026-10-26"
+
+[[datasets]]
+exchange = "binance"
+market_type = "futures"
+symbols = ["BTCUSDT"]
+timeframes = ["1w"]
+start = "2018-01-01"
+end = "2026-10-26"
