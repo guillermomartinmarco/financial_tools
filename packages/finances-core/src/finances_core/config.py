@@ -65,6 +65,8 @@ class FinancesSettings(BaseSettings):
 
     # SQLite WAL
     TASKS_DB_PATH: pathlib.Path = pathlib.Path("./share/tasks.db")
+    # ft_strategy_manager; None => <SHARE_DIR>/strategies.db
+    STRATEGIES_DB_PATH: pathlib.Path | None = None
 
     # API Service
     API_HOST: str = "0.0.0.0"
