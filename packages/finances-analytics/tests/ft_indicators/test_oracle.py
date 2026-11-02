@@ -1,4 +1,4 @@
-"""T3.3: paquete de *fixtures* del oráculo ``fixtures/oracle/v1`` (RF-17, plan §3.10)."""
+"""T3.3: paquete de *fixtures* del oráculo ``fixtures/oracle/v2`` (RF-17, plan §3.10)."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ from finances_analytics.ft_indicators.oracle import (
     oracle_cases,
 )
 
-PACK = Path(__file__).resolve().parent / "fixtures" / "oracle" / "v1"
+PACK = Path(__file__).resolve().parent / "fixtures" / "oracle" / "v2"
 INPUT_COLUMNS = ["open_time_ms", "open", "high", "low", "close", "volume"]
 
 
@@ -33,7 +33,7 @@ def _manifest(root: Path) -> dict[str, Any]:
 @pytest.fixture(scope="module")
 def regenerated(tmp_path_factory: pytest.TempPathFactory) -> Path:
     out = tmp_path_factory.mktemp("oracle")
-    return export_oracle_pack(out, "v1", commit="regenerated-in-test")
+    return export_oracle_pack(out, "v2", commit="regenerated-in-test")
 
 
 def test_cases_cover_plan_3_10() -> None:
@@ -61,7 +61,7 @@ def test_cases_cover_plan_3_10() -> None:
 def test_versioned_manifest_contents() -> None:
     manifest = _manifest(PACK)
     assert manifest["schema_version"] == SCHEMA_VERSION
-    assert manifest["pack_version"] == "v1"
+    assert manifest["pack_version"] == "v2"
     assert manifest["engine_versions"] == {"ft_indicators": ENGINE_VERSION}
     assert manifest["epsilon"] == EPSILON
     assert manifest["generator"]["commit"]

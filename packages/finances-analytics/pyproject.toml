@@ -16,7 +16,7 @@ dependencies = [
     "pyarrow>=16.0",
     # ft_ta_lib (plan §5): rueda binaria de TA-Lib; versión menor fijada (sus valores son
     # la referencia). numpy explícito: frontera float64 de ft_ta_lib/engine.py (RFC-0002).
-    "ta-lib>=0.8.2,<0.9",
+    "ta-lib>=0.8.3,<0.8.4",
     "numpy>=1.26",
 ]
 

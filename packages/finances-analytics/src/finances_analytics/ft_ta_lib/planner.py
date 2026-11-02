@@ -55,8 +55,8 @@ def plan_items(
 
     Raises:
         TaLibValidationError: SI una función/grupo/parámetro es inválido, TA-Lib rechaza la
-            combinación (``TA_BAD_PARAM``), hay más de 200 funciones tras expandir o una
-            entrada usa una columna ausente en el dataset (``adj_close`` en Binance).
+            combinación (``TA_BAD_PARAM``), hay más de ``MAX_FUNCTIONS`` (256) funciones tras
+            expandir o una entrada usa una columna ausente en el dataset (``adj_close`` en Binance).
         SourceNotFoundError: SI algún dataset no existe.
     """
     functions = expand(request)

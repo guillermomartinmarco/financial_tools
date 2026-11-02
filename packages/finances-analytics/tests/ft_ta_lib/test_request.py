@@ -85,20 +85,34 @@ def test_group_expansion_skips_unsupported_functions() -> None:
     assert len(names) == len(catalog.groups()["Overlap Studies"]) - 1
 
 
-def test_more_than_200_functions_is_validation() -> None:
+def test_max_functions_leaves_headroom_over_the_catalog() -> None:
+    """RF-19: si una versión futura de TA-Lib alcanza el tope, este test falla en voz alta."""
+    supported = sum(1 for meta in catalog.function_table().values() if meta.supported)
+    assert request.MAX_FUNCTIONS == 256
+    assert supported < request.MAX_FUNCTIONS, (
+        f"el catálogo ({supported} soportadas) alcanzó MAX_FUNCTIONS={request.MAX_FUNCTIONS}: "
+        "subir el tope exige actualizar spec RF-19 primero (Art. 15)"
+    )
+
+
+def test_every_group_at_once_is_accepted_and_one_more_than_the_cap_is_validation() -> None:
     groups = list(catalog.groups())
-    # ta-lib 0.8.2 / C 0.8.1: 201 funciones, 200 soportadas (todas salvo MAVP).
+    # ta-lib 0.8.3 / C 0.8.3: 237 funciones, 236 soportadas (todas salvo MAVP).
     everything = request.expand(request.build_request([DS], [], groups))
-    assert len(everything) == request.MAX_FUNCTIONS
-    with pytest.raises(TaLibValidationError, match="200"):
-        request.expand(request.build_request([DS], ["sma:timeperiod=7"], groups))
+    assert len(everything) == sum(1 for m in catalog.function_table().values() if m.supported)
+    extra = request.MAX_FUNCTIONS - len(everything)
+    tokens = [f"sma:timeperiod={p}" for p in range(2, 2 + extra)]
+    full = request.expand(request.build_request([DS], tokens, groups))
+    assert len(full) == request.MAX_FUNCTIONS
+    with pytest.raises(TaLibValidationError, match="256"):
+        request.expand(request.build_request([DS], [*tokens, "sma:timeperiod=900"], groups))
 
 
-def test_200_distinct_parametrizations_are_allowed_201_are_not() -> None:
-    tokens = [f"sma:timeperiod={p}" for p in range(2, 202)]
-    assert len(request.expand(request.build_request([DS], tokens, []))) == 200
-    with pytest.raises(TaLibValidationError, match="200"):
-        request.expand(request.build_request([DS], [*tokens, "sma:timeperiod=500"], []))
+def test_256_distinct_parametrizations_are_allowed_257_are_not() -> None:
+    tokens = [f"sma:timeperiod={p}" for p in range(2, 2 + request.MAX_FUNCTIONS)]
+    assert len(request.expand(request.build_request([DS], tokens, []))) == 256
+    with pytest.raises(TaLibValidationError, match="256"):
+        request.expand(request.build_request([DS], [*tokens, "sma:timeperiod=900"], []))
 
 
 def test_dataset_errors_and_limits_are_validation() -> None:

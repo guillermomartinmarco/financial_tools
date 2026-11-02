@@ -155,7 +155,7 @@ def test_store_manifest_roundtrip_with_int16_columns() -> None:
         spec={"function": "CDLDOJI", "params": {}},
         columns=["talib_cdldoji"],
         column_dtypes={"talib_cdldoji": "Int16"},
-        engine_version="ta-lib 0.8.2 / C 0.8.1",
+        engine_version="ta-lib 0.8.3 / C 0.8.3",
         rows=10,
         first_ms=0,
         last_ms=9,

@@ -98,7 +98,7 @@ async def test_manifest_is_coherent_with_convergence(
     }
     assert manifest.entries["adx_14"].stability.stable_from_ms == JAN_2024_MS + 387 * HOUR
     assert macd.column_dtypes == dict.fromkeys(macd.columns, "Float32")
-    assert macd.engine_version == "ft_indicators:1"
+    assert macd.engine_version == "ft_indicators:2"
     assert macd.spec == {
         "name": "macd",
         "params": {"fast": 12, "slow": 26, "signal": 9, "source": "close"},

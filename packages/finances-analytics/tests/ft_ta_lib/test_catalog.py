@@ -1,8 +1,8 @@
 """T2.1–T2.2: catálogo dinámico de TA-Lib (RF-2, RF-7, RF-17; plan §3.1).
 
 Vía de metadatos de parámetros (T2.2): ``talib.abstract.Function(name).parameters`` da
-nombre y default (tipo por el default; ``matype`` por el sufijo del nombre). ta-lib 0.8.2
-**no** expone el rango de ``TA_GetOptInputParameterInfo``: su ``_ta_getOptInputParameterInfo``
+nombre y default (tipo por el default; ``matype`` por el sufijo del nombre). ta-lib 0.8.2/0.8.3
+**no** exponen el rango de ``TA_GetOptInputParameterInfo``: su ``_ta_getOptInputParameterInfo``
 (privado) solo devuelve ``name``/``display_name``/``type``/``help``/``default_value``, así que
 ``min``/``max`` se publican como ``None`` y la validación de rango recae en la ejecución de
 prueba (``resolver.probe``, ``TA_BAD_PARAM``).
@@ -174,7 +174,7 @@ def test_non_causal_functions_are_marked_unsupported() -> None:
 def test_rsi_timeperiod_metadata(built: TaLibCatalog) -> None:
     (param,) = _entry(built, "RSI").params
     assert (param.name, param.type, param.default) == ("timeperiod", "int", 14)
-    # ta-lib 0.8.2 no expone el rango (ver docstring del módulo): validación por probe.
+    # ta-lib 0.8.3 no expone el rango (ver docstring del módulo): validación por probe.
     assert param.min is None
     assert param.max is None
 

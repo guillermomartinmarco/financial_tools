@@ -27,7 +27,10 @@ from .model import ResolvedFunction
 from .resolver import lookup, probe, resolve
 
 #: Funciones como máximo tras expandir grupos y deduplicar (RF-5).
-MAX_FUNCTIONS = 200
+#: Tope de funciones únicas tras expandir (spec ft_ta_lib RF-19). Debe superar el tamaño del
+#: catálogo (237 en TA-Lib C 0.8.3); ``test_max_functions_leaves_headroom_over_the_catalog``
+#: falla si una versión futura lo alcanza.
+MAX_FUNCTIONS = 256
 
 __all__ = [
     "MAX_FUNCTIONS",

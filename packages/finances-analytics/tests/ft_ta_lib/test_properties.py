@@ -5,7 +5,7 @@ el mismo valor (bit a bit, nulos incluidos) en ``t`` y en todas las filas ``≤ 
 sobre la serie completa; alterar filas ``> t`` tampoco cambia el pasado. Las series llevan
 nulos y ``NaN`` intercalados (subsecuencia sin nulos, RF-6).
 
-Resultado con ta-lib 0.8.2 / TA-Lib C 0.8.1 (201 funciones, 200 soportadas): **ninguna**
+Resultado con ta-lib 0.8.3 / TA-Lib C 0.8.3 (237 funciones, 236 soportadas): **ninguna**
 función falla, así que ``catalog.NON_CAUSAL`` está vacío. Incluye ``FRACTAL`` y ``DPO``, que
 en su definición clásica usan velas posteriores: TA-Lib las calcula de forma causal (la
 señal se publica en la vela que la confirma). Si una versión futura introduce una función
@@ -73,8 +73,8 @@ def _non_causal(frame: pl.DataFrame, t: int, future: pl.DataFrame | None = None)
 
 
 def test_catalog_is_large_enough_for_the_property() -> None:
-    assert len(FUNCTIONS) == 200
-    assert MAX_LOOKBACK == 100  # PERCENTRANK
+    assert len(FUNCTIONS) == 236  # 237 de TA-Lib C 0.8.3 menos MAVP
+    assert MAX_LOOKBACK == 101  # CRSI (100 con PERCENTRANK en C 0.8.1)
 
 
 @pytest.mark.parametrize("t", [0, 1, 30, MAX_LOOKBACK, MAX_LOOKBACK + 1, 250, 398])

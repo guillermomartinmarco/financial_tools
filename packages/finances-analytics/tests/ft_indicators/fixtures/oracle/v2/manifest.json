@@ -337,7 +337,7 @@
       "rows": 1000
     },
     "flat": {
-      "description": "Serie plana O=H=L=C=100 (RSI/ADX/estocástico = 0)",
+      "description": "Serie plana O=H=L=C=100 (RSI = 50; ADX/estocástico = 0)",
       "expected": {
         "adx_14": {
           "columns": [
@@ -1252,7 +1252,7 @@
     "wma": "Pesos lineales 1..period (el más reciente pesa period) / suma de pesos"
   },
   "engine_versions": {
-    "ft_indicators": 1
+    "ft_indicators": 2
   },
   "epsilon": 1e-06,
   "files": {
@@ -1318,8 +1318,8 @@
     "expected/flat/obv.parquet": "31f6063a69b28ae9e5d6e0184e2b6368f6b525ff6c2dea1a198e44bc544974e2",
     "expected/flat/roc_12.csv": "19b9083fb5a7687ee0d8d6f20a305d9aa17d14d87241791f819b81d41ca41b8d",
     "expected/flat/roc_12.parquet": "cb02a3ba72eaf1c10736ec72d198a266dbcb69857ac7cf1c0a26ccdb08f7e7bd",
-    "expected/flat/rsi_14.csv": "105e67290a2b2afdff0a2a81e15826a9921bd8fd3e250f032f2f104736315185",
-    "expected/flat/rsi_14.parquet": "7f68a5b003accace6e5a2c985b9505de523c96001328ea5b88b2aaf5be223c6b",
+    "expected/flat/rsi_14.csv": "8ea93298a07dbbce3387cd289b3ef549f70e15863e26e93fe53750ff6531023f",
+    "expected/flat/rsi_14.parquet": "5387fcd613c36ec8e4fd6d69de32e9828c6dda94f91ad94af11994f0e56120e1",
     "expected/flat/sma_20.csv": "79879f696ad90c9750ccdf7929d559bdeb800b6291da74eb4c9b864242f14e50",
     "expected/flat/sma_20.parquet": "9b5b4dde36fa43ba0aec4d5de72e677aaf5a082f80e3c3f0b828ba2ff4a3322c",
     "expected/flat/stoch_14_3_3.csv": "ef3ef7f0520de9a6966cbcdc60c0d7d9e770bb9be8b47b7bf779cffddc642211",
@@ -1444,7 +1444,7 @@
     "parquet": "open_time_ms Int64; entradas Float32 (canónico); salidas Float64"
   },
   "generator": {
-    "commit": "2b4ccaa1491f-dirty",
+    "commit": "f450b31d8d64-dirty",
     "script": "packages/finances-analytics/scripts/export_oracle_fixtures.py",
     "seed": 20261025,
     "tool": "ft_indicators"
@@ -1619,7 +1619,7 @@
       }
     }
   },
-  "pack_version": "v1",
+  "pack_version": "v2",
   "schema_version": 1,
   "tolerances": {
     "adx": {

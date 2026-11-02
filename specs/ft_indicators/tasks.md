@@ -177,3 +177,16 @@
 - [x] **T8.2**: Verificar matriz Art. 20 vía checklist del PR (Funcional, Contractual, Arquitectural, Datos — RFC-0001 firmado, Concurrencia, Observabilidad, Resiliencia = N/A justificado (sin APIs externas), Calidad ≥ 90 %, **Desempeño** = T6 calibrado, Despliegue)
   - **Hecho cuando**: checklist firmado en la descripción del PR; CI verde (incluido el job de benchmarks y el contraste TA-Lib).
   - **Hecho**: PR #3 mergeado a `main` (`2c2aa39`) con las 10 dimensiones de la matriz Art. 20 marcadas (incluida *Desempeño*, con benchmarks medidos en CI) y firma del Tech Lead (Guillermo Martín Marco); CI verde en `windows-latest` y `ubuntu-latest`. La calibración y su test (`b138140`, `ba21e47`) entran por el PR siguiente (CI #16 verde con el control de regresión activo).
+
+## Fase 9: Migración a ta-lib 0.8.3 (TA-Lib C 0.8.3)
+
+> Cambio de fórmula: TA-Lib C 0.8.3 devuelve `RSI` = 50 (no 0) cuando G + L = 0. TA-Lib es el oráculo de paridad (RF-2, plan §3.11), así que el kernel lo adopta. Coordinado con `specs/ft_ta_lib` Fase 8.
+
+- [x] **T9.1**: Spec: RF-2 (`rsi`: G+L = 0 ⇒ 50), plan §3.10/§3.11 (pack `oracle/v2`, `ENGINE_VERSION = 2`) y pin `ta-lib>=0.8.3,<0.8.4`
+  - **Hecho cuando**: `spec.md`/`plan.md` describen la regla con su condición exacta («G+L = 0 exactamente»; serie plana tras movimiento conserva el último RSI) y el versionado del motor y del pack.
+- [x] **T9.2**: Kernel `rsi` y descripción del oráculo (`flat`: «RSI = 50»); `ENGINE_VERSION` 1 → 2
+  - **Hecho cuando**: los 2 tests `rsi-flat` de `test_talib_parity.py` pasan en RED→GREEN; `test_flat_series_rsi_and_adx_are_zero` pasa a afirmar RSI = 50 y ADX = 0; un test fija que una serie plana tras movimiento conserva el RSI de TA-Lib; el catálogo informa `engine_version` 2.
+- [x] **T9.3**: Pack del oráculo `fixtures/oracle/v1` → `v2` regenerado con `scripts/export_oracle_fixtures.py` (política: un cambio de fórmula se versiona, plan §3.10)
+  - **Hecho cuando**: `test_oracle.py` apunta a `v2` y pasa (regeneración == versionado); solo cambian los valores de `rsi_14` donde G+L = 0 (caso `flat`); `git diff --stat` entre v1 y v2 lo demuestra; `v1` se elimina porque ningún consumidor lo referencia aún (plan §5: futura spec GPU).
+
+  - **Hecho** (2026-11-02): RED = `test_kernel_float64_matches_talib[rsi-flat]` y `test_persisted_float32_within_tolerance_table[rsi-flat]` (kernel 0.0 vs TA-Lib 50.0); GREEN con `pl.when(total == 0).then(50.0)`. `ENGINE_VERSION = 2`; pack `oracle/v2` regenerado: solo cambian `flat/rsi_14` y `manifest.json` (`pack_version`, `engine_versions`, descripción del caso); el resto de archivos se conserva byte a byte de v1 (la regeneración solo difería en ruido de último bit de `bb`/`stoch`/`vwap`, tolerado por el test, plan §3.10). Test nuevo: serie plana tras movimiento conserva el RSI (65,789…).

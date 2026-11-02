@@ -164,8 +164,8 @@ def test_plan_and_catalog_examples_validate() -> None:
         update={"function": "MAVP", "supported": False, "unsupported_reason": "unavailable_input"}
     )
     catalog = TaLibCatalog(
-        talib_version="0.8.2",
-        ta_lib_c_version="0.8.1",
+        talib_version="0.8.3",
+        ta_lib_c_version="0.8.3",
         groups={"Overlap Studies": ["BBANDS", "MAVP"]},
         functions=[entry, mavp],
     )
@@ -249,5 +249,7 @@ def test_ma_type_names_are_identifiers_in_talib_order() -> None:
         "mama",
         "t3",
     )
+    assert MA_TYPE_NAMES[9:] == ("hma", "disabled", "default", "zlema", "rma", "vidya", "alma")
+    assert len(MA_TYPE_NAMES) == 16
     assert len(set(MA_TYPE_NAMES)) == len(MA_TYPE_NAMES)
     assert all(format_param(n) == n for n in MA_TYPE_NAMES)

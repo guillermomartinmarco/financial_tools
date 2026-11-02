@@ -138,7 +138,23 @@ def test_ta_bad_param_reports_talib_message(function: str, params: dict[str, obj
         _resolve(function, params=params)
 
 
-@pytest.mark.parametrize("value", ["foo", 14, -1])
+@pytest.mark.parametrize(("name", "number"), [("vidya", 14), ("alma", 15)])
+def test_ta_lib_0_8_3_ma_types_resolve_by_name_and_integer(name: str, number: int) -> None:
+    """RF-4: ``vidya`` (14) y ``alma`` (15) nuevos en TA-Lib C 0.8.3."""
+    by_name = _resolve("bbands", params={"matype": name})
+    by_int = _resolve("bbands", params={"matype": number})
+    assert by_name.params["matype"] == number
+    assert by_name.series_id == by_int.series_id
+    assert by_name.spec().params["matype"] == name
+
+
+def test_invalid_matype_lists_all_sixteen_names() -> None:
+    with pytest.raises(TaLibValidationError, match="vidya") as info:
+        _resolve("bbands", params={"matype": 16})
+    assert "alma" in str(info.value)
+
+
+@pytest.mark.parametrize("value", ["foo", 16, -1])
 def test_invalid_matype(value: object) -> None:
     with pytest.raises(TaLibValidationError, match="matype"):
         _resolve("bbands", params={"matype": value})

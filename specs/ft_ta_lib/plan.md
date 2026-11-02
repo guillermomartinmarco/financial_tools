@@ -10,7 +10,7 @@ Se reutilizan los contratos genéricos de `finances_core.schemas.indicators` (de
 ```python
 TaLibOutputKind = Literal["real", "pattern", "category", "index"]
 MA_TYPE_NAMES = ("sma", "ema", "wma", "dema", "tema", "trima", "kama", "mama", "t3",
-                 "hma", "disabled", "default", "zlema", "rma")   # == talib.MA_Type 0..13 (TA-Lib C 0.8.1)
+                 "hma", "disabled", "default", "zlema", "rma", "vidya", "alma")   # == talib.MA_Type 0..15 (TA-Lib C 0.8.3)
 
 class TaLibSpec(BaseModel):
     function: str                                  # nombre TA-Lib, sin distinción de mayúsculas (normalizado a MAYÚSCULAS)
@@ -20,7 +20,7 @@ class TaLibSpec(BaseModel):
 class TaLibComputeRequest(BaseModel):
     datasets: list[DatasetIdentifier] = Field(min_length=1, max_length=100)
     functions: list[TaLibSpec] = []
-    groups: list[str] = []                         # al menos uno de functions/groups; ≤ 200 tras expandir
+    groups: list[str] = []                         # al menos uno de functions/groups; ≤ MAX_FUNCTIONS (256) tras expandir
 
 class TaLibPlanItem(BaseModel):
     dataset: DatasetIdentifier
@@ -60,8 +60,8 @@ class TaLibCatalogEntry(BaseModel):                # GET /catalog
     unsupported_reason: Literal["unavailable_input", "non_causal"] | None = None
 
 class TaLibCatalog(BaseModel):
-    talib_version: str                             # wrapper, p. ej. "0.8.2"
-    ta_lib_c_version: str                          # p. ej. "0.8.1"
+    talib_version: str                             # wrapper, p. ej. "0.8.3"
+    ta_lib_c_version: str                          # p. ej. "0.8.3"
     groups: dict[str, list[str]]
     functions: list[TaLibCatalogEntry]
 ```
@@ -71,6 +71,8 @@ class TaLibCatalog(BaseModel):
 > `rma` (13) por defecto; `MA_TYPE_NAMES` los replica todos (posición = entero) y un test de `ft_ta_lib`
 > verifica que coincide con la versión instalada. RF-4 ("0–8") queda ampliado a 0–13. El catálogo
 > de esta versión tiene **201** funciones (no ≈158) y 200 soportadas (todas salvo `MAVP`).
+>
+> **Deriva 2 (migración a ta-lib 0.8.3, 2026-11-02, Fase 8)**: TA-Lib C 0.8.3 publica **237** funciones (236 soportadas) y **16** tipos de media (`vidya` = 14, `alma` = 15 añadidos); `MA_TYPE_NAMES` los replica, RF-4 pasa a 0–15, `MAX_FUNCTIONS` pasa de 200 a **256** (RF-19) y `RSI` sobre serie plana pasa de 0 a 50 (decisión en `specs/ft_indicators`). La dependencia se fija a `ta-lib>=0.8.3,<0.8.4` y un test (`test_talib_version_guard.py`) falla con un mensaje claro si la versión instalada difiere.
 
 ### 1.2 Configuración
 Sin variables nuevas: `INDICATORS_DIR`, `INDICATORS_MAX_CONCURRENT`, `PARQUET_DIR`, `SHARE_DIR`, `TASKS_DB_PATH`.
@@ -117,7 +119,7 @@ comprueba datasets y bloqueos, crea la tarea `PENDING` y despacha con `finances_
   lee `talib.abstract.Function(name).info` (`group`, `display_name`, `function_flags`, `input_names`, `parameters`,
   `output_names`, `output_flags`) y `Function(name).lookback` con defaults.
 - **Tipo de parámetro**: `matype` si el nombre termina en `matype`; si no, por el tipo del default (`int`/`float`).
-  **Rango**: ta-lib 0.8.2 **no** expone el rango de `TA_GetOptInputParameterInfo` (su
+  **Rango**: ta-lib 0.8.2/0.8.3 **no** exponen el rango de `TA_GetOptInputParameterInfo` (su
   `_ta_getOptInputParameterInfo` privado solo devuelve nombre, tipo, ayuda y default; verificado en T2.2), así que
   `min`/`max` son `None` y la validación de rango recae en la ejecución de prueba (`TA_BAD_PARAM`, *lookback* `-1`).
 - **Tipo de salida** (`TaLibOutputKind`): salida `double` → `real`; entera en el grupo *Pattern Recognition* →
@@ -210,7 +212,7 @@ packages/finances-api/tests/test_cross_validation_indicators.py   # RF-18
 ```
 
 ## 5. Dependencias
-- `finances-analytics`: `ta-lib>=0.8.2,<0.9` pasa de `[dev]` a **runtime** (ruedas binarias cp312 Windows/manylinux
+- `finances-analytics`: `ta-lib>=0.8.3,<0.8.4` (antes `>=0.8.2,<0.9`; ver RF-19) pasa de `[dev]` a **runtime** (ruedas binarias cp312 Windows/manylinux
   x86_64); `numpy` explícito (frontera de `engine.py`). Script `ft_ta_lib = "finances_analytics.ft_ta_lib.cli:app"`.
   mypy: override `talib.*` (`ignore_missing_imports` + `follow_imports = "skip"`: sin stubs, se trata como `Any`).
 - `ft_indicators` sigue sin importar `talib` (su test AST se mantiene); solo `ft_ta_lib/engine.py` y

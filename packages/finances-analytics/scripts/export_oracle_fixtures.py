@@ -2,7 +2,7 @@
 
 Uso (desde la raíz del repositorio)::
 
-    python packages/finances-analytics/scripts/export_oracle_fixtures.py [--version v1] [--out DIR]
+    python packages/finances-analytics/scripts/export_oracle_fixtures.py [--version v2] [--out DIR]
 
 Por defecto escribe en ``packages/finances-analytics/tests/ft_indicators/fixtures/oracle/``.
 El commit generador (``git describe --always --dirty``) queda en ``manifest.json``.
@@ -42,7 +42,7 @@ def _commit() -> str:
 def main(argv: list[str] | None = None) -> int:
     """Punto de entrada: genera el paquete y escribe su ruta en stdout."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--version", default="v1", help="versión del paquete (subdirectorio)")
+    parser.add_argument("--version", default="v2", help="versión del paquete (subdirectorio)")
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT, help="directorio base")
     args = parser.parse_args(argv)
     root = export_oracle_pack(args.out, args.version, commit=_commit())
