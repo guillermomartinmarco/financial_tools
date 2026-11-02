@@ -143,3 +143,13 @@ def test_summary_list_and_diff_roundtrip() -> None:
     assert StrategyListResponse.model_validate_json(listing.model_dump_json()) == listing
     diff = DiffResult(from_version=1, to_version=2, added={}, removed={}, changed={"a": (1, 2)})
     assert diff.model_dump(mode="json")["changed"] == {"a": [1, 2]}
+
+
+# ------------------------------------------------- Deriva 10
+def test_update_accepts_metadata_only_but_rejects_empty_payload() -> None:
+    assert StrategyUpdate(description="x").parameters is None
+    assert StrategyUpdate(tags=[]).tags == []
+    with pytest.raises(ValueError, match="Must provide"):
+        StrategyUpdate()
+    with pytest.raises(ValueError, match="not both"):
+        StrategyUpdate(parameters={}, parameters_patch=[])

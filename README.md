@@ -132,7 +132,8 @@ ft_strategy_manager list --tag fx --name mean                        # filtros t
 ft_strategy_manager get <strategy_id>                                # última versión; --version 1, --format json|yaml
 echo '[{"op": "replace", "path": "/fast", "value": 8}]' > patch.json
 ft_strategy_manager update <strategy_id> --patch patch.json          # nueva versión (JSON Patch RFC 6902); o --params completo
-ft_strategy_manager diff <strategy_id> --from v1 --to v2             # added/removed/changed
+ft_strategy_manager update <strategy_id> --desc "nueva" --tag fx     # solo metadatos: también crea versión (snapshot de description/tags)
+ft_strategy_manager diff <strategy_id> --from v1 --to v2             # added/removed/changed + metadatos
 ft_strategy_manager versions <strategy_id>                           # historial inmutable
 ft_strategy_manager export <strategy_id> --format yaml -o strategy.yaml  # estrategia + todas las versiones
 ft_strategy_manager delete <strategy_id>                             # soft-delete (idempotente); --purge pide confirmación (--force la omite)

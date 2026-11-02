@@ -433,3 +433,80 @@ def test_service_recreates_database_deleted_between_calls(tmp_path: Path) -> Non
     for suffix in ("", "-wal", "-shm"):
         Path(str(path) + suffix).unlink(missing_ok=True)
     assert service.list_strategies(StrategyListFilters()).total_count == 0
+
+
+# ------------------------------------------------- Deriva 10: snapshot de metadatos
+def test_create_snapshots_metadata_in_v1() -> None:
+    created = service.create_strategy(
+        StrategyCreate(name="alpha", parameters={"a": 1}, description="d1", tags=["x"])
+    )
+    assert (created.description, created.tags) == ("d1", ["x"])
+    assert service.get_strategy(created.strategy_id).versions == [created]
+
+
+def test_update_metadata_only_creates_new_version_keeping_parameters() -> None:
+    strategy_id = _create("alpha", description="old", tags=["a"])
+    v1 = service.get_strategy(strategy_id).versions[0]
+    v2 = service.update_strategy(strategy_id, StrategyUpdate(description="new"), user="ana")
+    assert v2.version == 2
+    assert v2.parameters == v1.parameters
+    assert v2.hash == v1.hash  # el hash es solo de parámetros (RF-1)
+    assert (v2.description, v2.tags) == ("new", ["a"])  # tags heredados
+    versions = service.get_strategy(strategy_id).versions
+    assert versions[0] == v1  # v1 conserva su snapshot original
+    assert versions[0].description == "old"
+
+
+def test_update_tags_only_creates_new_version() -> None:
+    strategy_id = _create("alpha", description="d", tags=["a"])
+    v2 = service.update_strategy(strategy_id, StrategyUpdate(tags=["b", "c"]))
+    assert (v2.version, v2.description, v2.tags) == (2, "d", ["b", "c"])
+    strategy = service.get_strategy(strategy_id)
+    assert (strategy.description, strategy.tags) == ("d", ["b", "c"])
+
+
+def test_update_inherits_metadata_when_only_parameters_change() -> None:
+    strategy_id = _create("alpha", description="d", tags=["a"])
+    v2 = service.update_strategy(strategy_id, StrategyUpdate(parameters={"window": 2}))
+    assert (v2.description, v2.tags) == ("d", ["a"])
+
+
+def test_update_with_same_parameters_and_same_metadata_is_rejected() -> None:
+    strategy_id = _create("alpha", description="d", tags=["a"])
+    with pytest.raises(NoChangesError, match="No changes detected"):
+        service.update_strategy(strategy_id, StrategyUpdate(description="d", tags=["a"]))
+    with pytest.raises(NoChangesError, match="No changes detected"):
+        service.update_strategy(
+            strategy_id, StrategyUpdate(parameters={"window": 10, "mode": "a"}, tags=["a"])
+        )
+    assert len(service.get_strategy(strategy_id).versions) == 1
+
+
+def test_update_metadata_change_logs_audit_with_same_hash() -> None:
+    strategy_id = _create("alpha", description="old")
+    with capture_logs() as logs:
+        service.update_strategy(strategy_id, StrategyUpdate(description="new"))
+    event = next(e for e in logs if e["event"] == "strategy_audit" and e["action"] == "update")
+    assert event["hash_before"] == event["hash_after"]
+    assert event["diff_summary"]["metadata_changed"] == {
+        "description": ["old", "new"]  # mask_secrets convierte tuplas en listas
+    }
+
+
+def test_diff_reports_metadata_changes() -> None:
+    strategy_id = _create("alpha", description="old", tags=["a"])
+    service.update_strategy(strategy_id, StrategyUpdate(description="new", tags=["a", "b"]))
+    result = service.diff_versions(strategy_id, 1, 2)
+    assert (result.added, result.removed, result.changed) == ({}, {}, {})
+    assert result.metadata_changed == {
+        "description": ("old", "new"),
+        "tags": (["a"], ["a", "b"]),
+    }
+    assert service.diff_versions(strategy_id, 1, 1).metadata_changed == {}
+
+
+def test_export_includes_version_snapshots() -> None:
+    strategy_id = _create("alpha", description="d", tags=["a"])
+    service.update_strategy(strategy_id, StrategyUpdate(tags=["b"]))
+    document = json.loads(service.export_strategy(strategy_id))
+    assert [v["tags"] for v in document["strategy"]["versions"]] == [["a"], ["b"]]

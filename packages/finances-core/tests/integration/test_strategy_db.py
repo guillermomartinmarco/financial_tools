@@ -83,6 +83,8 @@ def test_init_db_creates_schema_indexes_and_wal(db_path: Path) -> None:
         "hash",
         "created_at_ms",
         "created_by",
+        "description",
+        "tags",
     }
 
 
@@ -316,3 +318,75 @@ def test_resolve_db_path_env_override(monkeypatch: pytest.MonkeyPatch, tmp_path:
     absolute = tmp_path / "abs" / "s.db"
     monkeypatch.setenv(db.DB_PATH_ENV, str(absolute))
     assert db.resolve_db_path() == absolute
+
+
+# ------------------------------------------------- Deriva 10: migración de esquema
+_LEGACY_SCHEMA = """
+CREATE TABLE strategies (
+    id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, description TEXT, parameter_schema TEXT,
+    tags TEXT NOT NULL DEFAULT '[]', created_at_ms INTEGER NOT NULL, deleted_at_ms INTEGER
+);
+CREATE TABLE strategy_versions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, strategy_id TEXT NOT NULL, version INTEGER NOT NULL,
+    parameters_json TEXT NOT NULL, hash TEXT NOT NULL, created_at_ms INTEGER NOT NULL,
+    created_by TEXT,
+    FOREIGN KEY (strategy_id) REFERENCES strategies(id) ON DELETE CASCADE,
+    UNIQUE(strategy_id, version)
+);
+"""
+
+
+def _legacy_db(path: Path) -> None:
+    conn = sqlite3.connect(path)
+    try:
+        conn.executescript(_LEGACY_SCHEMA)
+        conn.execute(
+            "INSERT INTO strategies VALUES ('s1', 'alpha', 'cur', NULL, '[\"t\"]', 1, NULL)"
+        )
+        for number in (1, 2):
+            conn.execute(
+                "INSERT INTO strategy_versions (strategy_id, version, parameters_json, hash,"
+                " created_at_ms, created_by) VALUES ('s1', ?, ?, ?, ?, 'u')",
+                (number, f'{{"n": {number}}}', f"{number:064x}", number + 1),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def test_init_db_migrates_legacy_versions_table(tmp_path: Path) -> None:
+    path = tmp_path / "legacy.db"
+    _legacy_db(path)
+    db.init_db(path)
+    db.init_db(path)  # idempotente
+    with db.get_connection(path) as conn:
+        columns = {r["name"] for r in db.fetch_all(conn, "PRAGMA table_info(strategy_versions)")}
+        v1 = db.get_version(conn, "s1", 1)
+        v2 = db.get_version(conn, "s1", 2)
+    assert {"description", "tags"} <= columns
+    assert v1 is not None
+    assert v2 is not None
+    # Las versiones previas no tienen snapshot; la última toma los metadatos vigentes.
+    assert (v1.description, v1.tags) == (None, None)
+    assert (v2.description, v2.tags) == ("cur", ["t"])
+    # Parámetros, hashes y autor no se tocan.
+    assert (v1.parameters, v1.hash, v1.created_by) == ({"n": 1}, f"{1:064x}", "u")
+    assert (v2.parameters, v2.hash) == ({"n": 2}, f"{2:064x}")
+
+
+def test_create_version_row_stores_snapshot(db_path: Path) -> None:
+    _make_strategy(db_path, "s1", "alpha")
+    with db.get_connection(db_path, write=True) as conn:
+        stored = db.create_version_row(
+            conn,
+            strategy_id="s1",
+            version=2,
+            parameters={"n": 2},
+            hash_=HASH,
+            created_at_ms=9,
+            created_by=None,
+            description="d",
+            tags=["a", "b"],
+        )
+        assert db.get_version(conn, "s1", 2) == stored
+    assert (stored.description, stored.tags) == ("d", ["a", "b"])

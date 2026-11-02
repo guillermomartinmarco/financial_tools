@@ -263,6 +263,7 @@ async def test_diff_endpoint() -> None:
         "added": {"added": "x"},
         "removed": {"gone": True},
         "changed": {"a": [1, 2]},
+        "metadata_changed": {},
     }
     assert backwards.json()["changed"] == {"a": [2, 1]}
     assert missing.status_code == 404
@@ -288,3 +289,18 @@ async def test_export_json_and_yaml_as_attachment() -> None:
     assert yaml.safe_load(as_yaml.content)["strategy"]["description"] == "d"
     assert bad_format.status_code == 422
     assert ghost.status_code == 404
+
+
+# ------------------------------------------------- Deriva 10: snapshot de metadatos
+async def test_put_metadata_only_creates_version_and_diff_reports_it() -> None:
+    async with _client() as client:
+        sid = (await _create(client, description="old", tags=["a"]))["strategy_id"]
+        updated = await client.put(f"/strategies/{sid}", json={"tags": ["a", "b"]})
+        unchanged = await client.put(f"/strategies/{sid}", json={"tags": ["a", "b"]})
+        diff = await client.get(f"/strategies/{sid}/diff", params={"from": 1, "to": 2})
+    assert updated.status_code == 200
+    assert updated.json()["version"] == 2
+    assert updated.json()["parameters"] == {"window": 10, "mode": "a"}
+    assert (updated.json()["description"], updated.json()["tags"]) == ("old", ["a", "b"])
+    assert unchanged.status_code == 400
+    assert diff.json()["metadata_changed"] == {"tags": [["a"], ["a", "b"]]}
