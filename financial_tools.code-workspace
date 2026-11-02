@@ -5,6 +5,12 @@
 		}
 	],
 	"settings": {
-		"cSpell.enabled": false
+		"cSpell.enabled": false,
+		"workbench.editorAssociations": {
+			"*.copilotmd": "vscode.markdown.preview.editor",
+			"{git,gitlens,conflictResolution,vscode-local-history}:/**/*.tc.json": "default",
+			"{git,gitlens,conflictResolution,vscode-local-history}:/**/*.{asl.json,asl.yaml,asl.yml}": "default",
+			"file:/**/*.parquet": "jupyter-data-wrangler"
+		}
 	}
 }
