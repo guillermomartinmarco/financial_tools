@@ -170,7 +170,6 @@ FT_SHARE_DIR: pathlib.Path = pathlib.Path("./share")
 | **WebSockets / Datos en tiempo real** | **Fuera de alcance MVP**. Solo OHLCV histórico. RFC futuro `ft_market_data_binance_ws`. |
 | **Funding rates, open interest, liquidations** | **Fuera de alcance MVP**. Solo klines/OHLCV. |
 | **Otros formatos (CSV, HDF5, Zarr)** | **Fuera de alcance MVP**. Solo Parquet particionado. |
-| **Merge multi-exchange** | **Fuera de alcance**. Pertenece a `ft_market_data_manager`. |
 | **Indicadores técnicos** | **Fuera de alcance**. Pertenece a `ft_vectorbt` / `ft_ffn`. |
 | **Trading / Órdenes firmadas** | **Fuera de alcance**. Solo datos públicos. |
 | **Símbolos apalancados / Opciones** | **Fuera de alcance MVP**. Solo Spot y USDⓈ-M Futures lineales. |

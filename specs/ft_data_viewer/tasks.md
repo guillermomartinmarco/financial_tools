@@ -149,3 +149,14 @@
 - [x] **T9.1**: `market_type` ampliado (`spot`, `futures`, `equity`, `etf`, `index`, `fx`, `crypto`, `future`, `fund`, `other`) y árboles sin layout de velas ignorados
   - **Hecho cuando**: `list`/`summary` funcionan sobre `yfinance/market_type=equity/symbol=AAPL/timeframe=1d` y `yfinance_events/` no aparece ni genera warnings.
   - **Hecho**: `packages/finances-downloader/tests/ft_data_viewer/test_yfinance_datasets.py` (7 tests) en verde; ayuda `--market` y descripción de la ruta generadas desde `MARKET_TYPES`; `tests/ft_data_viewer` → `187 passed` (ver `specs/ft_market_data_yfinance/tasks.md` T5.1).
+
+## Fase 10: Lectura de velas por rango para clientes (RF-10, Deriva 10)
+
+- [ ] **T10.1**: `service.get_candles` + `CandlesPage` en `finances_core/schemas/data_viewer.py`: rango inclusivo, proyección de columnas, orden ascendente, `limit` y cursor `after_ms`, con `scan_parquet` lazy
+  - **Hecho cuando**: tests unitarios con dataset temporal: rango, `limit` + `next_after_ms` (recorrer todas las páginas reproduce el dataset sin repetir ni perder filas), cursor tras agregar datos al final, rango vacío → `items: []`, `start_ms > end_ms` y columnas desconocidas → error de argumentos, dataset inexistente → 404.
+
+- [ ] **T10.2**: `GET /data/datasets/{...}/candles` en `api.py` y comando `candles` en la CLI (`--start-ms`, `--end-ms`, `--cols`, `--limit`, `--after-ms`, `--format table|json`)
+  - **Hecho cuando**: tests de integración API (`httpx.AsyncClient`) y CLI; 400/404 y exit 2/1 según RF-10; límite máximo (`limit=10001` → 422).
+
+- [ ] **T10.3**: Contrato CLI ↔ API y documentación: el mismo input devuelve el mismo resultado; README y `specs/finances_api` actualizados
+  - **Hecho cuando**: `pytest packages/finances-downloader/tests/ft_data_viewer -v` y `pytest packages/finances-api -v` pasan; cobertura del viewer ≥ 90%; ruff + `mypy --strict src` limpios.

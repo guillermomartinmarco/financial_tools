@@ -75,13 +75,24 @@
 - `FT_DATA_VIEWER_SAMPLE_MAX_ROWS` (default 10000, para limitar sampling en datasets grandes).
 - `FT_DATA_VIEWER_GAP_THRESHOLD_MS` (default 0, umbral para reportar gaps).
 
+### RF-10 — Lectura de Velas por Rango para Aplicaciones Cliente (Ubícuo)
+**EL SISTEMA DEBE** proveer una operación `candles` (CLI) / `GET /data/datasets/{exchange}/{market_type}/{symbol}/{timeframe}/candles` (API) que devuelva velas de un dataset dentro de un rango, paginadas:
+- Parámetros: `start_ms` y `end_ms` (ambos inclusivos y opcionales, sobre `open_time_ms`), `columns` (proyección; por defecto todas), `limit` (por defecto 1000, máximo 10000) y `after_ms` (cursor).
+- Devuelve las filas ordenadas por `open_time_ms` ascendente. **SI** se indica `after_ms`, **ENTONCES** solo devuelve filas con `open_time_ms > after_ms` (paginación por cursor, estable aunque se agreguen datos al final).
+- Respuesta: `items` (lista de filas), `count` y `next_after_ms` (el `open_time_ms` de la última fila devuelta si hay más filas dentro del rango; `null` si es la última página).
+- **SI** el rango no contiene filas, **ENTONCES** responde `items: []` y `next_after_ms: null` (es una consulta de lectura: no es error, a diferencia de `export`, RF-6).
+- **SI** `start_ms > end_ms` o hay columnas desconocidas, **ENTONCES** error 400 / CLI exit 2. **SI** el dataset no existe, **ENTONCES** 404 / CLI exit 1.
+- Lee con `scan_parquet` lazy, con filtro y proyección; nunca carga el dataset completo.
+- La CLI (`ft_data_viewer candles`) acepta las mismas opciones (`--start-ms`, `--end-ms`, `--cols`, `--limit`, `--after-ms`) y `--format table|json` (Art. 1).
+- Para volcar un rango completo a un archivo se usa `export` (RF-6); `candles` sirve consultas paginadas de aplicaciones cliente.
+
 ---
 
 ## Casos Límite y Fuera de Alcance (No-Go)
 
 | Tema | Decisión |
 |------|----------|
-| **Modificación de datos** (llenar gaps, corregir outliers, deduplicar) | **Fuera de alcance MVP**. Solo lectura y diagnóstico. RFC futuro para `ft_data_cleaner`. |
+| **Modificación de datos** (llenar gaps, corregir outliers, deduplicar) | **Fuera de alcance MVP**. Solo lectura y diagnóstico. La modificación (deduplicar, compactar, borrar) pertenece a `ft_market_data_manager`; rellenar gaps queda fuera de ambos (requiere descargar). |
 | **Visualización gráfica** (charts, candlestick plots) | **Fuera de alcance MVP**. Solo tablas y estadísticas. Exportar a CSV/Parquet para herramientas externas. |
 | **Soporte para formatos no-Parquet** (CSV, HDF5, Zarr, DuckDB) | **Fuera de alcance MVP**. Solo Parquet particionado Hive. |
 | **Aggregación/resampling de timeframes** (1m → 5m, 1h → 4h) | **Fuera de alcance MVP**. Pertenece a `ft_data_transformer` o motores de backtesting. |

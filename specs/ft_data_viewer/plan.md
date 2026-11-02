@@ -299,9 +299,21 @@ async def export_data(
     request: ExportRequest,
 ) -> StreamingResponse: ...
 
+@router.get("/datasets/{exchange}/{market_type}/{symbol}/{timeframe}/candles", response_model=CandlesPage)
+async def get_candles(
+    exchange: str, market_type: str, symbol: str, timeframe: str,
+    start_ms: Optional[int] = None,
+    end_ms: Optional[int] = None,
+    columns: Optional[str] = None,                 # coma-separadas, como /rows
+    limit: int = Query(1000, ge=1, le=10000),
+    after_ms: Optional[int] = None,                # cursor: open_time_ms > after_ms
+) -> CandlesPage: ...
+
 @router.post("/compare", response_model=CompareResult)
 async def compare_datasets(request: CompareRequest) -> CompareResult: ...
 ```
+
+> **Deriva 10 (RF-10)**: `CandlesPage` (`finances_core/schemas/data_viewer.py`) = `{items: list[dict[str, Any]], count: int, next_after_ms: int | None}`. Algoritmo: `lf = _filter_range(scan_dataset(path), start_ms, end_ms)`; si `after_ms`, `filter(open_time_ms > after_ms)`; `sort(open_time_ms)`; `head(limit + 1)` para saber si hay más; `next_after_ms` = `open_time_ms` de la última fila devuelta cuando hay una fila extra. Reutiliza `_filter_range`, la validación de columnas de `/rows` y el mapeo de errores existente. CLI: `ft_data_viewer candles <exchange> <market_type> <symbol> <timeframe> [--start-ms] [--end-ms] [--cols] [--limit] [--after-ms] [--format table|json]`. Los límites (`limit` máx. 10000) son constantes del módulo, sin variables `FT_` nuevas (los mismos 10000 que `/rows`).
 
 ---
 
@@ -328,7 +340,7 @@ packages/finances-downloader/
 ├── src/finances_downloader/ft_data_viewer/
 │   ├── __init__.py
 │   ├── cli.py              # Typer app (9 comandos)
-│   ├── api.py              # FastAPI router (7 endpoints)
+│   ├── api.py              # FastAPI router (8 endpoints)
 │   ├── service.py          # Orquestador compartido
 │   ├── scanner.py          # scan_parquet_partitions, metadata
 │   ├── analyzer.py         # gaps, anomalies, stats
