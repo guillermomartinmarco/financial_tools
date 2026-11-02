@@ -53,8 +53,9 @@ TaLibStabilityRule = Literal["first_non_null", "unstable_period_unknown"]
 TaLibUnsupportedReason = Literal["unavailable_input", "non_causal"]
 
 #: Nombres de los tipos de media móvil; la posición es el entero de ``talib.MA_Type``.
-#: TA-Lib C 0.8.1 publica 14 tipos (0–13): los 9 clásicos (``sma``…``t3``) más ``hma``,
-#: ``disabled`` (identidad), ``default`` (el de la propia función), ``zlema`` y ``rma``.
+#: TA-Lib C 0.8.3 publica 16 tipos (0–15): los 9 clásicos (``sma``…``t3``) más ``hma``,
+#: ``disabled`` (identidad), ``default`` (el de la propia función), ``zlema``, ``rma``,
+#: ``vidya`` y ``alma`` (estos dos nuevos en 0.8.3; C 0.8.1 publicaba 14, 0–13).
 MA_TYPE_NAMES: tuple[str, ...] = (
     "sma",
     "ema",
@@ -70,6 +71,8 @@ MA_TYPE_NAMES: tuple[str, ...] = (
     "default",
     "zlema",
     "rma",
+    "vidya",
+    "alma",
 )
 
 _FUNCTION_RE = re.compile(r"^[A-Z_][A-Z0-9_]*$")
@@ -153,7 +156,7 @@ class TaLibCatalogEntry(BaseModel):
 
 
 class TaLibCatalog(BaseModel):
-    talib_version: str  # wrapper, p. ej. "0.8.2"
-    ta_lib_c_version: str  # p. ej. "0.8.1"
+    talib_version: str  # wrapper, p. ej. "0.8.3"
+    ta_lib_c_version: str  # p. ej. "0.8.3"
     groups: dict[str, list[str]]
     functions: list[TaLibCatalogEntry]

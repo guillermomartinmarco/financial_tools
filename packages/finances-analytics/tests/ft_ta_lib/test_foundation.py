@@ -40,13 +40,13 @@ def test_store_accepts_talib_ids_and_rejects_the_rest(
 
 
 def test_talib_is_a_runtime_dependency_with_numpy() -> None:
-    """T0.1: ``ta-lib>=0.8.2,<0.9`` y ``numpy`` en *runtime*; sin pandas ni descargadores."""
+    """T0.1/T8.2: ``ta-lib>=0.8.3,<0.8.4`` (RF-19) y ``numpy`` en *runtime*; sin pandas."""
     requires = importlib.metadata.requires("finances-analytics") or []
     runtime = [r.split(";")[0].strip().lower() for r in requires if "extra ==" not in r]
     talib = [r for r in runtime if r.startswith("ta-lib")]
     assert len(talib) == 1
-    assert ">=0.8.2" in talib[0]
-    assert "<0.9" in talib[0]
+    assert ">=0.8.3" in talib[0]
+    assert "<0.8.4" in talib[0]
     assert any(r.startswith("numpy") for r in runtime)
     assert not any(r.startswith(("finances-downloader", "pandas")) for r in runtime)
 

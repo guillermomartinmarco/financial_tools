@@ -4,7 +4,7 @@
 
 `ft_indicators` ofrece 12 indicadores propios en Polars, validados y con rol de oráculo. Muchos análisis necesitan
 además el resto del catálogo: 237 funciones en TA-Lib C 0.8.3 (≈158 en el catálogo clásico; 201 en C 0.8.1) (medias KAMA/T3/MAMA/VIDYA/ALMA, transformadas de Hilbert,
-estadísticas, operadores matemáticos, indicadores añadidos en 0.8.3 como `ICHIMOKU`, `SUPERTREND` o `ZIGZAG`, y 61 patrones de velas). `pip install ta-lib` instala hoy ruedas binarias
+estadísticas, operadores matemáticos, indicadores añadidos desde C 0.8.1 (p. ej. `ICHIMOKU`, `SUPERTREND`, `ZIGZAG`, presentes en el catálogo 0.8.3) y 61 patrones de velas). `pip install ta-lib` instala hoy ruedas binarias
 (ta-lib 0.8.3, TA-Lib C 0.8.3) para Windows y manylinux x86_64 (cp312), y `talib.abstract` /
 `talib.get_function_groups()` describen el catálogo completo. `ft_ta_lib` es una envoltura delgada sobre **todo** ese
 catálogo con **el mismo contrato de datos** que `ft_indicators`: lee los datasets Hive de los descargadores, alinea

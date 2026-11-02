@@ -5,7 +5,7 @@ Se construye **en tiempo de ejecución** desde ``talib.get_function_groups()`` y
 de una versión de TA-Lib aparece sin cambios de código.
 
 - **Tipo de parámetro**: ``matype`` si el nombre termina en ``matype``; si no, por el tipo
-  del default (``int``/``float``). **Rango**: ta-lib 0.8.2 no expone el rango de
+  del default (``int``/``float``). **Rango**: ta-lib 0.8.2/0.8.3 no exponen el rango de
   ``TA_GetOptInputParameterInfo`` (su ``_ta_getOptInputParameterInfo`` privado solo devuelve
   nombre, tipo, ayuda y default), así que ``min``/``max`` son ``None`` y la validación recae
   en la ejecución de prueba (``resolver.probe``, ``TA_BAD_PARAM``).
@@ -51,8 +51,9 @@ from .model import (
 PATTERN_GROUP = "Pattern Recognition"
 #: Funciones cuya salida entera es la posición de una fila (RF-7) → ``open_time_ms``.
 INDEX_FUNCTIONS = frozenset({"MAXINDEX", "MININDEX", "MINMAXINDEX"})
-#: Funciones que fallan la propiedad *sin anticipación* (T3.2). Ninguna con ta-lib 0.8.2 /
-#: TA-Lib C 0.8.1: ``test_properties.py`` recorre todo el catálogo soportado y lo documenta.
+#: Funciones que fallan la propiedad *sin anticipación* (T3.2). Ninguna con ta-lib 0.8.3 /
+#: TA-Lib C 0.8.3 (237 funciones): ``test_properties.py`` recorre todo el catálogo soportado
+#: y lo documenta.
 NON_CAUSAL: frozenset[str] = frozenset()
 
 _KIND_DTYPE: dict[TaLibOutputKind, ColumnDtype] = {
@@ -76,7 +77,7 @@ __all__ = [
 
 
 def c_version(lib: Any = talib) -> str:
-    """Versión de TA-Lib C (p. ej. ``"0.8.1"`` de ``b"0.8.1 (Oct 12 2026 …)"``)."""
+    """Versión de TA-Lib C (p. ej. ``"0.8.3"`` de ``b"0.8.3 (Oct 28 2026 …)"``)."""
     raw = lib.__ta_version__
     text = raw.decode() if isinstance(raw, bytes) else str(raw)
     return text.split()[0]

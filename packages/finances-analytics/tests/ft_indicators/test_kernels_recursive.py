@@ -162,10 +162,11 @@ def test_first_non_null_row_is_warmup_index(
     assert all(dtype == pl.Float64 for dtype in out.schema.values())
 
 
-def test_flat_series_rsi_and_adx_are_zero() -> None:
+def test_flat_series_rsi_is_fifty_and_adx_is_zero() -> None:
+    """RF-2 (Fase 9): G+L = 0 => RSI 50 (TA-Lib C >= 0.8.3); ADX plano sigue en 0."""
     flat = ohlcv_frame({c: [50.0] * 60 for c in ("high", "low", "close")})
     rsi = apply_kernel(recursive.rsi, {"period": 14, "source": "close"}, flat)["value"]
-    assert rsi.drop_nulls().to_list() == [0.0] * (60 - 14)
+    assert rsi.drop_nulls().to_list() == [50.0] * (60 - 14)
     adx = apply_kernel(recursive.adx, {"period": 14}, flat)
     for col, first in (("value", 27), ("plus_di", 14), ("minus_di", 14)):
         assert adx[col].drop_nulls().to_list() == [0.0] * (60 - first), col
@@ -190,3 +191,14 @@ def test_null_rows_are_excluded_from_recursion(
         values = got[col].to_list()
         assert all(values[i] is None for i in holes), col
         assert [values[i] for i in kept] == ref[col].to_list(), col
+
+
+def test_rsi_flat_after_movement_keeps_last_value_like_talib() -> None:
+    """RF-2 (Fase 9): la regla G+L = 0 es *exacta*; tras un movimiento G y L decaen a la vez."""
+    moving = [50.0, 51.0, 50.5, 52.0, 51.0, 53.0, 52.0, 54.0, 53.0, 55.0, 54.0, 56.0, 55.0, 57.0]
+    values = [*moving, 56.0, *([56.0] * 40)]
+    frame = ohlcv_frame(dict.fromkeys(("high", "low", "close"), values))
+    rsi = apply_kernel(recursive.rsi, {"period": 14, "source": "close"}, frame)["value"]
+    tail = rsi.drop_nulls().to_list()[-30:]
+    assert tail == pytest.approx([tail[-1]] * len(tail), rel=1e-12)
+    assert tail[0] == pytest.approx(65.78947368421053, rel=1e-12)  # TA-Lib C 0.8.3

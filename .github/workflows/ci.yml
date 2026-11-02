@@ -39,7 +39,7 @@ jobs:
           python -m pip install -e "packages/finances-api[service,dev]"
 
       - name: TA-Lib binary wheel available
-        run: python -c "import talib; print('talib', talib.__version__)"
+        run: python -c "import talib; print('talib', talib.__version__, 'C', talib.__ta_version__.decode())"
 
       - name: Ruff (lint + format)
         run: |

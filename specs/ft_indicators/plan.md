@@ -454,9 +454,9 @@ La tabla vive en `precision.py` (fuente única) y se publica en `GET /catalog` y
 ### 3.10 Paquete de *fixtures* del oráculo — `ft_indicators/oracle.py` + `scripts/export_oracle_fixtures.py`
 Herramienta de desarrollo (no es funcionalidad de usuario; no requiere CLI/API, Art. 1 no aplica), generada a partir
 de `ft_indicators` (no de TA-Lib): `export_oracle_pack(out_dir: Path, version: str) -> Path`, ejecutada por el script
-y versionada en `packages/finances-analytics/tests/ft_indicators/fixtures/oracle/v1/`:
+y versionada en `packages/finances-analytics/tests/ft_indicators/fixtures/oracle/v2/`:
 ```
-oracle/v1/
+oracle/v2/
 ├── manifest.json                    # schema_version, engine_versions, EPSILON, tolerancias §3.9, convenciones,
 │                                    # commit generador, sha256 de cada archivo
 ├── inputs/{case}.parquet            # open_time_ms Int64 + OHLCV Float32 (esquema canónico) + copia .csv
@@ -513,7 +513,7 @@ packages/finances-core/src/finances_core/
 └── schemas/indicators.py           # NUEVO: contratos genéricos + propios de ft_indicators + nomenclatura RF-4
 packages/finances-analytics/
 ├── pyproject.toml
-├── scripts/export_oracle_fixtures.py    # genera tests/ft_indicators/fixtures/oracle/v1 (§3.10)
+├── scripts/export_oracle_fixtures.py    # genera tests/ft_indicators/fixtures/oracle/v2 (§3.10)
 ├── src/finances_analytics/
 │   ├── __init__.py  py.typed
 │   └── ft_indicators/
@@ -523,7 +523,7 @@ packages/finances-analytics/
 └── tests/ft_indicators/
     ├── conftest.py                 # FT_PROJECT_ROOT temporal + fábrica de datasets Hive sintéticos
     ├── fixtures/reference/*.csv    # ejemplos publicados (StockCharts / Wilder) y cálculos a mano
-    ├── fixtures/oracle/v1/         # paquete del oráculo (§3.10)
+    ├── fixtures/oracle/v2/         # paquete del oráculo (§3.10)
     ├── test_talib_parity.py        # §3.11
     ├── test_*.py
     └── benchmarks/test_bench_indicators.py   # marcador `benchmark` (RF-14)
@@ -578,5 +578,5 @@ packages/finances-analytics/
 - `ft_data_viewer` no cambia de comportamiento: `FT_INDICATORS_DIR` está fuera de `FT_PARQUET_DIR` (RF-7).
 - Constitución: la excepción `Float64` interna (ADR-I11) se registra en `docs/rfc/RFC-0001-ft-indicators-float64-compute.md`
   antes del merge.
-- Futura spec GPU/backtesting: consumirá `fixtures/oracle/v1` y la tabla de tolerancias de §3.9 (contrato de
+- Futura spec GPU/backtesting: consumirá `fixtures/oracle/v2` y la tabla de tolerancias de §3.9 (contrato de
   validación de kernels `f32`).

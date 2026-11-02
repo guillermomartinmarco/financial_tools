@@ -103,7 +103,7 @@ CASES: dict[str, tuple[str, Callable[[], Columns]]] = {
         "Paseo aleatorio de 10.000 velas (semilla fija)",
         lambda: _random_walk(10_000, SEED),
     ),
-    "flat": ("Serie plana O=H=L=C=100 (RSI/ADX/estocástico = 0)", lambda: _flat(300)),
+    "flat": ("Serie plana O=H=L=C=100 (RSI = 50; ADX/estocástico = 0)", lambda: _flat(300)),
     "nulls_nan": ("Paseo aleatorio con nulos y NaN intercalados", _nulls_nan),
     "short": (
         "Serie más corta que el calentamiento (10 velas)",
@@ -168,7 +168,7 @@ def _stable_rows(
     return {c: (index[ms] if ms is not None else None) for c, ms in by_column.items()}
 
 
-def export_oracle_pack(out_dir: Path, version: str = "v1", *, commit: str = "unknown") -> Path:
+def export_oracle_pack(out_dir: Path, version: str = "v2", *, commit: str = "unknown") -> Path:
     """Genera el paquete ``{out_dir}/{version}`` y devuelve su ruta.
 
     Los archivos se reescriben por completo; el contenido es determinista salvo

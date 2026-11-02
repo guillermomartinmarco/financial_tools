@@ -29,7 +29,7 @@ from .kernels.common import Outputs, Params, ParamValue
 from .precision import TOLERANCES, output_key
 
 #: Versión de fórmulas del motor (``StoreEntry.engine_version = "ft_indicators:{n}"``).
-ENGINE_VERSION = 1
+ENGINE_VERSION = 2
 NAMESPACE: Namespace = "ft_indicators"
 PRICE_SOURCES = ("open", "high", "low", "close", "adj_close")
 DEFAULT_SOURCE = "close"

@@ -40,7 +40,7 @@ def ema(program: Program, params: Params, dtype: type[pl.DataType] = COMPUTE_DTY
 
 
 def rsi(program: Program, params: Params, dtype: type[pl.DataType] = COMPUTE_DTYPE) -> Outputs:
-    """RSI de Wilder (1978); **SI** G + L = 0 (sin movimiento) **ENTONCES** 0 (TA-Lib)."""
+    """RSI de Wilder (1978); **SI** G + L = 0 exactamente **ENTONCES** 50 (TA-Lib C >= 0.8.3)."""
     period = int_param(params, "period")
     value = program.float_input(source_column(params), dtype)
     # Cambio respecto de la fila válida anterior: nulo en filas nulas y en la primera válida.
@@ -48,7 +48,7 @@ def rsi(program: Program, params: Params, dtype: type[pl.DataType] = COMPUTE_DTY
     gain = _wilder_of(program, change.clip(lower_bound=0.0), period)
     loss = _wilder_of(program, (-change).clip(lower_bound=0.0), period)
     total = gain + loss
-    return {"": pl.when(total == 0).then(0.0).otherwise(100.0 * (gain / total))}
+    return {"": pl.when(total == 0).then(50.0).otherwise(100.0 * (gain / total))}
 
 
 def macd(program: Program, params: Params, dtype: type[pl.DataType] = COMPUTE_DTYPE) -> Outputs:
