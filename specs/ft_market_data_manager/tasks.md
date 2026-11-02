@@ -64,17 +64,22 @@ Cada tarea cierra con su **"Hecho cuando"**. Flujo: test en rojo → implementac
 
 ## Fase 7: Calidad, Contrato y Cierre
 
-- [ ] **T7.1**: Tests unitarios de `planner`/`service` y de integración sobre un almacén Parquet real temporal
+- [x] **T7.1**: Tests unitarios de `planner`/`service` y de integración sobre un almacén Parquet real temporal
   - **Hecho cuando**: `pytest packages/finances-downloader/tests/ft_market_data_manager -v` pasa; cobertura ≥ 90%.
+  - **Hecho**: `pytest packages/finances-downloader/tests/ft_market_data_manager` → 235 passed junto con `finances-api` (planner, servicio, importador, CLI y API sobre almacenes Parquet temporales reales); cobertura del manager 98 % (`--cov=finances_downloader.ft_market_data_manager`).
 
-- [ ] **T7.2**: Test de contrato CLI ↔ API: la misma secuencia produce resultados equivalentes tras normalizar ids y timestamps
+- [x] **T7.2**: Test de contrato CLI ↔ API: la misma secuencia produce resultados equivalentes tras normalizar ids y timestamps
   - **Hecho cuando**: `pytest packages/finances-downloader/tests/ft_market_data_manager/test_contract.py -v` pasa.
+  - **Hecho**: `test_contract.py` (7) y `test_contract_import.py` (5): la misma secuencia por CLI (JSON) y por API contra dos almacenes independientes da resultados equivalentes tras normalizar ids y timestamps; errores equivalentes (2↔400/422, confirmación faltante, no encontrado 1↔404).
 
-- [ ] **T7.3**: Test de aislamiento: ninguna `ft_*` importa de `ft_market_data_manager` ni viceversa; el viewer sigue sin escribir
+- [x] **T7.3**: Test de aislamiento: ninguna `ft_*` importa de `ft_market_data_manager` ni viceversa; el viewer sigue sin escribir
   - **Hecho cuando**: el test de imports pasa y el viewer no usa ninguna función de escritura.
+  - **Hecho**: `test_isolation.py` (13 tests AST): el manager solo importa de `finances_core` (sin `ft_*` hermanas, `finances_analytics` ni `finances_api`); ninguna otra `ft_*` importa del manager; `ft_data_viewer` no usa los escritores del almacén (`atomic_write`, `write_parquet_partitioned`, `hive_writer`).
 
-- [ ] **T7.4**: Documentación: README (tabla de paquetes y mapa 2.2), fila "Modificación de datos" de la spec del viewer, `specs/finances_api`
+- [x] **T7.4**: Documentación: README (tabla de paquetes y mapa 2.2), fila "Modificación de datos" de la spec del viewer, `specs/finances_api`
   - **Hecho cuando**: README con ejemplos copy-pasteables de `compact`, `dedupe`, `prune --dry-run` e `import --dry-run`; sin referencias a "planificado" para el manager.
+  - **Hecho**: README con ejemplos copy-pasteables de `compact`, `dedupe`, `prune --dry-run` e `import --dry-run` y el manager descrito como implementado; fila "Modificación de datos" de la spec del viewer apuntando al manager; `specs/finances_api` actualizada (T11).
 
-- [ ] **T7.5**: Matriz Art. 20 (100% dimensiones) en la descripción del PR; ruff + `ruff format` + `mypy --strict src` + pytest verdes en CI
+- [x] **T7.5**: Matriz Art. 20 (100% dimensiones) en la descripción del PR; ruff + `ruff format` + `mypy --strict src` + pytest verdes en CI
   - **Hecho cuando**: checklist firmado en el PR y CI verde.
+  - **Hecho**: PR #13 (y #12 del que depende) con la matriz Art. 20 firmada por el usuario y CI verde en ubuntu-24.04 y windows-latest; mergeados el 2026-11-02. Dos verificaciones independientes sin bloqueantes. Un fallo ajeno del CI (`finances-analytics`, latencia del 202) se resolvió en `b6e18ea` dentro del PR #12.
