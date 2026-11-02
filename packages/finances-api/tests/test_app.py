@@ -76,6 +76,7 @@ async def test_openapi_includes_all_tool_routers() -> None:
         "/setup/",
         "/market-data/binance/",
         "/market-data/yfinance/",
+        "/market-data/manager/",
         "/data/",
         "/datasets/",
         "/indicators/",
@@ -84,6 +85,37 @@ async def test_openapi_includes_all_tool_routers() -> None:
     )
     for prefix in prefixes:
         assert any(path.startswith(prefix) for path in paths), prefix
+
+
+async def test_openapi_includes_the_six_manager_routes() -> None:
+    transport = httpx.ASGITransport(app=create_app())
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        paths = (await client.get("/openapi.json")).json()["paths"]
+    manager = {
+        path: set(ops) for path, ops in paths.items() if path.startswith("/market-data/manager/")
+    }
+    assert manager == {
+        "/market-data/manager/compact": {"post"},
+        "/market-data/manager/dedupe": {"post"},
+        "/market-data/manager/prune": {"post"},
+        "/market-data/manager/import": {"post"},
+        "/market-data/manager/status/{task_id}": {"get"},
+        "/market-data/manager/result/{task_id}": {"get"},
+    }
+
+
+async def test_manager_dispatch_round_trip_on_temporary_store(tmp_path: Path) -> None:
+    """202 con ``poll_url`` bajo ``/market-data/manager``; el almacén es el temporal."""
+    assert FinancesSettings().PARQUET_DIR.is_relative_to(tmp_path)
+    transport = httpx.ASGITransport(app=create_app())
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        res = await client.post("/market-data/manager/compact", json={"dry_run": True})
+        assert res.status_code == 202
+        poll = res.json()["poll_url"]
+        assert "/market-data/manager/status/" in poll
+        assert (await client.get(poll)).json()["status"] == "COMPLETED"
+        refused = await client.post("/market-data/manager/prune", json={"all": True})
+    assert refused.status_code == 422
 
 
 async def test_openapi_includes_the_four_yfinance_routes() -> None:
@@ -346,6 +378,8 @@ def test_yfinance_poll_urls_resolve_to_yfinance_routes() -> None:
         assert app.url_path_for(name, task_id=task_id).startswith("/market-data/yfinance/")
     for name in ("binance_status", "binance_plan", "binance_result"):
         assert app.url_path_for(name, task_id=task_id).startswith("/market-data/binance/")
+    for name in ("manager_status", "manager_result"):
+        assert app.url_path_for(name, task_id=task_id).startswith("/market-data/manager/")
 
 
 async def test_openapi_includes_the_eight_datasets_routes() -> None:

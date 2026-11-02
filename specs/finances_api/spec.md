@@ -16,6 +16,7 @@ Cada herramienta `ft_*` expone un `APIRouter` de FastAPI, pero ninguna app los m
 - `ft_market_data_binance` (prefijo `/market-data/binance`)
 - `ft_data_viewer` (prefijo `/data`)
 - `ft_market_data_yfinance` (prefijo `/market-data/yfinance`)
+- `ft_market_data_manager` (prefijo `/market-data/manager`, paquete `finances-downloader`)
 - `ft_datasets` (prefijo `/datasets`, paquete `finances-downloader`)
 - `ft_indicators` (prefijo `/indicators`, paquete `finances-analytics`)
 - `ft_ta_lib` (prefijo `/ta-lib`, paquete `finances-analytics`)

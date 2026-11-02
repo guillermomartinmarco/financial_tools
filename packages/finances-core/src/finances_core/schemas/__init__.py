@@ -23,6 +23,16 @@ from finances_core.schemas.market_data import (
     MarketType,
     Timeframe,
 )
+from finances_core.schemas.market_data_manager import (
+    DatasetSelector,
+    ImportPlan,
+    ImportRequest,
+    ManagerRequest,
+    ManagerResult,
+    ManagerTaskResponse,
+    PartitionResult,
+    PruneRequest,
+)
 from finances_core.schemas.setup import (
     EnvVarDiagnosis,
     EnvVarSpec,
@@ -78,4 +88,12 @@ __all__ = [
     "StrategyListFilters",
     "StrategyListResponse",
     "DiffResult",
+    "DatasetSelector",
+    "ImportPlan",
+    "ImportRequest",
+    "ManagerRequest",
+    "ManagerResult",
+    "ManagerTaskResponse",
+    "PartitionResult",
+    "PruneRequest",
 ]

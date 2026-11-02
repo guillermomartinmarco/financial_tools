@@ -47,6 +47,7 @@ Un **dataset** se identifica como en `ft_data_viewer`: `exchange` / `market_type
 **EL SISTEMA DEBE** proveer `import` (CLI) / `POST /market-data/manager/import` (API) que cargue velas desde un archivo al almacén canónico:
 - Formatos: Parquet, CSV y JSON Lines (`jsonl`), los mismos que exporta `ft_data_viewer` (RF-6). El formato se toma de `--format` o, si falta, de la extensión.
 - **Destino explícito y obligatorio**: `--exchange`, `--market-type`, `--symbol`, `--timeframe`. Nunca se deduce del contenido del archivo. **SI** el dataset destino no existe, **ENTONCES** error 404 / CLI exit 1, salvo que se indique `--create` (evita crear datasets fantasma por un error de tipeo).
+- **SI** el destino solo difiere en mayúsculas/minúsculas de un dataset existente (p. ej. `btcusdt` frente a `BTCUSDT`), **ENTONCES** error 400 / CLI exit 2 indicando el nombre exacto, también con `--create`: evita un `conflict` silencioso (sistemas insensibles a mayúsculas) o un dataset fantasma paralelo (sensibles).
 - El archivo de origen **DEBE** estar fuera de `FT_PARQUET_DIR` (mismo criterio que el `output_dir` del viewer, ADR DV-01).
 - Columnas: **DEBEN** ser exactamente las del esquema canónico del exchange destino, excluyendo `symbol`, `timeframe` y `market_type` (se derivan del destino). **SI** faltan columnas o sobran, **ENTONCES** error 422 / CLI exit 2 sin escribir nada. Los tipos se convierten a `float32`/`int64` con range-check (Art. 5.3, 13): precio > 0, volumen ≥ 0.
 - Cada fila se asigna a su partición mensual según `open_time_ms`.
@@ -71,6 +72,7 @@ Un **dataset** se identifica como en `ft_data_viewer`: `exchange` / `market_type
 - Aceptar `--dry-run` / `dry_run=true`: calcula y devuelve el plan (particiones, filas, bytes afectados) **sin escribir ni borrar nada**.
 - Verificar, inmediatamente antes de reemplazar o borrar una partición, que sus archivos no cambiaron desde que se leyeron (tamaño y `mtime`). **SI** cambiaron (p. ej. un descargador escribió en paralelo), **ENTONCES** omitir esa partición, marcarla `conflict` y seguir con las demás. Nunca se pisa una escritura ajena.
 - Dejar cada partición en su versión anterior o en la nueva, nunca a medias (escritura atómica con `os.replace`); una re-ejecución completa lo que quedó pendiente.
+- **SI** tras reemplazar `data.parquet` no se puede borrar un archivo sobrante (p. ej. abierto por otro proceso en Windows), **ENTONCES** informar la partición como `error` con el estado real en disco (archivos que quedaron) y recomendar `dedupe`, porque el sobrante duplica filas hasta limpiarlo; no se pierden filas.
 - Procesar un dataset a la vez dentro de una operación; los errores de una partición no abortan las restantes y se acumulan en el resultado.
 
 ### RF-7 — Despacho Asíncrono y Polling (Ubícuo)
