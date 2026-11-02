@@ -118,7 +118,7 @@ def validate_parameters(parameters: dict[str, Any], schema: Optional[dict[str, A
 
 ### 1.3 Esquema SQLite (`packages/finances-core/src/ft_strategy_manager/db.py`)
 
-> **Deriva 2**: la ruta de la base la resuelve `db.resolve_db_path()`: `FinancesSettings.STRATEGIES_DB_PATH` (env `FT_STRATEGIES_DB_PATH`) o, por defecto, `<SHARE_DIR>/strategies.db` bajo la raíz del proyecto (`share/`), no `packages/finances-core/share/`. Pendiente: añadir `FT_STRATEGIES_DB_PATH` a `ft_setup/env_list.conf` (hoy no figura).
+> **Deriva 2**: la ruta de la base la resuelve `db.resolve_db_path()`: `FinancesSettings.STRATEGIES_DB_PATH` (env `FT_STRATEGIES_DB_PATH`) o, por defecto, `<SHARE_DIR>/strategies.db` bajo la raíz del proyecto (`share/`), no `packages/finances-core/share/`. `FT_STRATEGIES_DB_PATH` figura en `ft_setup/env_list.conf` y en su plantilla `templates/env_list.conf.j2`.
 > **Deriva 3**: no hay *pool* thread-local literal; como `SQLTaskManager`, `db.get_connection` abre **una conexión por llamada** (WAL, `timeout=30`) y las escrituras usan `BEGIN IMMEDIATE` con commit/rollback al salir para serializar la asignación de versiones.
 
 ```sql
@@ -446,7 +446,7 @@ packages/finances-core/
 │           ├── service.py           # Lógica compartida (CRUD, diff, validación)
 │           ├── db.py                # SQLite init, queries, connection pool
 │           ├── utils.py             # hash, json_canonical, jsonschema validation
-│           └── logging.py           # configure_logging (reutiliza patrón ft_setup)
+│           └── logging.py           # capa fina sobre finances_core.logging.configure_logging
 └── share/
     ├── tasks.db                     # SQLite WAL (ft_setup)
     └── strategies.db                # SQLite WAL (ESTA tool)
@@ -486,6 +486,6 @@ dependencies = [
 ## 7. Integración con `finances-core` Existente
 
 - Reutiliza `FinancesSettings` para `STRATEGIES_DB_PATH` (default `<SHARE_DIR>/strategies.db`; Deriva 2)
-- Reutiliza `configure_logging` de `ft_setup.logging` (DRY)
+- Reutiliza `configure_logging` de `finances_core.logging` (DRY); no importa de `ft_setup` (Aislamiento Cruzado, AGENTS.md §1)
 - Reutiliza el patrón de `SQLTaskManager`: una conexión por llamada, escrituras con `BEGIN IMMEDIATE` (Deriva 3)
 - Registra router en la app de `finances_api` (`create_app()`, `include_router(strategies_router)`; Deriva 7). `GET /health` añade `strategies_db_accessible` (ver `specs/finances_api`).

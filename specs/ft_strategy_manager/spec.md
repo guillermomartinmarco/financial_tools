@@ -80,7 +80,7 @@
 - `strategy_versions` (id, strategy_id, version, parameters_json, hash, created_at_ms, created_by)
 - Índices en `strategies.name` (unique), `strategy_versions.strategy_id + version` (unique).
 
-> **Deriva 2**: la ruta original (`packages/finances-core/share/strategies.db`) se sustituye por `FinancesSettings.STRATEGIES_DB_PATH` (env `FT_STRATEGIES_DB_PATH`, máxima prioridad) con valor por defecto `<SHARE_DIR>/strategies.db` bajo el `share/` de la raíz del proyecto (AGENTS.md; Art. 2: ruta absoluta, nunca relativa al directorio de trabajo). `strategies` almacena además `tags` (JSON). Discrepancia pendiente: `FT_STRATEGIES_DB_PATH` aún no figura en `ft_setup/env_list.conf` (ni en su plantilla `.j2`); la variable de entorno funciona igualmente.
+> **Deriva 2**: la ruta original (`packages/finances-core/share/strategies.db`) se sustituye por `FinancesSettings.STRATEGIES_DB_PATH` (env `FT_STRATEGIES_DB_PATH`, máxima prioridad) con valor por defecto `<SHARE_DIR>/strategies.db` bajo el `share/` de la raíz del proyecto (AGENTS.md; Art. 2: ruta absoluta, nunca relativa al directorio de trabajo). `strategies` almacena además `tags` (JSON). `FT_STRATEGIES_DB_PATH` figura en `ft_setup/env_list.conf` y en su plantilla `.j2`.
 
 ### RF-9 — Logging Dual y Auditoría (Ubícuo)
 **EL SISTEMA DEBE** loguear toda operación mutante (`create`, `update`, `delete`) con `structlog` incluyendo: `strategy_id`, `version`, `action`, `user` (si auth futuro), `hash_before`, `hash_after`, `diff_summary`.
