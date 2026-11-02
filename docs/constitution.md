@@ -1,7 +1,7 @@
 # Constitución Técnica de la Suite `financial_tools`
 
-**Versión:** 1.1.0  
-**Historial:** 1.1.0 (2026-10-25) — Art. 5.1 bis y ajuste del Art. 5.4 (RFC-0003).  
+**Versión:** 1.2.0  
+**Historial:** 1.2.0 (2026-11-02) — Art. 8: `pandas` admitido solo dentro del `engine.py` de un motor de backtesting aprobado por RFC (RFC-0004). 1.1.0 (2026-10-25) — Art. 5.1 bis y ajuste del Art. 5.4 (RFC-0003).  
 **Estado:** Vigente  
 **Alcance:** Obligatorio para todos los contribuyentes, agentes de IA y pipelines de CI/CD.  
 **Ubicación canónica:** `docs/constitution.md`
@@ -62,6 +62,7 @@ Ninguna tarea (`tasks.md`) se marcará como completada (**Done**) sin que exista
 ## Artículo 8 — Polars sobre Pandas (Procesamiento Masivo)
 
 Para el procesamiento masivo de series temporales financieras (OHLCV, *ticks*, *order books*, indicadores) **Polars** es la biblioteca por defecto. Su modelo de ejecución *lazy*, ausencia de GIL en expresiones y API *DataFrame* nativa superan a Pandas en rendimiento y seguridad de hilos. Pandas solo se admite en capa de visualización final (*plotting*) si la dependencia lo exige.  
+**Pandas también se admite dentro del módulo `engine.py` de un motor de backtesting aprobado por RFC, cuando la biblioteca del motor lo exija, sin salir de ese módulo ni aparecer en las capas de servicio, CLI o API (RFC-0004).**  
 **Los *DataFrames* de Polars en toda la suite DEBEN usar dtypes `Float32` e `Int64` (ms) conforme al Art. 5.**
 
 ## Artículo 9 — Estructura de Logs (Dual Mode: Consola + JSON)
