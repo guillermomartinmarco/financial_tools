@@ -71,6 +71,7 @@ Un **dataset** se identifica como en `ft_data_viewer`: `exchange` / `market_type
 - Aceptar `--dry-run` / `dry_run=true`: calcula y devuelve el plan (particiones, filas, bytes afectados) **sin escribir ni borrar nada**.
 - Verificar, inmediatamente antes de reemplazar o borrar una partición, que sus archivos no cambiaron desde que se leyeron (tamaño y `mtime`). **SI** cambiaron (p. ej. un descargador escribió en paralelo), **ENTONCES** omitir esa partición, marcarla `conflict` y seguir con las demás. Nunca se pisa una escritura ajena.
 - Dejar cada partición en su versión anterior o en la nueva, nunca a medias (escritura atómica con `os.replace`); una re-ejecución completa lo que quedó pendiente.
+- **SI** tras reemplazar `data.parquet` no se puede borrar un archivo sobrante (p. ej. abierto por otro proceso en Windows), **ENTONCES** informar la partición como `error` con el estado real en disco (archivos que quedaron) y recomendar `dedupe`, porque el sobrante duplica filas hasta limpiarlo; no se pierden filas.
 - Procesar un dataset a la vez dentro de una operación; los errores de una partición no abortan las restantes y se acumulan en el resultado.
 
 ### RF-7 — Despacho Asíncrono y Polling (Ubícuo)

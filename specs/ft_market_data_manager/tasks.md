@@ -8,24 +8,29 @@ Cada tarea cierra con su **"Hecho cuando"**. Flujo: test en rojo → implementac
   - **Hecho cuando**: `pytest packages/finances-downloader/tests/ft_data_viewer -v` pasa sin cambios de comportamiento y sin imports entre `ft_*`.
   - **Hecho**: nuevo `finances_core/marketdata/dataset_layout.py` (`discover_datasets`, `dataset_files`, `partition_key`, `find_dataset_path`, `dataset_label`, `MARKET_TYPES`) con 7 tests; `ft_data_viewer/scanner.py` lo consume y reexporta los nombres públicos (`__all__`), sin cambios de comportamiento: `finances-core` + `finances-downloader` + `finances-api` 1245 passed; ruff y `mypy --strict src` de `finances-core` limpios (el único error de mypy de `finances-downloader` es el preexistente de `pandas-stubs` en el adaptador de yfinance).
 
-- [ ] **T1.2**: Esquemas Pydantic (`schemas/market_data_manager.py`)
+- [x] **T1.2**: Esquemas Pydantic (`schemas/market_data_manager.py`)
   - **Hecho cuando**: tests de validación (`PruneRequest` exige exactamente uno de `before_ms`/`all` y filtro de dataset con `all`; `ImportRequest` exige destino completo); ruff + `mypy --strict` limpios.
+  - **Hecho**: `finances_core/schemas/market_data_manager.py` (`DatasetSelector`, `PartitionResult`, `ManagerRequest`, `PruneRequest` con validador, `ImportRequest`, `ImportPlan`, `ManagerTaskResponse`, `ManagerResult`) exportado desde `schemas/__init__.py`; `pytest packages/finances-core/tests/unit/test_market_data_manager_schemas.py`: 12 passed; ruff y `mypy --strict src` limpios.
 
-- [ ] **T1.3**: `planner.py`: `plan(selector)`, snapshot (tamaño + `mtime_ns`) y `commit()` optimista con `atomic_write`
+- [x] **T1.3**: `planner.py`: `plan(selector)`, snapshot (tamaño + `mtime_ns`) y `commit()` optimista con `atomic_write`
   - **Hecho cuando**: tests con almacén temporal: selección por exchange/market_type/symbol/timeframe/rango; una partición modificada entre `plan` y `commit` devuelve `conflict` y no se toca; sobrantes se borran solo tras el reemplazo (RF-6).
+  - **Hecho**: `ft_market_data_manager/planner.py` (`plan`, `Partition` con snapshot nombre/tamaño/`mtime_ns`, `commit` optimista sobre `atomic_write`); `pytest packages/finances-downloader/tests/ft_market_data_manager/test_planner.py`: 11 passed (selector exchange/market_type/symbol/timeframe/rango, `conflict` por modificación, `mtime` o archivo nuevo, sobrantes borrados solo tras el reemplazo, directorios Hive vacíos eliminados).
 
 ## Fase 2: Compactación y Deduplicación
 
-- [ ] **T2.1**: `service.run_compact` (RF-1)
+- [x] **T2.1**: `service.run_compact` (RF-1)
   - **Hecho cuando**: test que parte de una partición con varios archivos y obtiene un `data.parquet` ordenado con las mismas filas; una partición ya compacta responde `unchanged` y no cambia su `mtime`; `--dry-run` no escribe.
+  - **Hecho**: `service.run_compact` (RF-1) con auditoría RF-8; tests en `test_service.py` (varios archivos -> un `data.parquet` ordenado con las mismas filas, `unchanged` sin cambiar `mtime`, `dry_run` -> `planned` sin escribir, `float32`/`int64` intactos, partición rota -> `error` sin abortar las demás, `conflict`).
 
-- [ ] **T2.2**: `service.run_dedupe` (RF-2)
+- [x] **T2.2**: `service.run_dedupe` (RF-2)
   - **Hecho cuando**: test con duplicados entre archivos: prevalece la última fila en orden de lectura; el informe lista duplicados eliminados y un ejemplo; sin duplicados → `unchanged`; esquema `float32`/`int64` intacto.
+  - **Hecho**: `service.run_dedupe` (RF-2): prevalece la última fila en orden de lectura, `detail` con duplicados eliminados y un ejemplo de `open_time_ms`, sin duplicados -> `unchanged` sin tocar archivos, idempotente, dtypes intactos.
 
 ## Fase 3: Retención y Borrado
 
-- [ ] **T3.1**: `service.run_prune` (RF-3)
+- [x] **T3.1**: `service.run_prune` (RF-3)
   - **Hecho cuando**: tests: `before_ms` borra solo meses completos anteriores y no toca el que contiene `T`; `--all` sin filtros es inválido; se eliminan los directorios Hive vacíos; sin `force`/`confirm` no se borra nada; `dry_run` devuelve el plan.
+  - **Hecho**: `service.run_prune` (RF-3): `before_ms` borra meses cuyo fin <= T (el que contiene T queda), `all` exige filtro (validador de `PruneRequest`), directorios Hive vacíos eliminados, sin `confirm` y sin `dry_run` -> `ConfirmationRequiredError` sin borrar, `dry_run` -> `planned`. Cierre: `pytest packages/finances-core packages/finances-downloader packages/finances-api`: 1332 passed; `--cov=finances_downloader.ft_market_data_manager`: 95 %; ruff y `mypy --strict src` (core y downloader) limpios.
 
 ## Fase 4: CLI
 
