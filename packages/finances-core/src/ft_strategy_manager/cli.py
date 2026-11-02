@@ -361,7 +361,14 @@ def _diff_table(result: DiffResult) -> Table:
             json.dumps(old, ensure_ascii=False),
             json.dumps(new, ensure_ascii=False),
         )
-    if not (result.added or result.removed or result.changed):
+    for key, (old, new) in sorted(result.metadata_changed.items()):
+        table.add_row(
+            "[magenta]metadatos[/magenta]",
+            key,
+            json.dumps(old, ensure_ascii=False),
+            json.dumps(new, ensure_ascii=False),
+        )
+    if not (result.added or result.removed or result.changed or result.metadata_changed):
         table.caption = "Sin diferencias"
     return table
 

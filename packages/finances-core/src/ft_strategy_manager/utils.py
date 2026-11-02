@@ -87,16 +87,20 @@ def apply_json_patch(parameters: dict[str, Any], patch: list[dict[str, Any]]) ->
     return result
 
 
-def compute_diff(
+def compute_diff(  # noqa: PLR0913 - versiones y metadatos opcionales
     from_params: dict[str, Any],
     to_params: dict[str, Any],
     from_version: int = 0,
     to_version: int = 0,
+    *,
+    from_meta: tuple[str | None, list[str] | None] = (None, None),
+    to_meta: tuple[str | None, list[str] | None] = (None, None),
 ) -> DiffResult:
     """RF-6: diff semántico de primer nivel (added/removed/changed).
 
     La comparación distingue tipos JSON (``1`` != ``1.0`` != ``true``) comparando la forma
-    canónica de cada valor.
+    canónica de cada valor. ``from_meta``/``to_meta`` son ``(description, tags)``; los
+    metadatos solo se comparan si ambas versiones tienen snapshot (Deriva 10).
     """
     added = {k: v for k, v in to_params.items() if k not in from_params}
     removed = {k: v for k, v in from_params.items() if k not in to_params}
@@ -105,12 +109,19 @@ def compute_diff(
         for k in from_params
         if k in to_params and canonical_json(from_params[k]) != canonical_json(to_params[k])
     }
+    metadata_changed: dict[str, tuple[Any, Any]] = {}
+    if from_meta[1] is not None and to_meta[1] is not None:  # ambas con snapshot
+        if from_meta[0] != to_meta[0]:
+            metadata_changed["description"] = (from_meta[0], to_meta[0])
+        if from_meta[1] != to_meta[1]:
+            metadata_changed["tags"] = (from_meta[1], to_meta[1])
     return DiffResult(
         from_version=from_version,
         to_version=to_version,
         added=added,
         removed=removed,
         changed=changed,
+        metadata_changed=metadata_changed,
     )
 
 

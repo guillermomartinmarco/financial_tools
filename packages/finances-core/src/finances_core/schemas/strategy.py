@@ -95,8 +95,13 @@ class StrategyUpdate(BaseModel):
                 "(partial), not both"
             )
             raise ValueError(msg)
-        if self.parameters is None and self.parameters_patch is None:
-            msg = "Must provide either 'parameters' or 'parameters_patch'"
+        if (
+            self.parameters is None
+            and self.parameters_patch is None
+            and self.description is None
+            and self.tags is None
+        ):
+            msg = "Must provide 'parameters', 'parameters_patch', 'description' or 'tags'"
             raise ValueError(msg)
         return self
 
@@ -110,6 +115,9 @@ class StrategyVersion(BaseModel):
     hash: str = Field(pattern=HASH_PATTERN)  # SHA-256 hex del JSON canónico
     created_at_ms: int
     created_by: str | None = None
+    # Snapshot de metadatos vigentes en esta versión; ``tags is None`` = versión sin snapshot.
+    description: str | None = None
+    tags: list[str] | None = None
 
 
 class Strategy(BaseModel):
@@ -173,3 +181,5 @@ class DiffResult(BaseModel):
     added: dict[str, Any]
     removed: dict[str, Any]
     changed: dict[str, tuple[Any, Any]]  # clave -> (antes, después)
+    # description/tags que difieren entre las dos versiones (Deriva 10).
+    metadata_changed: dict[str, tuple[Any, Any]] = Field(default_factory=dict)

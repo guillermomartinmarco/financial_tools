@@ -140,3 +140,10 @@ def test_mask_secrets_is_recursive() -> None:
         "nested": {"Password": MASK, "keep": 1, "list": [{"token": MASK}, 2]},
         "pair": ["x"],
     }
+
+
+def test_diff_skips_metadata_when_a_version_has_no_snapshot() -> None:
+    legacy = compute_diff({}, {}, from_meta=(None, None), to_meta=("d", ["a"]))
+    assert legacy.metadata_changed == {}
+    both = compute_diff({}, {}, from_meta=(None, ["a"]), to_meta=("d", ["a"]))
+    assert both.metadata_changed == {"description": (None, "d")}

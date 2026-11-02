@@ -87,9 +87,19 @@ def log_audit(  # noqa: PLR0913, PLR0917 - campos de auditoría exigidos por RF-
     )
 
 
-def _diff_summary(before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
-    diff = compute_diff(before, after)
-    return {"added": diff.added, "removed": diff.removed, "changed": diff.changed}
+def _diff_summary(
+    before: dict[str, Any],
+    after: dict[str, Any],
+    from_meta: tuple[str | None, list[str] | None] = (None, None),
+    to_meta: tuple[str | None, list[str] | None] = (None, None),
+) -> dict[str, Any]:
+    diff = compute_diff(before, after, from_meta=from_meta, to_meta=to_meta)
+    return {
+        "added": diff.added,
+        "removed": diff.removed,
+        "changed": diff.changed,
+        "metadata_changed": diff.metadata_changed,
+    }
 
 
 def _validate_or_raise(parameters: dict[str, Any], schema: dict[str, Any] | None) -> None:
@@ -137,6 +147,8 @@ def create_strategy(
             hash_=digest,
             created_at_ms=created_at_ms,
             created_by=user,
+            description=payload.description,
+            tags=payload.tags,
         )
     log_audit("create", strategy_id, 1, None, digest, {}, user)
     return version
@@ -179,7 +191,8 @@ def update_strategy(
     Raises:
         StrategyNotFoundError: SI no existe o está borrada (soft-delete).
         StrategyValidationError: SI el patch es inválido o el resultado incumple el schema.
-        NoChangesError: SI los parámetros resultantes tienen el hash de la versión actual.
+        NoChangesError: SI parámetros y metadatos (description/tags) resultantes son iguales
+            a los de la versión actual.
     """
     path = _ready_db(db_path)
     with db.get_connection(path, write=True) as conn:
@@ -190,12 +203,23 @@ def update_strategy(
 
         if payload.parameters is not None:
             new_params = payload.parameters
-        else:
-            new_params = apply_json_patch(latest.parameters, payload.parameters_patch or [])
+        elif payload.parameters_patch is not None:
+            new_params = apply_json_patch(latest.parameters, payload.parameters_patch)
+        else:  # Deriva 10: solo metadatos; los parámetros se conservan
+            new_params = latest.parameters
         _validate_or_raise(new_params, strategy.parameter_schema)
 
+        # Metadatos efectivos previos: el snapshot de la última versión; las versiones legadas
+        # sin snapshot (``tags`` nulo) usan los vigentes de la estrategia.
+        old_description = latest.description if latest.tags is not None else strategy.description
+        old_tags = latest.tags if latest.tags is not None else strategy.tags
+        new_description = (
+            payload.description if payload.description is not None else old_description
+        )
+        new_tags = payload.tags if payload.tags is not None else old_tags
+
         new_hash = compute_hash(new_params)
-        if new_hash == latest.hash:
+        if new_hash == latest.hash and (new_description, new_tags) == (old_description, old_tags):
             raise NoChangesError
         version = db.create_version_row(
             conn,
@@ -205,17 +229,22 @@ def update_strategy(
             hash_=new_hash,
             created_at_ms=now_ms(),
             created_by=user,
+            description=new_description,
+            tags=new_tags,
         )
-        db.update_strategy_metadata(
-            conn, strategy_id, description=payload.description, tags=payload.tags
-        )
+        db.update_strategy_metadata(conn, strategy_id, description=new_description, tags=new_tags)
     log_audit(
         "update",
         strategy_id,
         version.version,
         latest.hash,
         new_hash,
-        _diff_summary(latest.parameters, new_params),
+        _diff_summary(
+            latest.parameters,
+            new_params,
+            (old_description, old_tags),
+            (new_description, new_tags),
+        ),
         user,
     )
     return version
@@ -295,7 +324,14 @@ def diff_versions(
         raise VersionNotFoundError(strategy_id, from_v)
     if new is None:
         raise VersionNotFoundError(strategy_id, to_v)
-    return compute_diff(old.parameters, new.parameters, from_v, to_v)
+    return compute_diff(
+        old.parameters,
+        new.parameters,
+        from_v,
+        to_v,
+        from_meta=(old.description, old.tags),
+        to_meta=(new.description, new.tags),
+    )
 
 
 # ---------------------------------------------------------------------------- export

@@ -51,6 +51,8 @@ CREATE TABLE IF NOT EXISTS strategy_versions (
     hash TEXT NOT NULL,
     created_at_ms INTEGER NOT NULL,
     created_by TEXT,
+    description TEXT,
+    tags TEXT,
     FOREIGN KEY (strategy_id) REFERENCES strategies(id) ON DELETE CASCADE,
     UNIQUE(strategy_id, version)
 );
@@ -61,7 +63,9 @@ CREATE INDEX IF NOT EXISTS idx_versions_strategy_version
     ON strategy_versions(strategy_id, version);
 """
 
-_VERSION_COLUMNS = "strategy_id, version, parameters_json, hash, created_at_ms, created_by"
+_VERSION_COLUMNS = (
+    "strategy_id, version, parameters_json, hash, created_at_ms, created_by, description, tags"
+)
 
 
 def resolve_db_path() -> Path:
@@ -85,8 +89,43 @@ def init_db(db_path: Path) -> None:
     try:
         conn.execute("PRAGMA journal_mode=WAL")
         conn.executescript(SCHEMA)
+        _migrate_version_snapshot(conn)
     finally:
         conn.close()
+
+
+def _migrate_version_snapshot(conn: sqlite3.Connection) -> None:
+    """Deriva 10: añade ``description``/``tags`` a ``strategy_versions`` de bases anteriores.
+
+    Idempotente y segura ante procesos concurrentes (``BEGIN IMMEDIATE`` y nueva comprobación
+    dentro de la transacción). Las versiones previas quedan sin snapshot (``tags`` nulo); la
+    última de cada estrategia recibe los metadatos vigentes. No toca parámetros ni hashes.
+    """
+
+    def missing() -> bool:
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(strategy_versions)")}
+        return not {"description", "tags"} <= columns
+
+    if not missing():
+        return
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        if missing():
+            conn.execute("ALTER TABLE strategy_versions ADD COLUMN description TEXT")
+            conn.execute("ALTER TABLE strategy_versions ADD COLUMN tags TEXT")
+            conn.execute(
+                "UPDATE strategy_versions SET"
+                " description = (SELECT s.description FROM strategies s"
+                "                WHERE s.id = strategy_versions.strategy_id),"
+                " tags = (SELECT s.tags FROM strategies s"
+                "         WHERE s.id = strategy_versions.strategy_id)"
+                " WHERE version = (SELECT MAX(v.version) FROM strategy_versions v"
+                "                  WHERE v.strategy_id = strategy_versions.strategy_id)"
+            )
+        conn.execute("COMMIT")
+    except BaseException:
+        conn.execute("ROLLBACK")
+        raise
 
 
 @contextmanager
@@ -159,6 +198,8 @@ def _row_to_version(row: sqlite3.Row) -> StrategyVersion:
         hash=row["hash"],
         created_at_ms=row["created_at_ms"],
         created_by=row["created_by"],
+        description=row["description"],
+        tags=json.loads(row["tags"]) if row["tags"] is not None else None,
     )
 
 
@@ -290,11 +331,13 @@ def create_version_row(  # noqa: PLR0913 - columnas de la tabla
     hash_: str,
     created_at_ms: int,
     created_by: str | None,
+    description: str | None = None,
+    tags: list[str] | None = None,
 ) -> StrategyVersion:
     """Inserta una versión (ADR-S01: solo INSERT). ``(strategy_id, version)`` es único."""
     execute(
         conn,
-        f"INSERT INTO strategy_versions ({_VERSION_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?)",
+        f"INSERT INTO strategy_versions ({_VERSION_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         (
             strategy_id,
             version,
@@ -302,6 +345,8 @@ def create_version_row(  # noqa: PLR0913 - columnas de la tabla
             hash_,
             created_at_ms,
             created_by,
+            description,
+            json.dumps(tags) if tags is not None else None,
         ),
     )
     return StrategyVersion(
@@ -311,6 +356,8 @@ def create_version_row(  # noqa: PLR0913 - columnas de la tabla
         hash=hash_,
         created_at_ms=created_at_ms,
         created_by=created_by,
+        description=description,
+        tags=tags,
     )
 
 

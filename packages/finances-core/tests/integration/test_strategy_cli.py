@@ -337,3 +337,27 @@ def test_input_file_errors_are_clear(tmp_path: Path) -> None:
     result = _run("create", "gamma", "-p", str(ok_params), "-s", str(bad_schema))
     assert result.exit_code == cli.EXIT_VALIDATION
     assert "Invalid parameter_schema" in result.stderr
+
+
+# ------------------------------------------------- Deriva 10: snapshot de metadatos
+def test_update_metadata_only_creates_version_and_diff_shows_it(tmp_path: Path) -> None:
+    sid = _create(tmp_path, "alpha", None, "--desc", "old", "--tag", "a")["strategy_id"]
+    result = _run("update", sid, "--desc", "new", "--tag", "b", "-f", "json")
+    assert result.exit_code == 0, result.output
+    created = json.loads(result.stdout)
+    assert (created["version"], created["description"], created["tags"]) == (2, "new", ["b"])
+
+    data = json.loads(_run("diff", sid, "--from", "1", "--to", "2", "-f", "json").stdout)
+    assert data["metadata_changed"] == {"description": ["old", "new"], "tags": [["a"], ["b"]]}
+    table = _run("diff", sid, "--from", "1", "--to", "2")
+    assert "metadatos" in table.stdout
+    assert "Sin diferencias" not in table.stdout
+
+
+def test_update_with_nothing_to_change_is_rejected(tmp_path: Path) -> None:
+    sid = _create(tmp_path, "alpha", None, "--desc", "d")["strategy_id"]
+    unchanged = _run("update", sid, "--desc", "d")
+    assert unchanged.exit_code == cli.EXIT_VALIDATION, unchanged.output
+    assert "No changes detected" in " ".join(unchanged.stderr.split())
+    empty = _run("update", sid)
+    assert empty.exit_code == cli.EXIT_VALIDATION, empty.output

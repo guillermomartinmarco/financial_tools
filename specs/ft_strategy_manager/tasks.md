@@ -150,8 +150,27 @@
 
 - [x] **T7.2**: Verificar matriz Art. 20 Constitución (100% dimensiones) via checklist interno
   - **Hecho cuando**: Checklist firmado en PR description; CI pipeline verde.
-  - **Hecho**: checklist Art. 20 firmado por el usuario en la descripción del PR #8 (2026-11-02). CI verde pendiente de confirmar tras rebase sobre main (no verificado por el agente).
+  - **Hecho**: checklist Art. 20 firmado por el usuario en la descripción del PR #8 (2026-11-02). CI verde (ubuntu-24.04 y windows-latest, py3.12) confirmado por el usuario tras el rebase sobre main; PR #8 mergeado (2026-11-02).
   - *(Histórico, previo al PR #8)* Pendiente: la firma en la descripción del PR y el CI verde requieren push/PR (no realizados). Checklist Art. 20 verificado localmente: Funcional (RF-1..RF-10 con tests EARS, cobertura `ft_strategy_manager` 99%); Contractual (spec/plan/tasks actualizados); Arquitectural (paridad CLI/API en `tests/contract`; sin imports a otras `ft_*`, comprobado con grep); Datos (Pydantic en payloads, parámetros JSON nativos, timestamps `int64` ms; Art. 5 aplica a datos de mercado, no a parámetros de estrategia); Concurrencia (`run_in_threadpool`, conexión propia por llamada, `BEGIN IMMEDIATE`, WAL); Observabilidad (logs duales + auditoría con secretos enmascarados); Calidad (ruff + `mypy --strict src` limpios); Resiliencia, Desempeño y Despliegue asíncrono (Art. 18) no aplican: CRUD síncrono local sin tareas pesadas.
 - [x] **T7.3**: Registrar router en `ft_api_service` main app (integración cross-package)
   - **Hecho cuando**: `ft_api_service` importa e incluye `strategy_router`; health-check incluye strategies DB.
   - **Hecho**: No existe `ft_api_service`; la raÃ­z de composiciÃ³n es `finances-api`: `create_app()` incluye `ft_strategy_manager.api.router` y `GET /health` aÃ±ade `strategies_db_accessible` (spec/plan/tasks de `specs/finances_api` actualizados, T10). `pytest packages/finances-api` â†’ 27 passed; `ruff`/`mypy --strict src` limpios.
+
+
+## Fase 8: Snapshot de metadatos por versión (Deriva 10)
+
+- [x] **T8.1**: Esquemas y persistencia: columnas `description`/`tags` en `strategy_versions`, migración idempotente con backfill de la última versión, `StrategyVersion`/`StrategyUpdate`/`DiffResult` actualizados (RF-3, RF-8)
+  - **Hecho cuando**: `pytest packages/finances-core/tests/integration/test_strategy_db.py packages/finances-core/tests/unit/test_strategy_schemas.py -v` pasa, incluida la migración de una base creada con el esquema anterior (parámetros, hashes y versiones previas intactos).
+  - **Hecho**: esquemas + migración con backfill; `test_strategy_db.py`/`test_strategy_schemas.py` verdes (migración de una base con el esquema anterior verificada, idempotente).
+
+- [x] **T8.2**: Servicio: `create` y `update` guardan el snapshot; `update` solo-metadatos crea versión; "No changes detected" solo si parámetros y metadatos son iguales; `diff` informa `metadata_changed` (RF-3, RF-6)
+  - **Hecho cuando**: `pytest packages/finances-core/tests/unit/test_strategy_service.py -v` pasa con casos de metadatos (solo description, solo tags, herencia, sin cambios, legado).
+  - **Hecho**: `test_strategy_service.py` verde (create/update/diff/export con snapshot, solo-metadatos, herencia, sin cambios, auditoría).
+
+- [x] **T8.3**: CLI/API: `update` acepta solo `--desc`/`--tag` (PUT solo con `description`/`tags`); `diff` muestra metadatos; 422/exit 2 si el payload está vacío; paridad CLI/API
+  - **Hecho cuando**: `pytest packages/finances-core/tests/integration/test_strategy_cli.py packages/finances-core/tests/integration/test_strategy_api.py packages/finances-core/tests/contract -v` pasa.
+  - **Hecho**: `test_strategy_cli.py`/`test_strategy_api.py`/contrato verdes; `--desc`/`--tag` solos y PUT solo-metadatos crean versión; payload vacío → exit 2 / 422.
+
+- [x] **T8.4**: Documentación y cierre: README, ruff, `mypy --strict src`, suite completa; Risk item 1 (formato persistido) con verificación independiente
+  - **Hecho cuando**: ruff + `mypy --strict src` limpios y suites de `finances-core`/`finances-api` verdes.
+  - **Hecho**: ruff + `mypy --strict src` limpios; `pytest packages/finances-core` 675 passed, `packages/finances-api` 27 passed. Verificación independiente (Risk item 1): sin bloqueantes (migración idempotente y concurrente, sin regresiones vs HEAD); su aviso menor (diff legado→snapshot mostraba un cambio de `description` falso) corregido.
