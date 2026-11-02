@@ -88,6 +88,8 @@ ft_data_viewer summary -e binance -m spot -s BTCUSDT -t 1h  # Estadísticas
 ft_data_viewer head -e binance -m spot -s BTCUSDT -t 1h -n 20  # Primeras 20 filas
 ft_data_viewer gaps -e binance -m spot -s BTCUSDT -t 1h      # Gaps temporales
 ft_data_viewer anomalies -e binance -m spot -s BTCUSDT -t 1h  # Duplicados, nulos, outliers
+ft_data_viewer candles -e binance -m spot -s BTCUSDT -t 1h --start-ms 1704067200000 --limit 500 --cols open_time_ms,close -f json  # Velas por rango (paginadas: usa next_after_ms como --after-ms)
+# API equivalente: GET /data/datasets/binance/spot/BTCUSDT/1h/candles?start_ms=1704067200000&limit=500&columns=open_time_ms,close&after_ms=<next_after_ms>
 ft_data_viewer export -e binance -m spot -s BTCUSDT -t 1h --start 2024-01-01 --end 2024-06-01 -o ./subset  # Exportar
 ft_data_viewer summary -e yfinance -m equity -s AAPL -t 1d  # Dataset de Yahoo (market_type detectado)
 ft_data_viewer compare --exchange-a binance --market-a spot --symbol-a BTCUSDT --timeframe-a 1h \

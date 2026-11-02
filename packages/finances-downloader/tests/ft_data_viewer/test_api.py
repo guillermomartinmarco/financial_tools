@@ -37,7 +37,7 @@ def client() -> Iterator[TestClient]:
         yield c
 
 
-def test_openapi_exposes_seven_endpoints(client: TestClient) -> None:
+def test_openapi_exposes_eight_endpoints(client: TestClient) -> None:
     paths = client.get("/openapi.json").json()["paths"]
     expected = {
         "/data/datasets",
@@ -46,6 +46,7 @@ def test_openapi_exposes_seven_endpoints(client: TestClient) -> None:
         "/data/datasets/{exchange}/{market_type}/{symbol}/{timeframe}/gaps",
         "/data/datasets/{exchange}/{market_type}/{symbol}/{timeframe}/anomalies",
         "/data/datasets/{exchange}/{market_type}/{symbol}/{timeframe}/export",
+        "/data/datasets/{exchange}/{market_type}/{symbol}/{timeframe}/candles",
         "/data/compare",
     }
     assert set(paths) == expected
