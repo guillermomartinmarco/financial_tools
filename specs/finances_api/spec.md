@@ -19,6 +19,7 @@ Cada herramienta `ft_*` expone un `APIRouter` de FastAPI, pero ninguna app los m
 - `ft_datasets` (prefijo `/datasets`, paquete `finances-downloader`)
 - `ft_indicators` (prefijo `/indicators`, paquete `finances-analytics`)
 - `ft_ta_lib` (prefijo `/ta-lib`, paquete `finances-analytics`)
+- `ft_strategy_manager` (prefijo `/strategies`, paquete `finances-core`)
 
 Los nombres de ruta (`name`) **DEBEN** ser únicos en la app compuesta (`url_for` resuelve por nombre: cada herramienta usa su prefijo, p. ej. `indicators_*`, `ta_lib_*`, `datasets_*`).
 
@@ -31,8 +32,9 @@ Los nombres de ruta (`name`) **DEBEN** ser únicos en la app compuesta (`url_for
 **CUANDO** el servicio arranca, **EL SISTEMA DEBE** configurar logging JSON mediante `finances_core.logging.configure_logging("api", ...)` en el `lifespan` de la app, de modo que también aplique cuando la app se monta desde tests u otro servidor ASGI.
 
 ### RF-4 — Salud (Ubicuo)
-**EL SISTEMA DEBE** exponer `GET /health` que responda `200` con `{"status": "ok", "version": "<versión del paquete>", "parquet_dir_accessible": <bool>}`.
+**EL SISTEMA DEBE** exponer `GET /health` que responda `200` con `{"status": "ok", "version": "<versión del paquete>", "parquet_dir_accessible": <bool>, "strategies_db_accessible": <bool>}`.
 - `parquet_dir_accessible` es `true` **SI** `FT_PARQUET_DIR` existe y es legible (requisito de `ft_market_data_binance` T8.3); su valor `false` no cambia el código `200` (el servicio sigue vivo).
+- `strategies_db_accessible` es `true` **SI** `strategies.db` (`FT_STRATEGIES_DB_PATH` o `<FT_SHARE_DIR>/strategies.db`) existe y es legible/escribible, o aún no existe pero su primer ancestro existente es escribible (la base se crea en el primer uso); no abre ni crea la base. Su valor `false` tampoco cambia el `200` (`specs/ft_strategy_manager` T7.3).
 
 ### RF-5 — Aislamiento (No deseado)
 **SI** algún módulo `ft_*` importa de `finances_api`, **ENTONCES** es una violación del Art. 4. `finances_api` solo importa los `router` públicos de cada herramienta.

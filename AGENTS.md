@@ -28,6 +28,6 @@ Cualquier prompt que solicite código sin una especificación previa debe ser re
 
 ## 5. Herramientas de Agentes
 *   **Skills SDD**: `.claude/skills/` (Claude Code) es la fuente principal; `.opencode/skills/` es un espejo para OpenCode y debe mantenerse sincronizado.
-*   **Flujo Único**: El flujo SDD de la sección 3 es el único flujo de trabajo del proyecto. No se usan orquestadores externos (p. ej. ODD de `gentle-ai`); el seguimiento de avance vive exclusivamente en `specs/ft_<nombre>/tasks.md`.
+*   **Flujo Único**: El flujo SDD de la sección 3 es el único flujo de trabajo del proyecto. El seguimiento de avance vive exclusivamente en `specs/ft_<nombre>/tasks.md`; no se crean documentos de seguimiento paralelos (p. ej. `odd/tasks/`). Un orquestador externo (p. ej. `gentle-ai`) puede usarse como herramienta de apoyo, pero no reemplaza el flujo SDD ni sus artefactos.
 *   **Memoria**: La memoria persistente entre sesiones se gestiona con Engram (MCP). Registrar decisiones de arquitectura, causas raíz no obvias y trabajo pendiente relevante. No usar archivos markdown manuales como memoria.
 *   **Documentación de Librerías**: Consultar Context7 (MCP, configurado en `.mcp.json`) antes de usar APIs de Polars, FastAPI, Typer, Pydantic o structlog.

@@ -12,7 +12,7 @@ Para garantizar el aislamiento y permitir ciclos SemVer independientes, las herr
 
 | Paquete Corporativo | Utilidades Asociadas (`ft_*`) | Stack Tecnológico Base |
 | :--- | :--- | :--- |
-| **`finances-core`** | `finances_core` (puente compartido: config, logging, tasks, schemas), `ft_setup`, `ft_strategy_manager` *(planificado)* | Pydantic Settings, Structlog, SQLite |
+| **`finances-core`** | `finances_core` (puente compartido: config, logging, tasks, schemas), `ft_setup`, `ft_strategy_manager` (CRUD versionado de estrategias) | Pydantic Settings, Structlog, SQLite |
 | **`finances-downloader`** | `ft_market_data_binance`, `ft_market_data_yfinance`, `ft_data_viewer`, `ft_datasets` (recetas de datasets reales reproducibles), `ft_market_data_manager` *(planificado)* | Asyncio, Polars, Parquet |
 | **`finances-analytics`** | `ft_indicators` (indicadores técnicos sobre OHLCV Hive), `ft_ta_lib` (catálogo completo de TA-Lib sobre OHLCV Hive) | Polars (cálculo `Float64`, persistencia `Float32`), TA-Lib (rueda binaria), Parquet Hive |
 | **`finances-api`** | `ft_serve` (raíz de composición: monta los routers de todas las herramientas) | FastAPI, Uvicorn |
@@ -24,7 +24,7 @@ Para garantizar el aislamiento y permitir ciclos SemVer independientes, las herr
 
 ### 2.1 Configuración y Gobernanza
 *   **`ft_setup`**: Inicialización del entorno, diagnóstico de variables y enmascaramiento de llaves criptográficas/secretos usando emojis de advertencia (`⚠️`).
-*   **`ft_strategy_manager`**: CRUD y persistencia formal de las reglas de parámetros de estrategias del usuario.
+*   **`ft_strategy_manager`**: CRUD y persistencia formal de las reglas de parámetros de estrategias del usuario: versiones inmutables con hash SHA-256 del JSON canónico, JSON Schema opcional, JSON Patch, diff entre versiones, soft/hard delete y export JSON/YAML. Persiste en `share/strategies.db` (SQLite WAL; `FT_STRATEGIES_DB_PATH` la sobrescribe). Exposición simétrica CLI (`ft_strategy_manager`) y API (`/strategies`).
 
 ### 2.2 Captura y Gestión de Datos de Mercado
 *   **`ft_market_data_binance`**: Descargador de alta velocidad asíncrono para la API de Binance (Spot/Futures).
@@ -123,11 +123,24 @@ ft_ta_lib compute -d yfinance/equity/AAPL/1d -f rsi:timeperiod=21,price=adj_clos
 ft_ta_lib status <task_id>                                      # progreso (mismo JSON que GET /ta-lib/status)
 ft_ta_lib show binance/spot/BTCUSDT/1h                          # manifiesto: series talib_* calculadas, dtypes y versión de TA-Lib
 ft_ta_lib export binance/spot/BTCUSDT/1h -f kama -f cdlengulfing --include-ohlcv --format csv -o .temp/ta_lib  # tabla ancha a CSV
+
+# Estrategias versionadas (share/strategies.db; ids = UUID v7; --format table|json|yaml)
+# Exit: 0 OK · 1 no encontrada · 2 validación · 3 nombre duplicado · 4 IO
+echo '{"fast": 12, "slow": 26, "api_key": "no-se-loguea"}' > params.json
+ft_strategy_manager create mean_reversion --params params.json --desc "demo" -t fx -t demo  # crea v1 (imprime strategy_id y hash)
+ft_strategy_manager list --tag fx --name mean                        # filtros tag/name/--include-deleted, --limit/--offset
+ft_strategy_manager get <strategy_id>                                # última versión; --version 1, --format json|yaml
+echo '[{"op": "replace", "path": "/fast", "value": 8}]' > patch.json
+ft_strategy_manager update <strategy_id> --patch patch.json          # nueva versión (JSON Patch RFC 6902); o --params completo
+ft_strategy_manager diff <strategy_id> --from v1 --to v2             # added/removed/changed
+ft_strategy_manager versions <strategy_id>                           # historial inmutable
+ft_strategy_manager export <strategy_id> --format yaml -o strategy.yaml  # estrategia + todas las versiones
+ft_strategy_manager delete <strategy_id>                             # soft-delete (idempotente); --purge pide confirmación (--force la omite)
 ```
 
 ### Ejecución en Modo Servicio (FastAPI)
 ```bash
-# Servicio HTTP único: /setup, /market-data/binance, /market-data/yfinance, /data, /datasets, /indicators, /ta-lib y /health (docs en /docs)
+# Servicio HTTP único: /setup, /market-data/binance, /market-data/yfinance, /data, /datasets, /indicators, /ta-lib, /strategies y /health (docs en /docs)
 ft_serve --port 8000
 
 # Yahoo Finance vía API: POST devuelve 202 con task_id y las URLs de polling
@@ -156,6 +169,13 @@ curl "http://localhost:8000/ta-lib/catalog?group=Pattern%20Recognition"
 curl -X POST http://localhost:8000/ta-lib/compute -H "Content-Type: application/json"   -d '{"datasets":[{"exchange":"binance","market_type":"spot","symbol":"BTCUSDT","timeframe":"1h"}],"functions":[{"function":"kama"},{"function":"bbands","params":{"matype":"ema"}}],"groups":["Pattern Recognition"]}'
 curl http://localhost:8000/ta-lib/status/<task_id>               # poll_url de la respuesta 202
 curl -X POST http://localhost:8000/ta-lib/datasets/binance/spot/BTCUSDT/1h/export -H "Content-Type: application/json"   -d '{"format":"parquet","series":["kama","talib_cdlengulfing"]}' -o BTCUSDT_1h_ta_lib.parquet
+
+# Estrategias vía API (mismo contrato que la CLI; X-User-ID opcional para auditoría)
+curl -X POST http://localhost:8000/strategies -H "Content-Type: application/json" -H "X-User-ID: ana"   -d '{"name":"mean_reversion","parameters":{"fast":12,"slow":26},"tags":["fx"]}'      # 201 + Location: /strategies/<id>
+curl "http://localhost:8000/strategies?tag=fx&name=mean&limit=50"                     # GET /strategies/<id>?version=1
+curl -X PUT http://localhost:8000/strategies/<id> -H "Content-Type: application/json"   -d '{"parameters_patch":[{"op":"replace","path":"/fast","value":8}]}'                # nueva versión (400 si no hay cambios)
+curl "http://localhost:8000/strategies/<id>/diff?from=1&to=2"                         # también /versions y /export?format=yaml
+curl -X DELETE "http://localhost:8000/strategies/<id>?purge=false"                    # 204, idempotente
 ```
 
 ---
