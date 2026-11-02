@@ -107,3 +107,18 @@
 - [x] **T7.2**: Matriz Art. 20 en el checklist del PR (Funcional, Contractual, Arquitectural — Art. 4 con `ft_indicators`, Datos — RFC-0002 aprobada, Concurrencia, Observabilidad, Resiliencia = N/A justificado, Calidad ≥ 90 %, Desempeño = T5 calibrado, Despliegue)
   - **Hecho cuando**: checklist firmado en la descripción del PR; CI verde (incluida la validación cruzada).
   - **Hecho**: PR #5 mergeado a `main` (`01f1c06`) con las 10 dimensiones del Art. 20 marcadas y firma del Tech Lead (Guillermo Martín Marco); CI verde en `windows-latest` y `ubuntu-24.04` incluida la validación cruzada. La calibración (`1dbf48e`, CI #25 verde con ambos benchmarks controlados) entra por el PR siguiente.
+
+## Fase 8: Migración a ta-lib 0.8.3 (TA-Lib C 0.8.3)
+
+> Las fases 0–7 se cerraron con ta-lib 0.8.2 / C 0.8.1 (201 funciones, 14 tipos de media) y quedan como historial. Con `ta-lib>=0.8.2,<0.9` CI resolvió 0.8.3 y cinco tests fallaron (catálogo 237, 16 `MA_Type`, `RSI` plano = 50, tope de 200 funciones). Esta fase adopta 0.8.3 (spec primero, Art. 15). Decisiones: RF-4, RF-19 y spec de `ft_indicators` RF-2.
+
+- [ ] **T8.1**: Spec `ft_ta_lib` y `ft_indicators` actualizadas a ta-lib 0.8.3 / C 0.8.3 (RF-2, RF-4, RF-19, plan §1.1/§5)
+  - **Hecho cuando**: `spec.md`, `plan.md` y `tasks.md` de ambas herramientas no contienen cifras de 0.8.2/201/14 tipos como estado actual (solo como historial fechado); `git grep -n "0\.8\.2" specs/` solo devuelve historial.
+- [ ] **T8.2**: Dependencia fijada y guardia de versión (RF-19)
+  - **Hecho cuando**: `finances-analytics` declara `ta-lib>=0.8.3,<0.8.4`; `tests/test_talib_version_guard.py` falla con un mensaje que nombra la versión instalada, la validada y RF-19 cuando difieren (probado con un `talib` simulado), y pasa con la instalada; `ci.yml` imprime wrapper y C.
+- [ ] **T8.3**: `MA_TYPE_NAMES` con `vidya` (14) y `alma` (15); resolutor, mensajes de ayuda y validadores aceptan 0–15 (RF-4)
+  - **Hecho cuando**: `test_ma_type_names_mirror_talib_enum` verde; `matype=vidya`, `matype=alma` y `matype=15` se resuelven; `matype=16` y `matype=foo` → `TaLibValidationError` que lista los 16 nombres; test en `finances-core` del esquema.
+- [ ] **T8.4**: `MAX_FUNCTIONS = 256` con guardia contra el tamaño del catálogo (RF-19)
+  - **Hecho cuando**: `test_more_than_200_functions_is_validation` pasa a `test_more_than_max_functions_is_validation` (257 únicas → validación, 256 ok); un test falla si `len(catálogo) >= MAX_FUNCTIONS`; `-g` con todos los grupos (237) es aceptado.
+- [ ] **T8.5**: Catálogo 237 / 236 soportadas: las 36 funciones nuevas recorridas por el test de causalidad (T3.2) y clasificadas por el catálogo dinámico
+  - **Hecho cuando**: `test_catalog_is_large_enough_for_the_property` afirma 236 soportadas (cota derivada del catálogo, no un literal suelto) y el *lookback* máximo real; ninguna función falla la propiedad (`NON_CAUSAL` vacío) o, si alguna falla, queda documentada aquí con decisión humana; conteos en docstrings, README y ayuda actualizados.

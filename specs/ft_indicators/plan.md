@@ -73,7 +73,7 @@ class StoreEntry(BaseModel):                       # una serie persistida (un in
     spec: dict[str, object]                        # spec resuelta propia de la herramienta
     columns: list[str]
     column_dtypes: dict[str, str]                  # "Float32" | "Int16" | "Int64"
-    engine_version: str                            # p. ej. "ft_indicators:3" o "ta-lib 0.8.2 / C 0.8.1"
+    engine_version: str                            # p. ej. "ft_indicators:3" o "ta-lib 0.8.3 / C 0.8.3"
     rows: int
     first_ms: int | None
     last_ms: int | None                            # detección de desactualización
@@ -322,7 +322,7 @@ bit (RF-3); los kernels usan `scaled(x, n) = x · (1/n)`.
 | `recursive.py` | `ema`, `rsi`, `macd`, `atr`, `adx` | Semilla SMA insertada en la fila de semilla y `ewm_mean(alpha=…, adjust=False, ignore_nulls=True)` sobre la subsecuencia no nula; Wilder = α = 1/period; sumas de Wilder de ADX = media de Wilder × period |
 | `cumulative.py` | `obv` | `sign(diff(close)) * volume` → `cum_sum` (primera fila = volume_0) |
 
-Convenciones de división por cero (RF-2: RSI sin movimiento = 0 y Estocástico con HH = LL = 0, como TA-Lib) con
+Convenciones de división por cero (RF-2: RSI sin movimiento = 50 (TA-Lib C ≥ 0.8.3; era 0) y Estocástico con HH = LL = 0, como TA-Lib) con
 `pl.when(...).then(...)`.
 
 ### 3.4 Motor — `ft_indicators/engine.py` (recálculo completo)
@@ -475,6 +475,10 @@ exige estructura idéntica (columnas, tipos, nulos, enteros) y flotantes dentro 
 cada columna: entre CPUs distintas (SIMD/FMA) el último bit de `float64` puede variar (observado en CI ubuntu-latest
 con Bollinger sobre precios ~1e6), así que la igualdad byte a byte solo se garantiza en la misma máquina.
 
+**Versionado (Fase 9, 2026-11-02)**: el paquete pasa de `v1` a **`v2`** y `ENGINE_VERSION` de 1 a 2 porque cambia una fórmula
+(`rsi` con G+L = 0: 0 → 50, convención de TA-Lib C 0.8.3; solo difieren los valores de `rsi_14` del caso `flat`).
+`v1` se elimina (sin consumidores todavía); el manifiesto de `v2` registra `engine_versions = {"ft_indicators": 2}`.
+
 ### 3.11 Contraste con TA-Lib en CI — `tests/ft_indicators/test_talib_parity.py`
 TA-Lib (`ta-lib`, ruedas binarias cp312 Windows/manylinux) es dependencia del extra `[dev]`; solo los **tests**
 lo importan (test AST, T0.3). Para cada indicador con `talib` en su `IndicatorDef`, sobre series sin nulos
@@ -530,7 +534,7 @@ packages/finances-analytics/
   `fastapi>=0.111`, `structlog>=24.1`, `rich>=13.7`, `uuid6>=1.11`, `pyarrow>=16.0`. **Nunca** `finances-downloader`
   ni `pandas`. `ft_indicators` no importa `talib` (test AST).
 - `dev`: `pytest>=8.2`, `pytest-asyncio>=0.23`, `httpx>=0.27`, `ruff>=0.5`, `mypy>=1.10`, `hypothesis>=6.100`
-  (RF-3), **`ta-lib>=0.8.2,<0.9`** (contraste §3.11; se fija la versión menor porque sus valores son la referencia).
+  (RF-3), **`ta-lib>=0.8.3,<0.8.4`** (contraste §3.11; se fija la versión menor porque sus valores son la referencia).
   Cuando se implemente `ft_ta_lib`, `ta-lib` pasa a dependencia de runtime del paquete (ver `specs/ft_ta_lib/plan.md`).
 - mypy: override `ignore_missing_imports` para `talib.*` (sin stubs).
 - Script: `ft_indicators = "finances_analytics.ft_indicators.cli:app"`.

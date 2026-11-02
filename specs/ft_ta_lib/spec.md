@@ -3,9 +3,9 @@
 ## Contexto e Historias de Usuario
 
 `ft_indicators` ofrece 12 indicadores propios en Polars, validados y con rol de oráculo. Muchos análisis necesitan
-además el resto del catálogo clásico: 201 funciones en TA-Lib C 0.8.1 (≈158 en el catálogo clásico) (medias KAMA/T3/MAMA, transformadas de Hilbert,
-estadísticas, operadores matemáticos y 61 patrones de velas). `pip install ta-lib` instala hoy ruedas binarias
-(ta-lib 0.8.2, TA-Lib C 0.8.1) para Windows y manylinux x86_64 (cp312), y `talib.abstract` /
+además el resto del catálogo: 237 funciones en TA-Lib C 0.8.3 (≈158 en el catálogo clásico; 201 en C 0.8.1) (medias KAMA/T3/MAMA/VIDYA/ALMA, transformadas de Hilbert,
+estadísticas, operadores matemáticos, indicadores añadidos en 0.8.3 como `ICHIMOKU`, `SUPERTREND` o `ZIGZAG`, y 61 patrones de velas). `pip install ta-lib` instala hoy ruedas binarias
+(ta-lib 0.8.3, TA-Lib C 0.8.3) para Windows y manylinux x86_64 (cp312), y `talib.abstract` /
 `talib.get_function_groups()` describen el catálogo completo. `ft_ta_lib` es una envoltura delgada sobre **todo** ese
 catálogo con **el mismo contrato de datos** que `ft_indicators`: lee los datasets Hive de los descargadores, alinea
 1:1 por `open_time_ms`, persiste por función y mes bajo `FT_INDICATORS_DIR` y exporta a Parquet / CSV / JSONL.
@@ -41,6 +41,7 @@ La fuente es de **solo lectura**: **EL SISTEMA NO DEBE** escribir nunca bajo `FT
 - **SI** una función requiere una entrada que el esquema OHLCV no tiene (p. ej. `MAVP` con `periods`), **ENTONCES** figura con `supported=false`, `unsupported_reason="unavailable_input"`.
 - **SI** una función no supera el test de causalidad (RF-6), **ENTONCES** figura con `supported=false`, `unsupported_reason="non_causal"`.
 - La versión de TA-Lib (wrapper y C) **DEBE** figurar en el catálogo y en el manifiesto.
+- Con ta-lib 0.8.3 / C 0.8.3 el catálogo tiene **237** funciones, **236** soportadas (todas salvo `MAVP`). Las 36 funciones añadidas respecto de C 0.8.1 se tratan igual que las anteriores (catálogo dinámico, sin lista de excepciones): las que usan solo columnas OHLCV son `supported=true`; el test de causalidad (RF-6) las recorre todas y **ninguna** falla, así que `NON_CAUSAL` sigue vacío.
 
 ### RF-3 — Mapeo de Entradas (Ubícuo)
 - Las entradas de TA-Lib se mapean a las columnas canónicas homónimas: `open`, `high`, `low`, `close`, `volume`.
@@ -50,14 +51,15 @@ La fuente es de **solo lectura**: **EL SISTEMA NO DEBE** escribir nunca bajo `FT
 
 ### RF-4 — Parámetros y Validación (Ubícuo)
 - **EL SISTEMA DEBE** validar los parámetros con los metadatos de TA-Lib: nombre existente, tipo (entero o real), y rango publicado por TA-Lib cuando exista.
-- Parámetros de tipo media móvil (`matype`, `slowk_matype`, `fastd_matype`, …) aceptan el nombre (`sma`, `ema`, `wma`, `dema`, `tema`, `trima`, `kama`, `mama`, `t3`, `hma`, `disabled`, `default`, `zlema`, `rma`; los 14 de `talib.MA_Type` en TA-Lib C 0.8.1) o su entero 0–13 (`talib.MA_Type`).
+- Parámetros de tipo media móvil (`matype`, `slowk_matype`, `fastd_matype`, …) aceptan el nombre (`sma`, `ema`, `wma`, `dema`, `tema`, `trima`, `kama`, `mama`, `t3`, `hma`, `disabled`, `default`, `zlema`, `rma`, `vidya`, `alma`; los 16 de `talib.MA_Type` en TA-Lib C 0.8.3) o su entero 0–15 (`talib.MA_Type`).
+- **SI** un valor de `matype` no es un nombre válido ni un entero 0–15, **ENTONCES** exit 2 / HTTP 400 listando los 16 nombres válidos. El orden de `MA_TYPE_NAMES` (posición = entero) **DEBE** coincidir con `talib.MA_Type`; un test lo verifica contra la versión instalada.
 - **SI** TA-Lib rechaza una combinación de parámetros (`TA_BAD_PARAM`), **ENTONCES** exit 2 / HTTP 400 con el mensaje de TA-Lib; la validación se hace antes de despachar, sobre una serie sintética mínima.
 
 ### RF-5 — Petición (Ubícuo)
 **EL SISTEMA DEBE** aceptar una única forma canónica, `TaLibComputeRequest` (datasets + funciones + grupos), con dos adaptadores equivalentes:
 - **CLI**: `--dataset ex/mt/sym/tf` repetible, `--function NAME[:k=v,...]` repetible (gramática compartida de `finances_core`; claves de parámetros o de entradas, p. ej. `-f rsi:timeperiod=14,price=adj_close -f bbands:timeperiod=20,matype=ema`), `--group "Pattern Recognition"` repetible (todas las funciones soportadas del grupo con defaults), o `--request-file FILE.json` con exactamente el cuerpo de la API.
 - **API**: el mismo `TaLibComputeRequest` como cuerpo JSON.
-- Nombres de función sin distinción de mayúsculas. Límites: 1–100 datasets; 1–200 funciones tras expandir grupos. Duplicados (mismo `series_id`) se deduplican sin error.
+- Nombres de función sin distinción de mayúsculas. Límites: 1–100 datasets; 1–256 funciones (`MAX_FUNCTIONS`, RF-19) tras expandir grupos. Duplicados (mismo `series_id`) se deduplican sin error.
 - **SI** la función o el grupo no existen, **ENTONCES** exit 2 / HTTP 400 listando los grupos válidos.
 
 ### RF-6 — Convenciones de Datos (Ubícuo)
@@ -143,6 +145,12 @@ Calibración como en `ft_indicators` RF-14: 1,5 × mediana de 5 repeticiones en 
 - Funciones **con** ese *flag* (EMA, RSI, ATR, ADX, KAMA, MAMA, T3, HT_*, …): `stable_from_ms` nulo con motivo `unstable_period_unknown` (TA-Lib no publica una regla analítica; `ft_indicators` sí la da para sus 12 indicadores).
 - Se publica en manifiesto, resultado, progreso y catálogo (contrato `Stability` compartido).
 
+### RF-19 — Versión de TA-Lib Fijada y Guardia de Catálogo (Ubícuo)
+- **EL SISTEMA DEBE** declarar la dependencia como `ta-lib>=0.8.3,<0.8.4` (versión **de parche** fijada): los valores de TA-Lib son la referencia de paridad de `ft_indicators` y cada parche de TA-Lib C ha cambiado catálogo o semántica (0.8.2→0.8.3: +36 funciones, +2 tipos de media, RSI sobre serie plana). Subir la versión es una decisión explícita que exige spec primero (Art. 15).
+- **SI** la versión instalada de `ta-lib` (wrapper o C) difiere de la validada (`0.8.3` / `0.8.3`), **ENTONCES** la suite de tests **DEBE** fallar con un mensaje que nombre ambas versiones y remita a este RF.
+- `MAX_FUNCTIONS` = **256**: tope de funciones tras expandir grupos en una petición. **DEBE** ser mayor que el tamaño del catálogo (237) con holgura para peticiones que repiten una función con parámetros distintos; **SI** el catálogo instalado alcanza o supera `MAX_FUNCTIONS`, **ENTONCES** un test **DEBE** fallar (una actualización futura falla en voz alta en lugar de rechazar en silencio peticiones legítimas de «todos los grupos»).
+- **SI** una petición supera `MAX_FUNCTIONS` funciones únicas tras expandir, **ENTONCES** exit 2 / HTTP 400 («demasiadas funciones tras expandir grupos: más de 256»).
+
 ### RF-18 — Validación Cruzada con `ft_indicators` (Ubícuo)
 **EL SISTEMA DEBE** acordar con `ft_indicators`, para cada indicador de este último con `talib_equivalent`, dentro de la tabla de tolerancias de `ft_indicators` (plan §3.9) desde su `stable_from_ms` y con sus ajustes documentados. El test vive en `packages/finances-api/tests/` y usa **solo HTTP** sobre `create_app()` (sin importar ninguna herramienta, Art. 4): calcula y exporta el mismo dataset sintético por `/indicators` y `/ta-lib` y compara columnas, tomando el mapeo de `GET /indicators/catalog` (`talib_equivalent`).
 
@@ -152,6 +160,7 @@ Calibración como en `ft_indicators` RF-14: 1,5 × mediana de 5 repeticiones en 
 
 - **Señales de trading** y combinaciones de funciones (p. ej. RSI de un MACD): fuera del MVP.
 - **Funciones con entradas no OHLCV** (`MAVP` con `periods`): catalogadas como no soportadas.
+- **Semántica de TA-Lib sobre series degeneradas**: `ft_ta_lib` devuelve lo que TA-Lib devuelve (p. ej. `RSI` sobre serie plana = 50 en C 0.8.3; era 0 en C 0.8.1). `ft_indicators` adopta la misma convención (spec `ft_indicators` RF-2).
 - **Cambiar la configuración global de TA-Lib** (*unstable period*, modo Metastock): fuera del MVP.
 - **Recálculo incremental**: igual que `ft_indicators`, fuera del MVP.
 - **Reglas analíticas de convergencia** para funciones con *unstable period*: fuera del MVP (motivo `unstable_period_unknown`).
