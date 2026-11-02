@@ -314,18 +314,19 @@ def test_input_file_errors_are_clear(tmp_path: Path) -> None:
     broken = _write(tmp_path, "broken.json", "{not json")
     result = _run("create", "alpha", "--params", str(broken))
     assert result.exit_code == cli.EXIT_VALIDATION
-    assert "not valid JSON" in result.stderr
+    # La terminal parte líneas largas (rutas temporales largas en CI): se compara aplanado.
+    assert "not valid JSON" in " ".join(result.stderr.split())
 
     array = _write(tmp_path, "array.json", [1, 2])
     result = _run("create", "alpha", "--params", str(array))
     assert result.exit_code == cli.EXIT_VALIDATION
-    assert "must contain a JSON object" in result.stderr
+    assert "must contain a JSON object" in " ".join(result.stderr.split())
 
     object_patch = _write(tmp_path, "obj.json", {"op": "add"})
     sid = _create(tmp_path)["strategy_id"]
     result = _run("update", sid, "--patch", str(object_patch))
     assert result.exit_code == cli.EXIT_VALIDATION
-    assert "must contain a JSON array" in result.stderr
+    assert "must contain a JSON array" in " ".join(result.stderr.split())
 
     binary = tmp_path / "bin.json"
     binary.write_bytes(b"\xff\xfe\x00")
