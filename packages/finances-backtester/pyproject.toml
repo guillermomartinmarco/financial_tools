@@ -2,8 +2,8 @@
 name = "finances-backtester"
 version = "0.1.0"
 description = "Backtesting engines (ft_vectorbt and siblings) for financial_tools suite"
-# A16: cota superior hasta que ft_vectorbt V0.2 pruebe la matriz con evidencia.
-requires-python = ">=3.11,<3.14"
+# A16: cota según la evidencia de ft_vectorbt V0.2 (vectorbt 1.2.0 declara <3.15).
+requires-python = ">=3.11,<3.15"
 dependencies = [
     "finances-core",
     "polars>=1.6",
@@ -15,8 +15,12 @@ dependencies = [
     "rich>=13.7",
     "uuid6>=1.11",
     "pyarrow>=16.0",
-    # Las dependencias de cada motor (vectorbt, NumPy, pandas) las añade cada herramienta
-    # con pin verificado (ft_vectorbt V0.2); este paquete no depende de ningún motor.
+    # ft_vectorbt (V0.2): pin verificado con evidencia en specs/ft_vectorbt/tasks.md; numpy y
+    # pandas explícitos porque engine.py los usa en la frontera float64 (RFC-0004).
+    # Licencia de vectorbt: Apache 2.0 con Commons Clause (prohíbe venderlo; uso no comercial).
+    "vectorbt>=1.2.0,<1.3",
+    "numpy>=2.5,<3",
+    "pandas>=3.1,<4",
 ]
 
 [project.optional-dependencies]

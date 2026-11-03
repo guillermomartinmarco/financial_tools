@@ -296,7 +296,7 @@ Todo lo siguiente es **propuesta del diseño** (marcada como supuesto) y está s
 | A13 | Con un solo motor, la «validación cruzada» se hace contra *golden files* de una referencia independiente de prueba; la comparación motor-contra-motor llega con el segundo motor. | — |
 | A14 | Tolerancias iniciales de RFC-0004 (punto 5), a calibrar con evidencia. | — |
 | A15 | Única variable nueva: `FT_BACKTEST_MAX_CONCURRENT` (`FT_STRATEGIES_DIR` ya existía; A21). | — |
-| A16 | Paquete `requires-python = ">=3.11,<3.14"` hasta que V0.2 de `ft_vectorbt` pruebe la matriz; la `.venv` local usa Python 3.14 y pandas 3.x, probablemente incompatibles con VectorBT. Versión de `vectorbt`: **pin a verificar** (no se inventa). | Ajustar la matriz de CI y la `.venv`. |
+| A16 *(resuelto en V0.2)* | Paquete `requires-python = ">=3.11,<3.15"` (la cota de `vectorbt` 1.2.0); `vectorbt>=1.2.0,<1.3` con NumPy 2.5.4, pandas 3.1.0 y Numba 0.68.1 verificados en Windows y Ubuntu con Python 3.12, 3.13 y 3.14 (evidencia en `specs/ft_vectorbt/tasks.md`, V0.2). La CI sigue en 3.12. | Ajustar la matriz de CI y la `.venv`. |
 | A17 | RFC-0004 enmienda el Art. 8 (constitución 1.2.0) para admitir `pandas` en `engine.py`, porque el Art. 8 no prevé excepciones por RFC. Las estrategias **no** están cubiertas por la excepción. | Sin enmienda, no hay motores basados en `pandas`. |
 | A18 | Estrategias *soft-deleted* se tratan como inexistentes al ejecutar. | Permitir ejecutarlas con advertencia. |
 | A19 | Los huecos de datos no son error: se simulan las barras existentes y se informa `data_gaps`. | Rechazar datasets con huecos. |
