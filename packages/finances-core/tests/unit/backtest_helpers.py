@@ -11,6 +11,10 @@ from pathlib import Path
 
 import polars as pl
 
+from finances_core.backtest.catalog import get_registry
+from finances_core.backtest.strategies.signals import finalize
+from finances_core.config import FinancesSettings
+
 #: ``logic.py`` válido: momento simple sobre ``window`` barras. ``{kind}`` se sustituye.
 VALID_LOGIC = '''\
 """Estrategia de prueba: momento sobre ``window`` barras."""
@@ -114,13 +118,34 @@ def write_strategy(  # noqa: PLR0913 - helper de tests con opciones nombradas
 
 def candles_frame(closes: list[float]) -> pl.DataFrame:
     """Velas RF-4 (``Int64`` / ``Float32``) con ``open = high = low = close``."""
-    n = len(closes)
+    return ohlc_frame(high=closes, low=closes, close=closes)
+
+
+def ohlc_frame(*, high: list[float], low: list[float], close: list[float]) -> pl.DataFrame:
+    """Velas RF-4 (``Int64`` / ``Float32``) con ``open = close`` y ``high``/``low`` propios."""
+    n = len(close)
     return pl.DataFrame(
         {
             "open_time_ms": pl.Series([i * 3_600_000 for i in range(n)], dtype=pl.Int64),
-            "open": pl.Series(closes, dtype=pl.Float32),
-            "high": pl.Series(closes, dtype=pl.Float32),
-            "low": pl.Series(closes, dtype=pl.Float32),
-            "close": pl.Series(closes, dtype=pl.Float32),
+            "open": pl.Series(close, dtype=pl.Float32),
+            "high": pl.Series(high, dtype=pl.Float32),
+            "low": pl.Series(low, dtype=pl.Float32),
+            "close": pl.Series(close, dtype=pl.Float32),
         }
     )
+
+
+def builtin_signals(
+    kind: str, candles: pl.DataFrame, **params: int | float
+) -> tuple[list[bool], list[bool]]:
+    """Señales **normalizadas** (``finalize``) de la integrada ``kind`` como listas.
+
+    Usa el registro real del proceso (sin ``FT_STRATEGIES_DIR``), igual que el ``runner``.
+    """
+    strategy = get_registry(FinancesSettings()).get(kind)
+    validated = strategy.Params.model_validate(params)
+    raw = strategy.signals(candles, validated)
+    assert raw.entries.null_count() == 0  # calentamiento = false, nunca nulo
+    assert raw.exits.null_count() == 0
+    sig = finalize(raw, n=candles.height, warmup=strategy.warmup(validated))
+    return sig.entries.to_list(), sig.exits.to_list()

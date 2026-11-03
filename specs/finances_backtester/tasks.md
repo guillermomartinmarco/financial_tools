@@ -4,7 +4,7 @@
 > Checks por paquete: `python -m ruff check`, `python -m ruff format --check`, `python -m mypy --strict src`, `python -m pytest -q`.
 > Las tareas `B*` (núcleo compartido) **preceden** a las `V*` de `specs/ft_vectorbt/tasks.md`; cada tarea indica su dependencia.
 > Tests del núcleo en `packages/finances-core/tests/unit/`; sin red y con `FT_PROJECT_ROOT` temporal.
-> Estado: 10 de 34 tareas completadas (`B0.1`, `B0.2`, `B0.3`, `B1.1`–`B1.6`, `P1`); el resto pendiente.
+> Estado: 15 de 34 tareas completadas (`B0.1`, `B0.2`, `B0.3`, `B1.1`–`B1.11`, `P1`); el resto pendiente.
 
 ## Fase 0: Gobernanza y esqueleto
 
@@ -38,17 +38,23 @@
 - [x] **B1.6**: Verificación de autor: `strategies/testing.py::assert_strategy_contract` y anti look-ahead (RF-20) — depende de B1.2, B1.4
   - **Hecho cuando**: tests: una estrategia sintética válida pasa; una con `shift(-1)` **falla** el anti look-ahead; una que devuelve dtype erróneo, muta `candles` o no es determinista falla; los cortes `{warmup, warmup+1, n/4, n/2, 3n/4, n-1}` se evalúan y los inválidos se descartan sin error.
   - **Evidencia**: `test_strategies_testing.py` (20 tests) en verde; un espía confirma que se evalúan exactamente los cortes válidos.
-- [ ] **B1.7**: Estrategia integrada `sma_cross` (`strategies/sma_cross/{logic.py,README.md}`) y `strategies/_lib` (`sma`, `cross_above`, `cross_below`) (RF-2, RF-17) — depende de B1.6
+- [x] **B1.7**: Estrategia integrada `sma_cross` (`strategies/sma_cross/{logic.py,README.md}`) y `strategies/_lib` (`sma`, `cross_above`, `cross_below`) (RF-2, RF-17) — depende de B1.6
   - **Hecho cuando**: casos de 10 barras calculados a mano (calentamiento sin señal, cruce estricto, un empate no genera señal, `entry`/`exit` correctas); `assert_strategy_contract("sma_cross")` pasa; `fast >= slow` → `invalid_params`; README con las 4 secciones, diagrama Mermaid y tabla igual a `Params`.
-- [ ] **B1.8**: Estrategia integrada `rsi_reversion` (RSI de Wilder con semilla SMA; casos 100/50) y `_lib.rsi_wilder` (RF-2, RF-17) — depende de B1.7
+  - **Evidencia**: `test_strategies_sma_cross.py` (11 tests) y los de `sma`/`cross_*` de `test_strategies_lib.py` en verde (RED observado antes de implementar); defectos `fast=20, slow=100`.
+- [x] **B1.8**: Estrategia integrada `rsi_reversion` (RSI de Wilder con semilla SMA; casos 100/50) y `_lib.rsi_wilder` (RF-2, RF-17) — depende de B1.7
   - **Hecho cuando**: casos a mano (semilla en `t = period`, recursión de Wilder, serie plana → RSI 50 sin señal, solo ganancias → RSI 100); `lower >= upper` → `invalid_params`; `assert_strategy_contract("rsi_reversion")` pasa; README completo.
-- [ ] **B1.9**: Estrategia integrada `donchian_breakout` y `_lib.rolling_max_prev`/`rolling_min_prev` (RF-2, RF-17) — depende de B1.7
+  - **Evidencia**: `test_strategies_rsi_reversion.py` (13 tests) y los de `rsi_wilder` de `test_strategies_lib.py` (semilla, recursión, 50, 100, 0) en verde tras RED; `rsi_wilder` usa `ewm_mean(alpha=1/period, adjust=False)` sembrada con la SMA; defectos `14/30/70`.
+- [x] **B1.9**: Estrategia integrada `donchian_breakout` y `_lib.rolling_max_prev`/`rolling_min_prev` (RF-2, RF-17) — depende de B1.7
   - **Hecho cuando**: caso a mano donde incluir la barra actual en el canal cambiaría el resultado; calentamiento `t < window` sin señal; `assert_strategy_contract("donchian_breakout")` pasa; README completo.
-- [ ] **B1.10**: Guardia AST del núcleo (`test_backtest_isolation.py`) ampliada a `strategies/` — depende de B1.1, B1.9
+  - **Evidencia**: `test_strategies_donchian_breakout.py` (8 tests) y `rolling_*_prev` de `test_strategies_lib.py` en verde tras RED; defecto `window=20`.
+- [x] **B1.10**: Guardia AST del núcleo (`test_backtest_isolation.py`) ampliada a `strategies/` — depende de B1.1, B1.9
   - **Hecho cuando**: el test falla ante `pandas`, NumPy, `float64`/`Float64`/`double` o imports `ft_*` (salvo `ft_strategy_manager` en `strategy_source.py`) en `finances_core/backtest/**` (incluidas las estrategias integradas) y `schemas/backtest.py`, y pasa sobre el código actual (RFC-0004, RF-11).
-- [ ] **B1.11**: Plantilla `strategies/_template/` y guía `docs/guides/strategy-authoring.md` (RF-22) — depende de B1.9
+  - **Evidencia**: `test_backtest_isolation.py` (25 tests): 21 fuentes sintéticas infractoras detectadas (imports, nombres, atributos y alias; `ft_strategy_manager` solo en `strategy_source.py`) y 0 infracciones en los módulos reales; las constantes de texto de `checks.py` no se analizan.
+- [x] **B1.11**: Plantilla `strategies/_template/` y guía `docs/guides/strategy-authoring.md` (RF-22) — depende de B1.9
   - **Hecho cuando**: la guía contiene los pasos numerados, el checklist, el boilerplate, los ejemplos y la advertencia de seguridad de RF-22; un test copia `_template` a un `FT_STRATEGIES_DIR` temporal, la renombra y `assert_strategy_contract` pasa; otro ejecuta los comandos/ejemplos de la guía contra el directorio temporal; el README raíz enlaza la guía (ver P4).
   - **Nota (verificación de B1.1–B1.6)**: la guía debe advertir que los *junctions*/enlaces simbólicos dentro de `FT_STRATEGIES_DIR` se siguen (cargan código de fuera del directorio), dentro de la frontera de confianza de A23.
+  - **Avance**: plantilla, guía (con ambas advertencias) y `test_strategies_authoring.py` (8 tests: plantilla copiada y renombrada, guía ejecutada tal cual con `ft_strategy_manager create`, *package data* declarado en `pyproject.toml`) en verde. **Pendiente**: el enlace desde el README raíz (P4); los comandos de `ft_vectorbt` de la guía no se ejecutan hasta que existan.
+  - **Evidencia (cierre)**: el README raíz enlaza la guía; una wheel real de `finances-core` (no editable) contiene las 3 integradas, sus README, `_lib` y `_template`, y desde ella `get_registry` descubre las 3 y `assert_strategy_contract` pasa en todas.
 
 ## Fase 2: Datos (RF-4)
 
