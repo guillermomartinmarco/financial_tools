@@ -12,6 +12,21 @@
   - **Hecho cuando**: `from finances_core.backtest import catalog, runner, engine_api, results_store, metrics, identity` y `from finances_core.backtest.strategies import BaseStrategy, Signals` importan en `main`; la suite `engine_contract` existe; RFC-0004 figura `Aprobado` o la rama se marca bloqueada para fusión.
 - [ ] **V0.2**: Resolver y fijar la dependencia `vectorbt` (y NumPy/pandas/Numba transitivos) — depende de `B0.3`
   - **Hecho cuando**: en entornos limpios Python 3.12 de Windows y Ubuntu, `pip install -e "packages/finances-backtester"` instala una versión de `vectorbt` que importa y ejecuta un `Portfolio.from_signals` mínimo; versión elegida, versiones resueltas de NumPy/pandas/Numba, licencia y la cota de `requires-python` quedan registradas **con la salida de `pip list`** en este archivo; el pin se escribe en `pyproject.toml` (`>=X,<Y`) y un test de metadatos (`test_vectorbt_pin.py`) lo fija. **No** se acepta ningún pin sin evidencia.
+  - **Evidencia** (03/11/2026):
+    - **Prueba limpia**: workflow `vectorbt-probe` (run [41570125514](https://github.com/guillermomartinmarco/financial_tools/actions/runs/41570125514), `pip install vectorbt` sin pin) verde en `windows-latest` y `ubuntu-24.04` con Python 3.12 y 3.13; `.venv` descartable local con Python 3.14.0 (Windows) también. En todas, `Portfolio.from_signals` (30 velas, 3 operaciones, `fees=0.001`) da el mismo resultado: `vectorbt 1.2.0 trades 3 final 104.45895933673323`.
+    - **Versiones resueltas** (`pip list`, idénticas en las cuatro celdas del CI y en local):
+      ```text
+      vectorbt   1.2.0
+      numpy      2.5.4
+      pandas     3.1.0
+      numba      0.68.1
+      llvmlite   0.50.0
+      scipy      1.18.1
+      plotly     7.1.0
+      ```
+    - **Licencia**: PyPI no la declara; `vectorbt-1.2.0.dist-info/licenses/LICENSE.md` es **Apache 2.0 con *Commons Clause* v1.0** (prohíbe vender el software o un servicio cuyo valor dependa sustancialmente de él). El Tech Lead decidió seguir con uso no comercial; anotado en el README.
+    - **Pin y cota**: `vectorbt>=1.2.0,<1.3`, `numpy>=2.5`, `pandas>=3.1`; `requires-python = ">=3.11,<3.15"` (la cota que declara `vectorbt` 1.2.0, que cierra A16). `tests/ft_vectorbt/test_vectorbt_pin.py` fija el pin (RED antes de declararlo, GREEN después).
+    - **Pendiente para tildar**: celda `ubuntu-24.04` con Python 3.14 del `vectorbt-probe` (matriz ampliada en esta rama) y CI del PR, donde `pip install -e "packages/finances-backtester[dev]"` instala `vectorbt` en Python 3.12 en Windows y Ubuntu.
 - [ ] **V0.3**: Esqueleto `ft_vectorbt/` (`__init__` con `ENGINE_NAME`, `cli` con flags globales, `api.router` con prefijo `/backtest/vectorbt`, `engine.py` vacío) y script `ft_vectorbt` — depende de `V0.2`
   - **Hecho cuando**: `ft_vectorbt --help` responde y `test_foundation.py` importa `cli` y `api.router`.
 - [ ] **V0.4**: Aislamiento Art. 4 y RFC-0004 (test AST) — depende de `V0.3`

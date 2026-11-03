@@ -84,7 +84,7 @@ Candidato a verificar en V1.2: `vectorbt.Portfolio.from_signals` con `price` = a
 
 ## 4. Empaquetado y CI
 
-- **Dependencias del motor** (añadidas a `packages/finances-backtester/pyproject.toml` en V0.2): `vectorbt` — **pin a verificar en V0.2** (no se inventa versión) —, `numpy` y `pandas` con los límites que exija la versión resuelta de `vectorbt`/`numba`; `requires-python` acotado según evidencia (A16). La evidencia (salida de `pip install` y `pip list` en Windows y Ubuntu, Python 3.12) se registra en V0.2.
+- **Dependencias del motor** (añadidas a `packages/finances-backtester/pyproject.toml` en V0.2): `vectorbt>=1.2.0,<1.3` (verificado en V0.2), `numpy>=2.5` y `pandas>=3.1` explícitos (los usa `engine.py`); `requires-python = ">=3.11,<3.15"` (A16). La evidencia (`pip list` en Windows y Ubuntu, Python 3.12/3.13/3.14) está en V0.2. **Licencia**: Apache 2.0 con *Commons Clause* v1.0 (prohíbe vender `vectorbt` o un servicio basado sustancialmente en él); el Tech Lead decidió uso no comercial (03/11/2026), anotado en el README.
 - Script: `ft_vectorbt = "finances_backtester.ft_vectorbt.cli:app"`; `[tool.setuptools.packages.find] include = ["finances_backtester*"]`.
 - `mypy`: `vectorbt`, `numba`, `pandas` como `ignore_missing_imports`/`follow_imports = "skip"` salvo que traigan tipos; `engine.py` con `PD`/`NPY` de ruff deshabilitados por archivo (RFC-0004).
 - **CI**: añadir `python -m pip install -e "packages/finances-backtester[dev]"` entre `finances-analytics` y `finances-api`, `finances-backtester` al bucle `for pkg in …`, y un paso `Smoke vectorbt import` análogo a «TA-Lib binary wheel available» (`python -c "import vectorbt; print(vectorbt.__version__)"`). Benchmark `-m benchmark` de `ft_vectorbt` solo en `ubuntu-24.04` con `BENCH_ENFORCE=1` (RF-12), tras calibrar.
@@ -111,7 +111,8 @@ Tests en `packages/finances-backtester/tests/ft_vectorbt/`, sin red, `FT_PROJECT
 | ADR-V07 | `TaskRecorder` compartido con fases propias | Reutiliza el mismo contrato de `polling` de la suite |
 
 ## 7. Riesgos y Verificaciones Pendientes
-- **Compatibilidad VectorBT/Numba/NumPy/pandas con Python 3.12 en Windows y Ubuntu**: no verificada; V0.2 decide pin y cota de `requires-python` con evidencia. La `.venv` local (Python 3.14, pandas 3.x) probablemente no sirva.
+- **Compatibilidad VectorBT/Numba/NumPy/pandas**: resuelta en V0.2 (`vectorbt` 1.2.0 funciona en Python 3.12–3.14, Windows y Ubuntu, también en la `.venv` local con 3.14). Riesgo residual: una versión menor nueva de NumPy/pandas/Numba puede romper `vectorbt`; el pin `<1.3` y `vectorbt-probe` acotan ese riesgo.
+- **Licencia de `vectorbt`** (Commons Clause): impide un uso comercial de `ft_vectorbt`; la mitigación es la neutralidad de motor (ADR-B09): las estrategias no dependen de `vectorbt`.
 - **Mantenimiento de VectorBT** (versión libre vs. PRO): V0.2 registra versión y licencia; si la versión fijable no cumple, el motor se reevalúa (decisión del Tech Lead).
 - **Semántica de comisiones y de la operación abierta final**: V1.2 la contrasta con los *golden*.
 - **Coste de convertir señales**: copia lineal de dos arreglos booleanos por corrida; despreciable frente a la simulación, medida en el benchmark de V7.1.
