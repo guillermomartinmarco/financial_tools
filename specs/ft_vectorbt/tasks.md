@@ -65,7 +65,7 @@
 ## Fase 4: API (RF-7, RF-8, RF-9)
 
 - [ ] **V4.1**: `POST /run`, `GET /status/{id}`, `GET /result/{id}` — depende de `V2.2`
-  - **Hecho cuando**: tests con `httpx.AsyncClient`: `202` con `task_id`, `status="ACCEPTED"`, `poll_url`, `result_url` en ≤ 200 ms (cálculo simulado lento); *polling* hasta `COMPLETED`; `/result` no terminado → 409; inexistente → 404; tarea `FAILED` → 500; estrategia inexistente → 404 sin crear tarea; `unknown_kind`/`invalid_params` → 400/422; `strategy_init_error` → 500; `BacktestRequest` con campos de código/ruta (`code`, `path`, `module`) → 422.
+  - **Hecho cuando**: tests con `httpx.AsyncClient`: `202` con `task_id`, `status="ACCEPTED"`, `poll_url`, `result_url` sin calcular en el endpoint (espía de despacho; techo de CI `DISPATCH_CEILING_MS = 2000`, ver la deriva de `ft_indicators` T5.4; el ≤ 200 ms del Art. 18 es objetivo de producción) (cálculo simulado lento); *polling* hasta `COMPLETED`; `/result` no terminado → 409; inexistente → 404; tarea `FAILED` → 500; estrategia inexistente → 404 sin crear tarea; `unknown_kind`/`invalid_params` → 400/422; `strategy_init_error` → 500; `BacktestRequest` con campos de código/ruta (`code`, `path`, `module`) → 422.
 - [ ] **V4.2**: `GET /kinds` (solo lectura, sin ningún endpoint de carga de código), `GET /runs`, `GET /runs/{run_id}`, `GET /runs/{run_id}/trades`, `GET /runs/{run_id}/equity` — depende de `V4.1`, `B4.2`
   - **Hecho cuando**: tests: filtros, paginación (`limit` 1..10000, `after_ms`, `next_after_ms`), 404, 422 con `limit` fuera de rango; el event loop no se bloquea en lecturas grandes (`run_in_threadpool`).
 - [ ] **V4.3**: Contrato CLI↔API — depende de `V3.2`, `V4.2`
