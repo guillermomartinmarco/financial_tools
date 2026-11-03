@@ -4,7 +4,7 @@
 > Checks por paquete: `python -m ruff check`, `python -m ruff format --check`, `python -m mypy --strict src`, `python -m pytest -q`.
 > Las tareas `B*` (núcleo compartido) **preceden** a las `V*` de `specs/ft_vectorbt/tasks.md`; cada tarea indica su dependencia.
 > Tests del núcleo en `packages/finances-core/tests/unit/`; sin red y con `FT_PROJECT_ROOT` temporal.
-> Estado: 4 de 34 tareas completadas (`B0.1`, `B0.2`, `B0.3`, `P1`); el resto pendiente.
+> Estado: 10 de 34 tareas completadas (`B0.1`, `B0.2`, `B0.3`, `B1.1`–`B1.6`, `P1`); el resto pendiente.
 
 ## Fase 0: Gobernanza y esqueleto
 
@@ -20,18 +20,24 @@
 
 ## Fase 1: Esquemas, contrato de estrategias y estrategias integradas (RF-1, RF-2, RF-3, RF-11, RF-15…RF-22)
 
-- [ ] **B1.1**: `finances_core/schemas/backtest.py` (`BacktestRequest`, `ResolvedStrategy` con `kind_version`/`code_hash`/`origin`, `KindInfo`, `CostModel`, `RunManifest`, `RunSummary`, páginas, `BacktestDispatchResponse`) exportado desde `schemas/__init__.py` — depende de B0.2
+- [x] **B1.1**: `finances_core/schemas/backtest.py` (`BacktestRequest`, `ResolvedStrategy` con `kind_version`/`code_hash`/`origin`, `KindInfo`, `CostModel`, `RunManifest`, `RunSummary`, páginas, `BacktestDispatchResponse`) exportado desde `schemas/__init__.py` — depende de B0.2
   - **Hecho cuando**: tests de validación: `start_ms > end_ms`, `size_fraction` fuera de `(0, 1]`, costes negativos y claves extra (`extra="forbid"`, incluidos `code`, `path`, `module`, `strategies_dir`) fallan; valores por defecto de RF-3; `mypy --strict` limpio.
-- [ ] **B1.2**: Contrato de estrategia: `strategies/base.py` (`BaseStrategy`, `Signals`, `MetricsTarget`) y `strategies/signals.py::finalize` (RF-16) — depende de B1.1
+  - **Evidencia**: `test_backtest_schemas.py` (40 tests) verde, `mypy --strict` limpio y los 13 modelos exportados desde `schemas/__init__.py`.
+- [x] **B1.2**: Contrato de estrategia: `strategies/base.py` (`BaseStrategy`, `Signals`, `MetricsTarget`) y `strategies/signals.py::finalize` (RF-16) — depende de B1.1
   - **Hecho cuando**: tests: `finalize` rechaza dtype no `Boolean`, longitud distinta y nulos en `t ≥ warmup` con `InvalidSignalsError`; convierte nulos y `t < warmup` en `false`; anula `entry` y `exit` simultáneas; una subclase sin `signals`, `warmup` o `Params` no se puede instanciar/registrar; `MetricsTarget` rechaza una métrica fuera de RF-7; `mypy --strict` limpio con un `Params` genérico.
-- [ ] **B1.3**: Verificaciones estáticas: `strategies/checks.py` (estructura de carpeta, secciones y tabla del README, guarda AST) y `strategies/hashing.py::code_hash` (RF-11, RF-17, RF-18, RF-19) — depende de B1.2
+  - **Evidencia**: `test_backtest_strategy_contract.py` (35 tests) en verde; `mypy --strict` limpio sobre `src` y sobre el propio test (subclase `BaseStrategy[DemoParams]`).
+- [x] **B1.3**: Verificaciones estáticas: `strategies/checks.py` (estructura de carpeta, secciones y tabla del README, guarda AST) y `strategies/hashing.py::code_hash` (RF-11, RF-17, RF-18, RF-19) — depende de B1.2
   - **Hecho cuando**: tests con carpetas temporales: falta `logic.py` o `README.md`, sección ausente/vacía, orden de secciones erróneo, sin bloque `mermaid`, tabla de parámetros que no coincide con `Params`, `kind` ≠ carpeta → error con archivo y causa; la guarda AST rechaza `pandas`, `numpy`, `float64`, `os`, `subprocess`, `socket`, `importlib`, `eval`, `exec`, `open`, `__import__` y acepta `polars`, `pydantic`, `math`, imports relativos hermanos y `finances_core.backtest.strategies`; `code_hash` con vectores fijos: independiente de CRLF/LF, no cambia al editar `README.md`, cambia al editar o añadir un `*.py`, estable entre Windows y Ubuntu.
-- [ ] **B1.4**: Descubrimiento y registro: `strategies/discovery.py` y `backtest/catalog.py` (`StrategyRegistry`, `get_registry`, `parse_strategy_parameters`, `CATALOG_VERSION`) (RF-1, RF-18) — depende de B1.3
+  - **Evidencia**: `test_backtest_strategy_checks.py` y `test_backtest_strategy_hashing.py` (56 tests) en verde en Windows; vector literal fijo y rutas POSIX (la verificación en Ubuntu la da el CI).
+- [x] **B1.4**: Descubrimiento y registro: `strategies/discovery.py` y `backtest/catalog.py` (`StrategyRegistry`, `get_registry`, `parse_strategy_parameters`, `CATALOG_VERSION`) (RF-1, RF-18) — depende de B1.3
   - **Hecho cuando**: tests con `FT_STRATEGIES_DIR` temporal: integradas + locales en orden `kind` ascendente independiente del orden del sistema de archivos; carpetas `_*` y `.*` ignoradas; colisión de nombre → la local `invalid` con `kind_collision` y la integrada intacta; carpeta incompleta o con excepción al importar → `invalid` con mensaje legible (sin traza) y el resto disponible; integrada inválida → `StrategyInitError` al construir; `unknown_kind` lista los válidos; `strategy_init_error` para una local inválida; `invalid_params` por campo; `KindInfo.params_schema` coincide con `Params.model_json_schema()` y no existe ningún `schema.json`; sin recarga en caliente (segunda llamada de `get_registry` devuelve la misma instancia); `FT_STRATEGIES_DIR` no se acepta desde ninguna petición.
-- [ ] **B1.5**: `backtest/strategy_source.py` (envoltorio de `ft_strategy_manager.service.get_strategy`; versión por defecto = última; soft-deleted = inexistente) — depende de B1.4
+  - **Evidencia**: `test_backtest_catalog.py` (34 tests) en verde; las integradas se simulan con un directorio temporal en `build_registry` porque aún no hay ninguna (B1.7).
+- [x] **B1.5**: `backtest/strategy_source.py` (envoltorio de `ft_strategy_manager.service.get_strategy`; versión por defecto = última; soft-deleted = inexistente) — depende de B1.4
   - **Hecho cuando**: tests con `strategies.db` temporal: última versión por defecto, versión explícita, `StrategyNotFoundError`/`VersionNotFoundError` mapeadas a 404, soft-deleted → no encontrada, `kind` inválido → error de validación; `ResolvedStrategy.hash` coincide con el de `ft_strategy_manager`; `kind_version`, `code_hash` y `origin` provienen del registro.
-- [ ] **B1.6**: Verificación de autor: `strategies/testing.py::assert_strategy_contract` y anti look-ahead (RF-20) — depende de B1.2, B1.4
+  - **Evidencia**: `test_backtest_strategy_source.py` (11 tests) en verde sobre `strategies.db` temporal creada con `ft_strategy_manager`.
+- [x] **B1.6**: Verificación de autor: `strategies/testing.py::assert_strategy_contract` y anti look-ahead (RF-20) — depende de B1.2, B1.4
   - **Hecho cuando**: tests: una estrategia sintética válida pasa; una con `shift(-1)` **falla** el anti look-ahead; una que devuelve dtype erróneo, muta `candles` o no es determinista falla; los cortes `{warmup, warmup+1, n/4, n/2, 3n/4, n-1}` se evalúan y los inválidos se descartan sin error.
+  - **Evidencia**: `test_strategies_testing.py` (20 tests) en verde; un espía confirma que se evalúan exactamente los cortes válidos.
 - [ ] **B1.7**: Estrategia integrada `sma_cross` (`strategies/sma_cross/{logic.py,README.md}`) y `strategies/_lib` (`sma`, `cross_above`, `cross_below`) (RF-2, RF-17) — depende de B1.6
   - **Hecho cuando**: casos de 10 barras calculados a mano (calentamiento sin señal, cruce estricto, un empate no genera señal, `entry`/`exit` correctas); `assert_strategy_contract("sma_cross")` pasa; `fast >= slow` → `invalid_params`; README con las 4 secciones, diagrama Mermaid y tabla igual a `Params`.
 - [ ] **B1.8**: Estrategia integrada `rsi_reversion` (RSI de Wilder con semilla SMA; casos 100/50) y `_lib.rsi_wilder` (RF-2, RF-17) — depende de B1.7
@@ -42,11 +48,13 @@
   - **Hecho cuando**: el test falla ante `pandas`, NumPy, `float64`/`Float64`/`double` o imports `ft_*` (salvo `ft_strategy_manager` en `strategy_source.py`) en `finances_core/backtest/**` (incluidas las estrategias integradas) y `schemas/backtest.py`, y pasa sobre el código actual (RFC-0004, RF-11).
 - [ ] **B1.11**: Plantilla `strategies/_template/` y guía `docs/guides/strategy-authoring.md` (RF-22) — depende de B1.9
   - **Hecho cuando**: la guía contiene los pasos numerados, el checklist, el boilerplate, los ejemplos y la advertencia de seguridad de RF-22; un test copia `_template` a un `FT_STRATEGIES_DIR` temporal, la renombra y `assert_strategy_contract` pasa; otro ejecuta los comandos/ejemplos de la guía contra el directorio temporal; el README raíz enlaza la guía (ver P4).
+  - **Nota (verificación de B1.1–B1.6)**: la guía debe advertir que los *junctions*/enlaces simbólicos dentro de `FT_STRATEGIES_DIR` se siguen (cargan código de fuera del directorio), dentro de la frontera de confianza de A23.
 
 ## Fase 2: Datos (RF-4)
 
 - [ ] **B2.1**: `backtest/candles.py::read_candles` sobre `indicators_store.source` con filtro de rango inclusivo — depende de B1.1
   - **Hecho cuando**: tests con dataset Hive sintético: rango inclusivo, rango por defecto = todo, dtypes `Int64`/`Float32`, dataset inexistente → `SourceNotFoundError`, precio `<= 0`/nulo/`NaN` → `InvalidSourceError`, rango vacío → `EmptyRangeError`, `data_gaps` contado, no se escribe nada bajo `FT_PARQUET_DIR`.
+  - **Nota (verificación de B1.1–B1.6)**: `DatasetIdentifier` acepta `symbol="../../etc"` o `exchange=".."` (ya en la base); `read_candles` debe validar cada componente antes de construir la ruta y rechazar el *path traversal* con un test.
 
 ## Fase 3: Costes, tablas canónicas y métricas (RF-5, RF-6, RF-7)
 
