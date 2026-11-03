@@ -47,7 +47,14 @@ include = ["finances_core*", "ft_setup*", "ft_strategy_manager*"]
 [tool.setuptools.package-data]
 ft_setup = ["env_list.conf", "templates/*.j2", "py.typed"]
 ft_strategy_manager = ["py.typed"]
-finances_core = ["py.typed"]
+# Las carpetas de estrategias integradas y _template no son paquetes (sin __init__.py):
+# su código y README se instalan como datos para que el descubrimiento funcione
+# instalado, no solo en modo editable (plan §4, RF-18).
+finances_core = [
+    "py.typed",
+    "backtest/strategies/*/*.py",
+    "backtest/strategies/*/README.md",
+]
 
 [tool.ruff]
 line-length = 100
