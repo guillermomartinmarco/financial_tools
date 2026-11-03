@@ -4,7 +4,7 @@
 > Checks por paquete: `python -m ruff check`, `python -m ruff format --check`, `python -m mypy --strict src`, `python -m pytest -q`.
 > Las tareas `B*` (núcleo compartido) **preceden** a las `V*` de `specs/ft_vectorbt/tasks.md`; cada tarea indica su dependencia.
 > Tests del núcleo en `packages/finances-core/tests/unit/`; sin red y con `FT_PROJECT_ROOT` temporal.
-> Estado: 2 de 33 tareas completadas (`B0.1`, `P1`); el resto pendiente (diseño, sin código). Esta ronda reescribió la Fase 1 (estrategias en el núcleo, ADR-B09/B10) y no marca ninguna tarea nueva.
+> Estado: 2 de 34 tareas completadas (`B0.1`, `P1`); el resto pendiente (diseño, sin código). Esta ronda reescribió la Fase 1 (estrategias en el núcleo, ADR-B09/B10) y no marca ninguna tarea nueva.
 
 ## Fase 0: Gobernanza y esqueleto
 
@@ -102,3 +102,5 @@ No se editan en este ciclo; cada uno es una tarea a ejecutar con su aprobación.
   - **Hecho cuando**: AGENTS.md y los tests AST son coherentes.
 - [ ] **P8**: *(opcional, decisión del Tech Lead)* `docs/constitution.md`: evaluar si la frontera «ningún código se carga por red» merece un artículo propio o basta con ADR-B10 y RF-18 — informativo, no bloquea
   - **Hecho cuando**: decisión registrada (artículo añadido con RFC, o rechazada con motivo) en este archivo.
+- [ ] **P9**: *(futuro, no bloquea; ADR-B13)* Paridad CLI/API de `check_strategy`: exponer `POST /kinds/{kind}/check` con política de ejecución `static` (sin importar ni ejecutar código del autor) y, tras un RFC de aislamiento en subproceso (A23), con política `isolated` — tras B1.x y el RFC de aislamiento
+  - **Hecho cuando**: tests de contrato CLI↔API sobre el mismo `CheckReport`; la política `static` responde sin importar el módulo (espía) y marca `dynamic_checks: "skipped"`; un test AST confirma que `api.py` no importa módulos de estrategias locales; la política `isolated` aplica límites de tiempo, memoria y red y solo se habilita con el RFC aprobado.
