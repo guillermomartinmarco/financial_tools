@@ -95,10 +95,13 @@ def test_post_compute_returns_202_fast_without_computing(
     dispatched: list[str],
 ) -> None:
     client.get(f"{BASE}/catalog")  # calentamiento de la app
-    # Art. 18: el endpoint responde sin calcular. Se mide el mejor de tres intentos para que un
-    # pico de latencia del runner (crear la tarea en SQLite) no dé un falso negativo.
+    # Art. 18: el endpoint responde sin calcular. El primer POST (sin medir) calienta la creación
+    # de tareas en SQLite; luego se mide el mejor de cinco para que un pico de latencia del
+    # runner compartido no dé un falso negativo.
+    response = client.post(f"{BASE}/compute", json=_body({"name": "rsi"}, {"name": "macd"}))
+    assert response.status_code == 202, response.text
     timings: list[float] = []
-    for _ in range(3):
+    for _ in range(5):
         started = time.perf_counter()
         response = client.post(f"{BASE}/compute", json=_body({"name": "rsi"}, {"name": "macd"}))
         timings.append((time.perf_counter() - started) * 1000)
@@ -112,7 +115,7 @@ def test_post_compute_returns_202_fast_without_computing(
     assert body["poll_url"] == f"http://testserver{BASE}/status/{task_id}"
     assert body["plan_url"] == f"http://testserver{BASE}/plan/{task_id}"
     assert body["result_url"] == f"http://testserver{BASE}/result/{task_id}"
-    assert len(dispatched) == len(timings)  # cada POST se despachó una vez
+    assert len(dispatched) == len(timings) + 1  # cada POST (y el de calentamiento), una vez
     assert dispatched[-1] == task_id
     assert not settings.INDICATORS_DIR.exists()  # nada calculado en el endpoint
     status = client.get(f"{BASE}/status/{task_id}")
