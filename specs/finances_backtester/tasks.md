@@ -4,17 +4,19 @@
 > Checks por paquete: `python -m ruff check`, `python -m ruff format --check`, `python -m mypy --strict src`, `python -m pytest -q`.
 > Las tareas `B*` (núcleo compartido) **preceden** a las `V*` de `specs/ft_vectorbt/tasks.md`; cada tarea indica su dependencia.
 > Tests del núcleo en `packages/finances-core/tests/unit/`; sin red y con `FT_PROJECT_ROOT` temporal.
-> Estado: 2 de 34 tareas completadas (`B0.1`, `P1`); el resto pendiente (diseño, sin código). Esta ronda reescribió la Fase 1 (estrategias en el núcleo, ADR-B09/B10) y no marca ninguna tarea nueva.
+> Estado: 4 de 34 tareas completadas (`B0.1`, `B0.2`, `B0.3`, `P1`); el resto pendiente.
 
 ## Fase 0: Gobernanza y esqueleto
 
 - [x] **B0.1**: Aprobar RFC-0004 y la enmienda del Art. 8 (constitución 1.2.0) — **bloquea todo `engine.py`**, no el núcleo
   - **Hecho cuando**: `docs/rfc/RFC-0004-backtest-engines-float64-boundary.md` figura `Aprobado` con firma del Tech Lead (ver P1).
   - **Hecho**: RFC-0004 aprobado por el Tech Lead el 2026-11-02 (Estado `Aprobado`).
-- [ ] **B0.2**: Revisar y resolver los Supuestos A1–A27 de `spec.md` y aprobar la frontera de seguridad de ADR-B10 (estrategias locales sí, código por API nunca)
+- [x] **B0.2**: Revisar y resolver los Supuestos A1–A27 de `spec.md` y aprobar la frontera de seguridad de ADR-B10 (estrategias locales sí, código por API nunca)
   - **Hecho cuando**: cada fila de «Supuestos y Decisiones Abiertas» queda marcada `Confirmado` o `Vetado` (con el cambio aplicado a spec/plan), el Tech Lead firma ADR-B09/ADR-B10 y las specs se firman (Art. 20, Contractual).
-- [ ] **B0.3**: Crear `packages/finances-backtester` (pyproject según plan §4, `src/finances_backtester/__init__.py` con `__version__`, `py.typed`, `tests/`) sin dependencias de motor — depende de B0.2
+  - **Evidencia**: el Tech Lead aceptó las cinco decisiones abiertas (A21–A25) en sesión el 02/11/2026 y firmó el PR #15 (specs, ADR-B09/ADR-B10 y matriz del Art. 20), sin vetar ningún supuesto; todas las filas A1–A27 quedan **Confirmadas** tal como están escritas.
+- [x] **B0.3**: Crear `packages/finances-backtester` (pyproject según plan §4, `src/finances_backtester/__init__.py` con `__version__`, `py.typed`, `tests/`) sin dependencias de motor — depende de B0.2
   - **Hecho cuando**: `pip install -e "packages/finances-backtester[dev]"` funciona, `python -c "import finances_backtester"` pasa y `ruff`/`mypy --strict src` son verdes.
+  - **Evidencia**: local (Python 3.14, con `--ignore-requires-python` porque la cota `<3.14` de A16 lo rechaza): importa, `ruff check`/`ruff format --check`/`mypy --strict src` limpios y 1 test verde. El paquete se añadió a la instalación y al bucle de mypy/pytest de `.github/workflows/ci.yml`; la verificación en Python 3.12 (Windows y Ubuntu) la da el CI de este PR.
 
 ## Fase 1: Esquemas, contrato de estrategias y estrategias integradas (RF-1, RF-2, RF-3, RF-11, RF-15…RF-22)
 

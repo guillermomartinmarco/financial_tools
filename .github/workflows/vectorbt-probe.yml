@@ -1,0 +1,51 @@
+name: vectorbt-probe
+
+# ft_vectorbt V0.2: evidencia para fijar el pin de vectorbt. Instala en un entorno limpio, ejecuta
+# un Portfolio.from_signals mínimo e imprime pip list y licencia. Solo manual (workflow_dispatch).
+on:
+  workflow_dispatch:
+    inputs:
+      spec:
+        description: "Especificación de pip para vectorbt (p. ej. 'vectorbt' o 'vectorbt==0.28.1')"
+        default: "vectorbt"
+        required: true
+
+jobs:
+  probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-24.04]
+        python: ["3.12", "3.13"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install vectorbt in a clean environment
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "${{ inputs.spec }}"
+
+      - name: Minimal Portfolio.from_signals
+        run: |
+          python - <<'EOF'
+          import numpy as np
+          import pandas as pd
+          import vectorbt as vbt
+
+          close = pd.Series(np.linspace(100.0, 110.0, 30))
+          entries = pd.Series([i % 10 == 0 for i in range(30)])
+          exits = pd.Series([i % 10 == 5 for i in range(30)])
+          pf = vbt.Portfolio.from_signals(close, entries, exits, fees=0.001)
+          print("vectorbt", vbt.__version__, "trades", pf.trades.count(), "final", float(pf.final_value()))
+          EOF
+        shell: bash
+
+      - name: Resolved versions and license
+        run: |
+          python -m pip list
+          python -m pip show vectorbt
+        shell: bash

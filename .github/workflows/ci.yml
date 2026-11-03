@@ -36,6 +36,7 @@ jobs:
           # ta-lib es dependencia de runtime de finances-analytics (ft_ta_lib) y la usan los tests
           # de paridad de ft_indicators (rueda binaria, plan §3.11)
           python -m pip install -e "packages/finances-analytics[dev]"
+          python -m pip install -e "packages/finances-backtester[dev]"
           python -m pip install -e "packages/finances-api[service,dev]"
 
       - name: TA-Lib binary wheel available
@@ -48,7 +49,7 @@ jobs:
 
       - name: Mypy --strict and pytest per package
         run: |
-          for pkg in finances-core finances-downloader finances-analytics finances-api; do
+          for pkg in finances-core finances-downloader finances-analytics finances-backtester finances-api; do
             echo "::group::$pkg"
             (cd "packages/$pkg" && python -m mypy --strict src && python -m pytest -q)
             echo "::endgroup::"

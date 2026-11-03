@@ -87,4 +87,4 @@ Solo los módulos `engine.py` de los motores basados en `pandas`. Los consumidor
 paquetes) solo ven `Float32`/`Int64`/`Int8`. Requiere bump de la constitución a 1.2.0 por la enmienda del Art. 8.
 
 ## Aprobación
-- [X] Aprobado por el Tech Lead — Constancia: aprobación expresa del Tech Lead en la sesión de trabajo (enmienda del Art. 8 y excepción del Art. 5.3/5.4) — Firma: pendiente de ratificar en el PR Fecha: 02/11/2026
+- [X] Aprobado por el Tech Lead — Constancia: aprobación expresa del Tech Lead en la sesión de trabajo (enmienda del Art. 8 y excepción del Art. 5.3/5.4) — Firma: Guillermo Martín Marco Fecha: 02/11/2026
