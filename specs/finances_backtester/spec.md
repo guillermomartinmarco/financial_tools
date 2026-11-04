@@ -111,7 +111,7 @@ El desplazamiento `t → t+1` (regla 1) es responsabilidad del motor: recibe las
 | Métrica | Fórmula |
 |---|---|
 | `total_return` | `equity[último]/initial_cash - 1` |
-| `cagr` | `(equity[último]/initial_cash)^(1/años) - 1`, `años = n_barras / P`; `-1` si `equity[último] ≤ 0` |
+| `cagr` | `(equity[último]/initial_cash)^(1/años) - 1`, `años = n_barras / P`; `-1` si `equity[último] ≤ 0`; `null` si el resultado no es finito (*Deriva 03/11/2026*: en corridas muy cortas de timeframes chicos el exponente `P/n_barras` desborda `Float32`; decisión del Tech Lead) |
 | `max_drawdown` | `min(drawdown)` (≤ 0) |
 | `sharpe` | `media(r)/desv(r, ddof=1)·√P`, tasa libre de riesgo 0; `null` si `desv = 0` o hay < 2 barras |
 | `sortino` | `media(r)/√media(min(r,0)²)·√P`; `null` si el denominador es 0 |

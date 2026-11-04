@@ -8,6 +8,7 @@ import pytest
 from pydantic import ValidationError
 
 from finances_core.schemas.backtest import (
+    BacktestDataset,
     BacktestDispatchResponse,
     BacktestRequest,
     BacktestTaskResult,
@@ -283,3 +284,37 @@ def test_request_rejects_coerced_or_out_of_int64_values(overrides: dict[str, Any
 def test_request_accepts_int64_bounds() -> None:
     request = _request(start_ms=-(2**63), end_ms=2**63 - 1)
     assert (request.start_ms, request.end_ms) == (-(2**63), 2**63 - 1)
+
+
+@pytest.mark.parametrize("field", ["exchange", "symbol", "timeframe"])
+@pytest.mark.parametrize(
+    "value",
+    [
+        "..",
+        ".",
+        "../../etc",
+        "a/b",
+        "a\\b",
+        "/etc",
+        "\\\\server\\share",
+        "C:",
+        "C:\\x",
+        "",
+        "a\x00b",
+        "a\nb",
+        "a\x7fb",
+    ],
+)
+def test_dataset_rejects_path_traversal_components(field: str, value: str) -> None:
+    with pytest.raises(ValidationError, match=field):
+        BacktestDataset.model_validate({**DATASET, field: value})
+
+
+def test_request_rejects_path_traversal_inside_dataset() -> None:
+    with pytest.raises(ValidationError, match="symbol"):
+        _request(dataset={**DATASET, "symbol": "../../etc"})
+
+
+@pytest.mark.parametrize("symbol", ["BTCUSDT", "BTC-USD", "^GSPC", "EURUSD=X", "BRK.B", "ES=F"])
+def test_dataset_accepts_real_symbols(symbol: str) -> None:
+    assert BacktestDataset.model_validate({**DATASET, "symbol": symbol}).symbol == symbol

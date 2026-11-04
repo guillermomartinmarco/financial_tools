@@ -4,7 +4,7 @@
 > Checks por paquete: `python -m ruff check`, `python -m ruff format --check`, `python -m mypy --strict src`, `python -m pytest -q`.
 > Las tareas `B*` (núcleo compartido) **preceden** a las `V*` de `specs/ft_vectorbt/tasks.md`; cada tarea indica su dependencia.
 > Tests del núcleo en `packages/finances-core/tests/unit/`; sin red y con `FT_PROJECT_ROOT` temporal.
-> Estado: 15 de 34 tareas completadas (`B0.1`, `B0.2`, `B0.3`, `B1.1`–`B1.11`, `P1`); el resto pendiente.
+> Estado: 20 de 34 tareas completadas (`B0.1`, `B0.2`, `B0.3`, `B1.1`, `B1.2`, `B1.3`, `B1.4`, `B1.5`, `B1.6`, `B1.7`, `B1.8`, `B1.9`, `B1.10`, `B1.11`, `B2.1`, `B3.1`, `B3.2`, `B4.1`, `B5.2`, `P1`); el resto pendiente.
 
 ## Fase 0: Gobernanza y esqueleto
 
@@ -58,30 +58,36 @@
 
 ## Fase 2: Datos (RF-4)
 
-- [ ] **B2.1**: `backtest/candles.py::read_candles` sobre `indicators_store.source` con filtro de rango inclusivo — depende de B1.1
+- [x] **B2.1**: `backtest/candles.py::read_candles` sobre `indicators_store.source` con filtro de rango inclusivo — depende de B1.1
   - **Hecho cuando**: tests con dataset Hive sintético: rango inclusivo, rango por defecto = todo, dtypes `Int64`/`Float32`, dataset inexistente → `SourceNotFoundError`, precio `<= 0`/nulo/`NaN` → `InvalidSourceError`, rango vacío → `EmptyRangeError`, `data_gaps` contado, no se escribe nada bajo `FT_PARQUET_DIR`.
   - **Nota (verificación de B1.1–B1.6)**: `DatasetIdentifier` acepta `symbol="../../etc"` o `exchange=".."` (ya en la base); `read_candles` debe validar cada componente antes de construir la ruta y rechazar el *path traversal* con un test.
+  - **Evidencia**: `test_backtest_candles.py` (27) y +46 casos en `test_backtest_schemas.py` verdes (RED: módulo inexistente y 40 casos de *traversal*). Rango inclusivo, rango por defecto, dtypes, `SourceNotFoundError`, `InvalidSourceError` (precio `<= 0`/nulo/`NaN`/`inf`, orden), `EmptyRangeError` y `data_gaps`; el árbol de `FT_PARQUET_DIR` queda idéntico tras leer. *Path traversal* en dos capas: `BacktestDataset` valida cada componente y `read_candles` revalida y exige que la ruta resuelta quede bajo `PARQUET_DIR`. Los precios se validan solo dentro del rango pedido; orden y dtypes sobre toda la serie.
 
 ## Fase 3: Costes, tablas canónicas y métricas (RF-5, RF-6, RF-7)
 
-- [ ] **B3.1**: `backtest/costs.py` (`fee_rate`, `slip`, `buy_price`, `sell_price`) y `backtest/frames.py` (esquemas de `trades`/`equity`, `validate_engine_output`) — depende de B1.1
+- [x] **B3.1**: `backtest/costs.py` (`fee_rate`, `slip`, `buy_price`, `sell_price`) y `backtest/frames.py` (esquemas de `trades`/`equity`, `validate_engine_output`) — depende de B1.1
   - **Hecho cuando**: tests: fórmulas de RF-5 con ejemplos a mano; `validate_engine_output` acepta una salida válida y rechaza dtype erróneo, `side = 0`, `exit_reason = 2`, `NaN`, filas desordenadas y `equity.height != n_bars` con `OutputOutOfRangeError`.
-- [ ] **B3.2**: `backtest/metrics.py` (RF-7) — depende de B3.1
+  - **Evidencia**: `test_backtest_costs.py` (6) con fórmulas de RF-5 a mano (10 bps → 0,001; 100 con 5 bps de deslizamiento → 100,05/99,95; ida y vuelta de 10 000) y `test_backtest_frames.py` (17): salida válida y `trades` vacío aceptados; dtype erróneo, `side = 0`, `exit_reason = 2`, `NaN`, filas desordenadas y `equity.height != n_bars` → `OutputOutOfRangeError`. RED (módulos inexistentes) → GREEN.
+- [x] **B3.2**: `backtest/metrics.py` (RF-7) — depende de B3.1
   - **Hecho cuando**: tests con series de 5–10 barras calculadas a mano: `total_return`, `cagr`, `max_drawdown`, `sharpe`, `sortino`, `win_rate`, `exposure`; `null` en `sharpe` con desviación 0, en `win_rate` sin operaciones; prueba de precisión contra una referencia de `tests/` (tolerancia 1e-3) sobre 1 000 000 de barras; `P` correcto para `1m`, `1h`, `1d`.
+  - **Evidencia**: `test_backtest_metrics.py` (14): serie `1d` de 5 barras a mano para las 7 métricas; `null` en `sharpe`/`win_rate` sin varianza ni operaciones; `P` = 525 960 (`1m`), 8 766 (`1h`), 365,25 (`1d`); 1 000 000 de barras contra referencia en doble precisión (`math.fsum`) con error relativo máximo ~1,2e-5 (tolerancia 1e-3), 2,3 s. Lectura de `exposure`: la barra de liquidación final (`end_of_data`) cuenta como expuesta.
 
 ## Fase 4: Identidad y almacén (RF-8, RF-9)
 
-- [ ] **B4.1**: `backtest/identity.py` (`data_hash`, `run_id`) — depende de B1.1
+- [x] **B4.1**: `backtest/identity.py` (`data_hash`, `run_id`) — depende de B1.1
   - **Hecho cuando**: tests: vectores fijos (valor esperado literal); cambiar cualquier campo de RF-8 (incluida `engine_version`, una vela, `kind_version` o `strategy_code_hash`) cambia el `run_id`; el orden de claves no influye; `force` y `created_at_ms` no influyen.
+  - **Evidencia**: `test_backtest_identity.py` (43): `data_hash` y `run_id` fijados con vectores literales (`data_hash` también reconstruido de forma independiente con `struct`); cambiar cualquiera de los 17 campos de RF-8 (incluidos `engine_version`, una vela, `kind_version`, `strategy_code_hash`, `CATALOG_VERSION`, `RESULT_SCHEMA_VERSION`) cambia el `run_id`; orden de claves, `force` y `created_at_ms` no influyen. RED → GREEN.
 - [ ] **B4.2**: `backtest/results_store.py` (`write_run`, `read_manifest`, `list_runs`, `find_run`, `read_trades_page`, `read_equity_page`) — depende de B3.1, B4.1
   - **Hecho cuando**: tests: layout de RF-9; directorio sin `manifest.json` ignorado; escritura concurrente del mismo `run_id` deja un único resultado válido; `force` reemplaza atómicamente con contenido idéntico; temporales huérfanos limpiados; paginación por cursor de `trades`/`equity`; filtros de `list_runs`; Parquet con `zstd` y reescritura byte a byte idéntica; el manifiesto contiene `kind_version`, `strategy_code_hash` y `strategy_origin`.
+  - **Nota (B3.2)**: `RunSummary` no tiene `start_ms`, `end_ms` efectivos ni las advertencias que RF-7 exige en `summary.json` (`insufficient_history`, `data_gaps`); `write_run` debe incluirlos (ampliando `RunSummary` o al serializar) y añadir la advertencia `cagr_not_finite` cuando `cagr` sea `null` por desbordamiento.
 
 ## Fase 5: Orquestación y contrato de motor (RF-10, RF-21)
 
 - [ ] **B5.1**: `backtest/engine_api.py` (`BacktestEngine` sin `supported_kinds`, `EngineOutput`) y `backtest/runner.py::run_backtest` (cálculo y normalización de señales tras la comprobación de caché) con fases reportables — depende de B1.4, B1.5, B2.1, B3.2, B4.2
   - **Hecho cuando**: tests con un motor *fake* determinista: pipeline completo, `cached = true` en la repetición sin invocar al motor **ni calcular señales**, `force` los invoca, editar el código de una estrategia local cambia el `run_id` (sin `cached`), `invalid_signals` y `strategy_runtime_error` → tarea `FAILED` sin escribir nada, `strategy_init_error` para una local inválida, salida inválida → `OutputOutOfRangeError` sin escribir nada, auditoría `backtest_run` con `kind_version`/`strategy_code_hash`/`strategy_origin`/`signals_ms` (RF-13); un test inspecciona que `BacktestEngine.run` no tiene parámetros `kind`/`params`/estrategia (RF-21).
-- [ ] **B5.2**: Configuración `FT_BACKTEST_MAX_CONCURRENT` en `FinancesSettings` (RF-12) y resolución absoluta de `FT_STRATEGIES_DIR` respecto de la raíz del proyecto (A21) — depende de B0.2
+- [x] **B5.2**: Configuración `FT_BACKTEST_MAX_CONCURRENT` en `FinancesSettings` (RF-12) y resolución absoluta de `FT_STRATEGIES_DIR` respecto de la raíz del proyecto (A21) — depende de B0.2
   - **Hecho cuando**: `FinancesSettings().BACKTEST_MAX_CONCURRENT == 2`; `FT_BACKTEST_MAX_CONCURRENT=0` y `17` fallan por validación; `FT_STRATEGIES_DIR` relativo se resuelve contra `FT_PROJECT_ROOT`, no contra el directorio de trabajo; ver P3 para el registro en `ft_setup`.
+  - **Evidencia**: `test_core_config_backtest.py` (8): `BACKTEST_MAX_CONCURRENT` por defecto 2; `0` y `17` fallan, `1` y `16` se aceptan; `FT_STRATEGIES_DIR` relativo se resuelve contra `FT_PROJECT_ROOT` con otro directorio de trabajo (ya lo hacía `_resolve_paths`; ahora queda fijado por tests).
 
 ## Fase 6: Fixture y suite de contrato (RF-10, RF-21) — requiere B0.3
 

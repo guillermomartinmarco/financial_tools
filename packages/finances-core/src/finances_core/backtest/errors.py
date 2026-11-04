@@ -97,3 +97,20 @@ class StrategyVersionNotFoundError(StrategyNotFoundError):
     def __init__(self, strategy_id: str, version: int) -> None:
         super().__init__(strategy_id, f"Version {version} not found")
         self.version = version
+
+
+class EmptyRangeError(BacktestError, ValueError):
+    """RF-4: el rango pedido no contiene velas (exit 2 / HTTP 400)."""
+
+    code = "empty_range"
+    exit_code = 2
+    http_status = 400
+
+
+class OutputOutOfRangeError(BacktestError, ValueError):
+    """RF-6: la salida del motor tiene un valor fuera de dominio (tarea ``FAILED``, exit 3).
+
+    Nunca se trunca ni se corrige: la corrida falla sin escribir resultados.
+    """
+
+    code = "output_out_of_range"
