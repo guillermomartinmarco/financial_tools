@@ -4,7 +4,7 @@
 > Checks por paquete: `python -m ruff check`, `python -m ruff format --check`, `python -m mypy --strict src`, `python -m pytest -q`.
 > Las tareas `B*` (núcleo compartido) **preceden** a las `V*` de `specs/ft_vectorbt/tasks.md`; cada tarea indica su dependencia.
 > Tests del núcleo en `packages/finances-core/tests/unit/`; sin red y con `FT_PROJECT_ROOT` temporal.
-> Estado: 20 de 34 tareas completadas (`B0.1`, `B0.2`, `B0.3`, `B1.1`, `B1.2`, `B1.3`, `B1.4`, `B1.5`, `B1.6`, `B1.7`, `B1.8`, `B1.9`, `B1.10`, `B1.11`, `B2.1`, `B3.1`, `B3.2`, `B4.1`, `B5.2`, `P1`); el resto pendiente.
+> Estado: 22 de 34 tareas completadas (`B0.1`, `B0.2`, `B0.3`, `B1.1`, `B1.2`, `B1.3`, `B1.4`, `B1.5`, `B1.6`, `B1.7`, `B1.8`, `B1.9`, `B1.10`, `B1.11`, `B2.1`, `B3.1`, `B3.2`, `B4.1`, `B5.2`, `B6.1`, `B6.3`, `P1`); el resto pendiente.
 
 ## Fase 0: Gobernanza y esqueleto
 
@@ -91,12 +91,14 @@
 
 ## Fase 6: Fixture y suite de contrato (RF-10, RF-21) — requiere B0.3
 
-- [ ] **B6.1**: Fixture determinista (`PCG64`, ≥ 2 000 barras `1h`, con tendencia y rango, margen mínimo en los umbrales) y referencia de prueba independiente de las 3 estrategias (bucle explícito, solo en `tests/`) — depende de B0.3, B1.4
+- [x] **B6.1**: Fixture determinista (`PCG64`, ≥ 2 000 barras `1h`, con tendencia y rango, margen mínimo en los umbrales) y referencia de prueba independiente de las 3 estrategias (bucle explícito, solo en `tests/`) — depende de B0.3, B1.4
   - **Hecho cuando**: el script `regenerate_golden.py` produce `signals_*.json`, `trades_*.parquet`, `equity_*.parquet`, `summary_*.json` para `sma_cross`, `rsi_reversion` y `donchian_breakout`; cada estrategia genera ≥ 5 operaciones; una prueba verifica que ninguna comparación de umbral queda a menos de 1e-3 relativo (sin empates); los *golden* reproducen a mano un caso de 10 barras por estrategia.
+  - **Evidencia**: `tests/contract/{fixture,reference,regenerate_golden,golden_io}.py` y `golden/` (13 archivos); `test_golden_reference.py` (27): semilla 20261103, 2 400 barras `1h` en 8 tramos de tendencia y rango; operaciones sma 55 / rsi 11 / donchian 33; margen relativo mínimo 1,51e-3 ≥ 1e-3 (velas candidatas remuestreadas al generar); casos a mano de 10 barras por estrategia más costes y `end_of_data`; regeneración idéntica byte a byte; el resumen RF-7 de la referencia coincide con `metrics.compute` (1e-3). Parámetros del *fixture*: sma 5/20 (con 20/100 la banda de exclusión exige un *fixture* irrealmente ruidoso) y rsi period 10 (14 da 3 operaciones); costes 10 bps + 5 bps de deslizamiento. Convención: la equity de la última barra se valora tras la liquidación `end_of_data` (`final_equity = initial_cash + Σpnl`).
 - [ ] **B6.2**: Suite parametrizable `engine_contract.py` (`assert_engine_matches_golden(engine, kind)`: obtiene las señales del núcleo y llama a `engine.run`) con las tolerancias de RFC-0004 y la estrategia sintética de RF-21 — depende de B5.1, B6.1, B1.9
   - **Hecho cuando**: tests de la propia suite: pasa con una implementación de referencia envuelta como motor *fake*; falla (mutación) si se desplaza `entry_time_ms` una barra, si se omite la liquidación final o si se altera una comisión; `exit_reason` y `side` se comparan exactos; una estrategia sintética de prueba (no integrada) con señales arbitrarias pasa por el mismo motor *fake* sin código específico; un test AST verifica que ningún módulo de motor importa `finances_core.backtest.strategies`/`catalog` (RF-15).
-- [ ] **B6.3**: `test_signals_golden.py`: las señales del núcleo para las 3 estrategias coinciden con `signals_*.json` — depende de B1.9, B6.1
+- [x] **B6.3**: `test_signals_golden.py`: las señales del núcleo para las 3 estrategias coinciden con `signals_*.json` — depende de B1.9, B6.1
   - **Hecho cuando**: `entries`/`exits` iguales bit a bit a los *golden* sobre el *fixture*; si la recursión `Float32` de Wilder (`rsi_reversion`) difiere de la referencia en doble precisión en algún umbral, la diferencia queda registrada en este archivo con la barra y el valor (A6) y se corrige el *fixture* o se justifica.
+  - **Evidencia**: `test_signals_golden.py` (9): `entries`/`exits` del núcleo (tras `finalize`) iguales bit a bit a `signals_*.json` en las 3 estrategias. A6: la recursión de Wilder en `Float32` difiere de la doble precisión como máximo 9,9e-6 puntos de RSI (t = 1251) frente a un margen mínimo de ~0,05; sin divergencia.
 
 ## Fase 7: Cierre del núcleo
 
