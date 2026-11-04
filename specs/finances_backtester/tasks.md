@@ -4,7 +4,7 @@
 > Checks por paquete: `python -m ruff check`, `python -m ruff format --check`, `python -m mypy --strict src`, `python -m pytest -q`.
 > Las tareas `B*` (núcleo compartido) **preceden** a las `V*` de `specs/ft_vectorbt/tasks.md`; cada tarea indica su dependencia.
 > Tests del núcleo en `packages/finances-core/tests/unit/`; sin red y con `FT_PROJECT_ROOT` temporal.
-> Estado: 25 de 34 tareas completadas (`B0.1`, `B0.2`, `B0.3`, `B1.1`, `B1.2`, `B1.3`, `B1.4`, `B1.5`, `B1.6`, `B1.7`, `B1.8`, `B1.9`, `B1.10`, `B1.11`, `B2.1`, `B3.1`, `B3.2`, `B4.1`, `B4.2`, `B5.1`, `B5.2`, `B6.1`, `B6.2`, `B6.3`, `P1`); el resto pendiente.
+> Estado: 26 de 34 tareas completadas (`B0.1`, `B0.2`, `B0.3`, `B1.1`, `B1.2`, `B1.3`, `B1.4`, `B1.5`, `B1.6`, `B1.7`, `B1.8`, `B1.9`, `B1.10`, `B1.11`, `B2.1`, `B3.1`, `B3.2`, `B4.1`, `B4.2`, `B5.1`, `B5.2`, `B6.1`, `B6.2`, `B6.3`, `B7.1`, `P1`); el resto pendiente.
 
 ## Fase 0: Gobernanza y esqueleto
 
@@ -105,8 +105,9 @@
 
 ## Fase 7: Cierre del núcleo
 
-- [ ] **B7.1**: Calidad y cobertura del núcleo — depende de B1–B6
+- [x] **B7.1**: Calidad y cobertura del núcleo — depende de B1–B6
   - **Hecho cuando**: `ruff` (check + format), `mypy --strict src` de `finances-core` y `finances-backtester` limpios; `pytest --cov=finances_core.backtest` ≥ 90 % (Art. 7); `test_backtest_isolation.py` verde; `assert_strategy_contract` verde para las 3 integradas.
+  - **Evidencia**: 2026-11-04, sobre `main` 72c7c05: `ruff check` y `ruff format --check` limpios en `finances-core` y `finances-backtester` (170 archivos); `mypy --strict src` limpio en ambos (79 y 1 archivos); `pytest --cov=finances_core.backtest`: 1252 tests verdes, cobertura 97 % (1468 sentencias, 39 sin cubrir; mínimo por módulo 92 % en `results_store.py`, ramas de reintento ante bloqueos de Windows); `test_backtest_isolation.py` verde (25); `assert_strategy_contract` verde para las 3 integradas (61 tests de `test_strategies_*`); `finances-backtester`: 79 verdes. Deuda previa fuera del núcleo de backtest: `SQLTaskManager._connect` (`finances_core/tasks.py`) usa `with sqlite3.connect()`, que confirma pero no cierra la conexión (76 `ResourceWarning` en `test_backtest_runner.py`), y su `_init_db` concurrente sobre un `tasks.db` inexistente puede dar `database is locked` (ver B5.1); se resuelve antes de V2.2.
 
 ## Cambios en otros documentos (pendientes)
 
