@@ -15,7 +15,14 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    computed_field,
+    field_validator,
+    model_validator,
+)
 
 from finances_core.schemas.data_viewer import DatasetIdentifier
 from finances_core.schemas.strategy import HASH_PATTERN
@@ -157,6 +164,12 @@ class RunSummary(BaseModel):
     initial_cash: float
     final_equity: float
     n_bars: int
+    # Rango efectivo y advertencias de RF-7 (``insufficient_history``, ``data_gaps``,
+    # ``cagr_not_finite``). ``metrics.compute`` no los conoce: ``results_store.write_run``
+    # los copia del manifiesto, que es su única fuente.
+    start_ms: int | None = None
+    end_ms: int | None = None
+    warnings: list[str] = Field(default_factory=list)
 
 
 class RunManifest(BaseModel):
@@ -179,6 +192,23 @@ class RunManifest(BaseModel):
     warnings: list[str]
     python_version: str
     libraries: dict[str, str]
+
+    # Campos de identidad de la estrategia con los nombres de RF-9/RF-13, derivados de
+    # ``strategy`` (única fuente): se serializan en ``manifest.json`` y se ignoran al leer.
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def kind_version(self) -> str:
+        return self.strategy.kind_version
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def strategy_code_hash(self) -> str:
+        return self.strategy.code_hash
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def strategy_origin(self) -> StrategyOrigin:
+        return self.strategy.origin
 
 
 class BacktestDispatchResponse(BaseModel):

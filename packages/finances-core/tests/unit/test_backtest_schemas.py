@@ -318,3 +318,40 @@ def test_request_rejects_path_traversal_inside_dataset() -> None:
 @pytest.mark.parametrize("symbol", ["BTCUSDT", "BTC-USD", "^GSPC", "EURUSD=X", "BRK.B", "ES=F"])
 def test_dataset_accepts_real_symbols(symbol: str) -> None:
     assert BacktestDataset.model_validate({**DATASET, "symbol": symbol}).symbol == symbol
+
+
+# ------------------------------------------------- Nota B3.2 y campos de RF-9 (B4.2)
+def test_summary_range_and_warnings_default_for_metrics_callers() -> None:
+    summary = _summary()
+    assert (summary.start_ms, summary.end_ms, summary.warnings) == (None, None, [])
+    full = summary.model_copy(update={"start_ms": 0, "end_ms": 10, "warnings": ["data_gaps"]})
+    assert RunSummary.model_validate_json(full.model_dump_json()) == full
+
+
+def test_manifest_exposes_rf9_strategy_identity_from_strategy() -> None:
+    manifest = RunManifest(
+        run_id="d" * 64,
+        engine="vectorbt",
+        engine_version="1.2.0",
+        catalog_version="1.0.0",
+        result_schema_version="1",
+        request=_request(),
+        strategy=_resolved(origin="local"),
+        start_ms=0,
+        end_ms=10,
+        n_bars=11,
+        data_hash="e" * 64,
+        data_gaps=0,
+        created_at_ms=1,
+        duration_ms=2,
+        warnings=[],
+        python_version="3.12.0",
+        libraries={},
+    )
+    dumped = manifest.model_dump(mode="json")
+    assert dumped["kind_version"] == "1.0.0"
+    assert dumped["strategy_code_hash"] == "b" * 64
+    assert dumped["strategy_origin"] == "local"
+    # Derivados de ``strategy``: al leer se ignoran y no pueden contradecirlo.
+    tampered = {**dumped, "strategy_code_hash": "f" * 64}
+    assert RunManifest.model_validate(tampered).strategy_code_hash == "b" * 64

@@ -1,0 +1,43 @@
+{
+  "candles_sha256": "53ff4bfc23b89fcc5e37e39d22e344eadb0a68a0e360e920e08ae802051bd6c1",
+  "costs": {
+    "fees_bps": 10.0,
+    "initial_cash": 10000.0,
+    "size_fraction": 1.0,
+    "slippage_bps": 5.0
+  },
+  "end_ms": 1712703600000,
+  "n_bars": 2400,
+  "params": {
+    "donchian_breakout": {
+      "window": 20
+    },
+    "rsi_reversion": {
+      "lower": 30.0,
+      "period": 10,
+      "upper": 70.0
+    },
+    "sma_cross": {
+      "fast": 5,
+      "slow": 20
+    }
+  },
+  "seed": 20261103,
+  "start_ms": 1704067200000,
+  "threshold_margin": {
+    "donchian_breakout": {
+      "bar": 2060,
+      "min": 0.0015089109385956017
+    },
+    "rsi_reversion": {
+      "bar": 871,
+      "min": 0.001698684023975261
+    },
+    "sma_cross": {
+      "bar": 964,
+      "min": 0.001518188612769253
+    }
+  },
+  "tie_margin": 0.001,
+  "timeframe": "1h"
+}
