@@ -162,7 +162,8 @@ def _simulate(  # noqa: PLR0914 - bucle explícito de referencia, solo en tests
         size = 0.0
 
     for t in range(n):
-        if t > 0 and size == 0.0 and entries[t - 1]:
+        # RF-5 rule 1: an entry that would execute on the last bar is ignored.
+        if 0 < t < n - 1 and size == 0.0 and entries[t - 1]:
             price = float(buy_price(opens[t], costs))
             budget = cash * size_fraction
             size = budget / (price * (1 + rate))

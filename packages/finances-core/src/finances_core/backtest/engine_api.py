@@ -17,6 +17,8 @@ import polars as pl
 from finances_core.backtest.strategies.base import Signals
 from finances_core.schemas.backtest import CostModel
 
+__all__ = ["BacktestEngine", "CostModel", "EngineOutput", "Signals"]
+
 
 @dataclass(frozen=True)
 class EngineOutput:

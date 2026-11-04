@@ -12,6 +12,7 @@ import inspect
 import polars as pl
 import pytest
 
+from finances_core.backtest import engine_api
 from finances_core.backtest.engine_api import BacktestEngine, EngineOutput
 from finances_core.backtest.frames import EQUITY_SCHEMA, TRADES_SCHEMA
 
@@ -40,3 +41,8 @@ def test_engine_output_is_frozen_with_tables_and_warnings() -> None:
     assert [f.name for f in dataclasses.fields(EngineOutput)] == ["trades", "equity", "warnings"]
     with pytest.raises(dataclasses.FrozenInstanceError):
         out.trades = equity  # type: ignore[misc]
+
+
+def test_engine_api_exports_the_engine_facing_types() -> None:
+    # Engines import these from engine_api only; mypy --strict rejects implicit re-exports.
+    assert {"BacktestEngine", "EngineOutput", "Signals", "CostModel"} <= set(engine_api.__all__)
