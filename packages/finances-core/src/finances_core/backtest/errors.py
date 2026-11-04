@@ -114,3 +114,17 @@ class OutputOutOfRangeError(BacktestError, ValueError):
     """
 
     code = "output_out_of_range"
+
+
+class StrategyRuntimeError(BacktestError):
+    """RF-16: ``Strategy.signals`` lanzó una excepción (tarea ``FAILED``, exit 3 / HTTP 500).
+
+    El mensaje nombra la estrategia y el tipo de la excepción, sin traza; el detalle queda
+    en el log (evento ``strategy_runtime_error``) y en ``__cause__``.
+    """
+
+    code = "strategy_runtime_error"
+
+    def __init__(self, kind: str, exc: BaseException) -> None:
+        super().__init__(f"strategy_runtime_error: {kind!r}: {type(exc).__name__}: {exc}")
+        self.kind = kind
