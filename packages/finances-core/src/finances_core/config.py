@@ -119,6 +119,10 @@ class FinancesSettings(BaseSettings):
     DATASETS_DOWNLOAD_TIMEOUT_S: int = Field(default=3600, ge=60)
     DATASETS_SETTLE_DAYS: int = Field(default=7, ge=1)
 
+    # Backtesting (finances_backtester, RF-12): corridas simultáneas por proceso; las
+    # estrategias locales viven en STRATEGIES_DIR/<kind>/ (A21).
+    BACKTEST_MAX_CONCURRENT: int = Field(default=2, ge=1, le=16)
+
     @model_validator(mode="after")
     def _resolve_paths(self) -> FinancesSettings:
         root = self.PROJECT_ROOT.resolve()

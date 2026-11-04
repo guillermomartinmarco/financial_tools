@@ -4,7 +4,7 @@
 > Checks por paquete: `python -m ruff check`, `python -m ruff format --check`, `python -m mypy --strict src`, `python -m pytest -q`.
 > Las tareas `B*` (núcleo compartido) **preceden** a las `V*` de `specs/ft_vectorbt/tasks.md`; cada tarea indica su dependencia.
 > Tests del núcleo en `packages/finances-core/tests/unit/`; sin red y con `FT_PROJECT_ROOT` temporal.
-> Estado: 18 de 34 tareas completadas (`B0.1`, `B0.2`, `B0.3`, `B1.1`, `B1.2`, `B1.3`, `B1.4`, `B1.5`, `B1.6`, `B1.7`, `B1.8`, `B1.9`, `B1.10`, `B1.11`, `B2.1`, `B3.1`, `B3.2`, `P1`); el resto pendiente.
+> Estado: 20 de 34 tareas completadas (`B0.1`, `B0.2`, `B0.3`, `B1.1`, `B1.2`, `B1.3`, `B1.4`, `B1.5`, `B1.6`, `B1.7`, `B1.8`, `B1.9`, `B1.10`, `B1.11`, `B2.1`, `B3.1`, `B3.2`, `B4.1`, `B5.2`, `P1`); el resto pendiente.
 
 ## Fase 0: Gobernanza y esqueleto
 
@@ -74,8 +74,9 @@
 
 ## Fase 4: Identidad y almacén (RF-8, RF-9)
 
-- [ ] **B4.1**: `backtest/identity.py` (`data_hash`, `run_id`) — depende de B1.1
+- [x] **B4.1**: `backtest/identity.py` (`data_hash`, `run_id`) — depende de B1.1
   - **Hecho cuando**: tests: vectores fijos (valor esperado literal); cambiar cualquier campo de RF-8 (incluida `engine_version`, una vela, `kind_version` o `strategy_code_hash`) cambia el `run_id`; el orden de claves no influye; `force` y `created_at_ms` no influyen.
+  - **Evidencia**: `test_backtest_identity.py` (43): `data_hash` y `run_id` fijados con vectores literales (`data_hash` también reconstruido de forma independiente con `struct`); cambiar cualquiera de los 17 campos de RF-8 (incluidos `engine_version`, una vela, `kind_version`, `strategy_code_hash`, `CATALOG_VERSION`, `RESULT_SCHEMA_VERSION`) cambia el `run_id`; orden de claves, `force` y `created_at_ms` no influyen. RED → GREEN.
 - [ ] **B4.2**: `backtest/results_store.py` (`write_run`, `read_manifest`, `list_runs`, `find_run`, `read_trades_page`, `read_equity_page`) — depende de B3.1, B4.1
   - **Hecho cuando**: tests: layout de RF-9; directorio sin `manifest.json` ignorado; escritura concurrente del mismo `run_id` deja un único resultado válido; `force` reemplaza atómicamente con contenido idéntico; temporales huérfanos limpiados; paginación por cursor de `trades`/`equity`; filtros de `list_runs`; Parquet con `zstd` y reescritura byte a byte idéntica; el manifiesto contiene `kind_version`, `strategy_code_hash` y `strategy_origin`.
 
@@ -83,8 +84,9 @@
 
 - [ ] **B5.1**: `backtest/engine_api.py` (`BacktestEngine` sin `supported_kinds`, `EngineOutput`) y `backtest/runner.py::run_backtest` (cálculo y normalización de señales tras la comprobación de caché) con fases reportables — depende de B1.4, B1.5, B2.1, B3.2, B4.2
   - **Hecho cuando**: tests con un motor *fake* determinista: pipeline completo, `cached = true` en la repetición sin invocar al motor **ni calcular señales**, `force` los invoca, editar el código de una estrategia local cambia el `run_id` (sin `cached`), `invalid_signals` y `strategy_runtime_error` → tarea `FAILED` sin escribir nada, `strategy_init_error` para una local inválida, salida inválida → `OutputOutOfRangeError` sin escribir nada, auditoría `backtest_run` con `kind_version`/`strategy_code_hash`/`strategy_origin`/`signals_ms` (RF-13); un test inspecciona que `BacktestEngine.run` no tiene parámetros `kind`/`params`/estrategia (RF-21).
-- [ ] **B5.2**: Configuración `FT_BACKTEST_MAX_CONCURRENT` en `FinancesSettings` (RF-12) y resolución absoluta de `FT_STRATEGIES_DIR` respecto de la raíz del proyecto (A21) — depende de B0.2
+- [x] **B5.2**: Configuración `FT_BACKTEST_MAX_CONCURRENT` en `FinancesSettings` (RF-12) y resolución absoluta de `FT_STRATEGIES_DIR` respecto de la raíz del proyecto (A21) — depende de B0.2
   - **Hecho cuando**: `FinancesSettings().BACKTEST_MAX_CONCURRENT == 2`; `FT_BACKTEST_MAX_CONCURRENT=0` y `17` fallan por validación; `FT_STRATEGIES_DIR` relativo se resuelve contra `FT_PROJECT_ROOT`, no contra el directorio de trabajo; ver P3 para el registro en `ft_setup`.
+  - **Evidencia**: `test_core_config_backtest.py` (8): `BACKTEST_MAX_CONCURRENT` por defecto 2; `0` y `17` fallan, `1` y `16` se aceptan; `FT_STRATEGIES_DIR` relativo se resuelve contra `FT_PROJECT_ROOT` con otro directorio de trabajo (ya lo hacía `_resolve_paths`; ahora queda fijado por tests).
 
 ## Fase 6: Fixture y suite de contrato (RF-10, RF-21) — requiere B0.3
 
