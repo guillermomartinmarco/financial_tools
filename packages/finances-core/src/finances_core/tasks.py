@@ -10,6 +10,8 @@ from __future__ import annotations
 import json
 import sqlite3
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +22,12 @@ from finances_core.config import FinancesSettings
 logger = structlog.get_logger(__name__)
 
 TERMINAL_STATUSES = frozenset({"COMPLETED", "FAILED"})
+
+#: Espera ante bloqueos de otra conexión (``busy_timeout``), en segundos.
+_BUSY_TIMEOUT_S = 30.0
+#: Pausa entre reintentos al inicializar una base nueva desde varios hilos o procesos;
+#: los reintentos terminan a los ``_BUSY_TIMEOUT_S`` en total, como sin reintentos.
+_INIT_BACKOFF_S = 0.05
 
 #: Columnas escribibles de la tabla ``tasks``.
 _TASK_COLUMNS = (
@@ -85,17 +93,41 @@ class SQLTaskManager:
         self._init_db()
 
     # ------------------------------------------------------------------ infra
-    def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path, timeout=30.0)
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA synchronous=NORMAL")
-        conn.execute("PRAGMA busy_timeout=30000")
-        conn.row_factory = sqlite3.Row
-        return conn
+    @contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
+        """Conexión de una transacción: confirma al salir, revierte ante error y siempre cierra.
+
+        ``with sqlite3.Connection`` solo gestiona la transacción y deja la conexión abierta;
+        el cierre es explícito.
+        """
+        conn = sqlite3.connect(self.db_path, timeout=_BUSY_TIMEOUT_S)
+        try:
+            conn.execute("PRAGMA synchronous=NORMAL")
+            conn.row_factory = sqlite3.Row
+            with conn:
+                yield conn
+        finally:
+            conn.close()
 
     def _init_db(self) -> None:
-        with self._connect() as conn:
-            conn.execute(_SCHEMA)
+        """Crea el esquema y fija el modo WAL, que persiste en el archivo.
+
+        Pasar a WAL exige un bloqueo exclusivo y SQLite puede responder ``database is
+        locked`` sin esperar el ``busy_timeout`` cuando varios hilos o procesos crean la
+        base a la vez: se reintenta hasta un plazo total de ``_BUSY_TIMEOUT_S``.
+        """
+        deadline = time.monotonic() + _BUSY_TIMEOUT_S
+        while True:
+            try:
+                with self._connect() as conn:
+                    conn.execute("PRAGMA journal_mode=WAL")
+                    conn.execute(_SCHEMA)
+            except sqlite3.OperationalError as exc:
+                if "locked" not in str(exc) or time.monotonic() >= deadline:
+                    raise
+                time.sleep(_INIT_BACKOFF_S)
+            else:
+                return
 
     @staticmethod
     def _encode(key: str, value: Any) -> Any:
