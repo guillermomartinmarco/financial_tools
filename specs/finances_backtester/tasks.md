@@ -4,7 +4,7 @@
 > Checks por paquete: `python -m ruff check`, `python -m ruff format --check`, `python -m mypy --strict src`, `python -m pytest -q`.
 > Las tareas `B*` (núcleo compartido) **preceden** a las `V*` de `specs/ft_vectorbt/tasks.md`; cada tarea indica su dependencia.
 > Tests del núcleo en `packages/finances-core/tests/unit/`; sin red y con `FT_PROJECT_ROOT` temporal.
-> Estado: 22 de 34 tareas completadas (`B0.1`, `B0.2`, `B0.3`, `B1.1`, `B1.2`, `B1.3`, `B1.4`, `B1.5`, `B1.6`, `B1.7`, `B1.8`, `B1.9`, `B1.10`, `B1.11`, `B2.1`, `B3.1`, `B3.2`, `B4.1`, `B5.2`, `B6.1`, `B6.3`, `P1`); el resto pendiente.
+> Estado: 23 de 34 tareas completadas (`B0.1`, `B0.2`, `B0.3`, `B1.1`, `B1.2`, `B1.3`, `B1.4`, `B1.5`, `B1.6`, `B1.7`, `B1.8`, `B1.9`, `B1.10`, `B1.11`, `B2.1`, `B3.1`, `B3.2`, `B4.1`, `B4.2`, `B5.2`, `B6.1`, `B6.3`, `P1`); el resto pendiente.
 
 ## Fase 0: Gobernanza y esqueleto
 
@@ -77,9 +77,10 @@
 - [x] **B4.1**: `backtest/identity.py` (`data_hash`, `run_id`) — depende de B1.1
   - **Hecho cuando**: tests: vectores fijos (valor esperado literal); cambiar cualquier campo de RF-8 (incluida `engine_version`, una vela, `kind_version` o `strategy_code_hash`) cambia el `run_id`; el orden de claves no influye; `force` y `created_at_ms` no influyen.
   - **Evidencia**: `test_backtest_identity.py` (43): `data_hash` y `run_id` fijados con vectores literales (`data_hash` también reconstruido de forma independiente con `struct`); cambiar cualquiera de los 17 campos de RF-8 (incluidos `engine_version`, una vela, `kind_version`, `strategy_code_hash`, `CATALOG_VERSION`, `RESULT_SCHEMA_VERSION`) cambia el `run_id`; orden de claves, `force` y `created_at_ms` no influyen. RED → GREEN.
-- [ ] **B4.2**: `backtest/results_store.py` (`write_run`, `read_manifest`, `list_runs`, `find_run`, `read_trades_page`, `read_equity_page`) — depende de B3.1, B4.1
+- [x] **B4.2**: `backtest/results_store.py` (`write_run`, `read_manifest`, `list_runs`, `find_run`, `read_trades_page`, `read_equity_page`) — depende de B3.1, B4.1
   - **Hecho cuando**: tests: layout de RF-9; directorio sin `manifest.json` ignorado; escritura concurrente del mismo `run_id` deja un único resultado válido; `force` reemplaza atómicamente con contenido idéntico; temporales huérfanos limpiados; paginación por cursor de `trades`/`equity`; filtros de `list_runs`; Parquet con `zstd` y reescritura byte a byte idéntica; el manifiesto contiene `kind_version`, `strategy_code_hash` y `strategy_origin`.
   - **Nota (B3.2)**: `RunSummary` no tiene `start_ms`, `end_ms` efectivos ni las advertencias que RF-7 exige en `summary.json` (`insufficient_history`, `data_gaps`); `write_run` debe incluirlos (ampliando `RunSummary` o al serializar) y añadir la advertencia `cagr_not_finite` cuando `cagr` sea `null` por desbordamiento.
+  - **Evidencia**: `test_backtest_results_store.py` (61): layout de RF-9; `manifest.json` escrito al final y directorio instalado con un único `os.rename`; directorio sin manifiesto válido ignorado y limpiado al recalcular; mismo `run_id` con 8 hilos y 4 procesos → un único resultado; `force` idéntico byte a byte, también con lectores concurrentes y con un archivo abierto (reintentos ante `PermissionError` de Windows); un `force` fallido conserva el resultado anterior y un proceso muerto a mitad del cambio se recupera; huérfanos > 24 h limpiados (solo nombres de este almacén); paginación por cursor de `trades`/`equity`/`runs`; 6 filtros; `zstd`; reescritura idéntica; manifiesto con `kind_version`/`strategy_code_hash`/`strategy_origin`; `summary.json` con `start_ms`/`end_ms` efectivos, advertencias y `cagr_not_finite`. Verificador independiente: un bloqueante (pérdida del resultado en un `force` fallido) corregido y recomprobado. Comportamiento aceptado: durante un `force` hay una ventana breve (ms) en la que la corrida no se encuentra; las lecturas de páginas pueden lanzar `FileNotFoundError` y la API/CLI deben traducirlo.
 
 ## Fase 5: Orquestación y contrato de motor (RF-10, RF-21)
 
