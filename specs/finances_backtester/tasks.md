@@ -4,7 +4,7 @@
 > Checks por paquete: `python -m ruff check`, `python -m ruff format --check`, `python -m mypy --strict src`, `python -m pytest -q`.
 > Las tareas `B*` (núcleo compartido) **preceden** a las `V*` de `specs/ft_vectorbt/tasks.md`; cada tarea indica su dependencia.
 > Tests del núcleo en `packages/finances-core/tests/unit/`; sin red y con `FT_PROJECT_ROOT` temporal.
-> Estado: 16 de 34 tareas completadas (`B0.1`, `B0.2`, `B0.3`, `B1.1`, `B1.2`, `B1.3`, `B1.4`, `B1.5`, `B1.6`, `B1.7`, `B1.8`, `B1.9`, `B1.10`, `B1.11`, `B2.1`, `P1`); el resto pendiente.
+> Estado: 18 de 34 tareas completadas (`B0.1`, `B0.2`, `B0.3`, `B1.1`, `B1.2`, `B1.3`, `B1.4`, `B1.5`, `B1.6`, `B1.7`, `B1.8`, `B1.9`, `B1.10`, `B1.11`, `B2.1`, `B3.1`, `B3.2`, `P1`); el resto pendiente.
 
 ## Fase 0: Gobernanza y esqueleto
 
@@ -65,10 +65,12 @@
 
 ## Fase 3: Costes, tablas canónicas y métricas (RF-5, RF-6, RF-7)
 
-- [ ] **B3.1**: `backtest/costs.py` (`fee_rate`, `slip`, `buy_price`, `sell_price`) y `backtest/frames.py` (esquemas de `trades`/`equity`, `validate_engine_output`) — depende de B1.1
+- [x] **B3.1**: `backtest/costs.py` (`fee_rate`, `slip`, `buy_price`, `sell_price`) y `backtest/frames.py` (esquemas de `trades`/`equity`, `validate_engine_output`) — depende de B1.1
   - **Hecho cuando**: tests: fórmulas de RF-5 con ejemplos a mano; `validate_engine_output` acepta una salida válida y rechaza dtype erróneo, `side = 0`, `exit_reason = 2`, `NaN`, filas desordenadas y `equity.height != n_bars` con `OutputOutOfRangeError`.
-- [ ] **B3.2**: `backtest/metrics.py` (RF-7) — depende de B3.1
+  - **Evidencia**: `test_backtest_costs.py` (6) con fórmulas de RF-5 a mano (10 bps → 0,001; 100 con 5 bps de deslizamiento → 100,05/99,95; ida y vuelta de 10 000) y `test_backtest_frames.py` (17): salida válida y `trades` vacío aceptados; dtype erróneo, `side = 0`, `exit_reason = 2`, `NaN`, filas desordenadas y `equity.height != n_bars` → `OutputOutOfRangeError`. RED (módulos inexistentes) → GREEN.
+- [x] **B3.2**: `backtest/metrics.py` (RF-7) — depende de B3.1
   - **Hecho cuando**: tests con series de 5–10 barras calculadas a mano: `total_return`, `cagr`, `max_drawdown`, `sharpe`, `sortino`, `win_rate`, `exposure`; `null` en `sharpe` con desviación 0, en `win_rate` sin operaciones; prueba de precisión contra una referencia de `tests/` (tolerancia 1e-3) sobre 1 000 000 de barras; `P` correcto para `1m`, `1h`, `1d`.
+  - **Evidencia**: `test_backtest_metrics.py` (14): serie `1d` de 5 barras a mano para las 7 métricas; `null` en `sharpe`/`win_rate` sin varianza ni operaciones; `P` = 525 960 (`1m`), 8 766 (`1h`), 365,25 (`1d`); 1 000 000 de barras contra referencia en doble precisión (`math.fsum`) con error relativo máximo ~1,2e-5 (tolerancia 1e-3), 2,3 s. Lectura de `exposure`: la barra de liquidación final (`end_of_data`) cuenta como expuesta.
 
 ## Fase 4: Identidad y almacén (RF-8, RF-9)
 
