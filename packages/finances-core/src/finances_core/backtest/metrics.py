@@ -10,6 +10,8 @@ verifica contra una referencia de mayor precisión en ``tests/`` (RFC-0004, 1e-3
 
 from __future__ import annotations
 
+import math
+
 import polars as pl
 
 from finances_core.backtest.frames import EXIT_REASON_END_OF_DATA
@@ -58,13 +60,20 @@ def _optional(value: object) -> float | None:
     return None if value is None else float(value)  # type: ignore[arg-type]
 
 
+def _finite_or_null(value: object) -> float | None:
+    """``None`` si el valor no es finito (deriva de RF-7: anualización desbordada)."""
+    number = _optional(value)
+    return number if number is not None and math.isfinite(number) else None
+
+
 def compute(
     trades: pl.DataFrame, equity: pl.DataFrame, *, initial_cash: float, timeframe: str
 ) -> RunSummary:
     """Calcula :class:`RunSummary` (RF-7) desde las tablas canónicas ya validadas.
 
     ``sharpe`` es ``null`` con desviación 0 o menos de 2 barras; ``sortino`` con
-    denominador 0; ``win_rate`` sin operaciones. ``cagr = -1`` si ``equity[último] ≤ 0``.
+    denominador 0; ``win_rate`` sin operaciones. ``cagr = -1`` si ``equity[último] ≤ 0``
+    y ``null`` si la anualización no es finita (corridas muy cortas en timeframes chicos).
 
     Raises:
         ValueError: SI ``equity`` no tiene barras o el timeframe es desconocido.
@@ -99,7 +108,7 @@ def compute(
 
     return RunSummary(
         total_return=float(stats["total_return"]),
-        cagr=float(stats["cagr"]),
+        cagr=_finite_or_null(stats["cagr"]),
         max_drawdown=float(stats["max_drawdown"]),
         sharpe=_optional(stats["sharpe"]),
         sortino=_optional(stats["sortino"]),

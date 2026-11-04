@@ -146,7 +146,8 @@ class RunSummary(BaseModel):
     """``summary.json`` de una corrida (RF-7); valores serializados desde ``Float32``."""
 
     total_return: float
-    cagr: float
+    # None si la anualización no es finita (deriva de RF-7).
+    cagr: float | None
     max_drawdown: float
     sharpe: float | None
     sortino: float | None

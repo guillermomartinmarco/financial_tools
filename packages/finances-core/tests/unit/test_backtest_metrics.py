@@ -240,3 +240,11 @@ def test_precision_over_one_million_bars_matches_double_reference() -> None:
         assert getattr(summary, name) == pytest.approx(value, rel=PRECISION_TOL), name
     assert summary.n_bars == N_PRECISION
     assert elapsed < 5.0
+
+
+def test_cagr_is_null_when_annualisation_is_not_finite() -> None:
+    # 2 barras 1h con +10 %: exponente 8 766 / 2 = 4 383 → 1,1^4 383 desborda Float32 (deriva RF-7).
+    equity = _equity([105.0, 110.0], [0.0, 0.0], step_ms=3_600_000)
+    summary = compute(_trades([]), equity, initial_cash=100.0, timeframe="1h")
+    assert summary.cagr is None
+    assert summary.total_return == pytest.approx(0.1, rel=REL)
