@@ -88,3 +88,6 @@ share/*.db
 share/*.db-*
 share/plans/
 .claude/worktrees/
+
+# Artículos de referencia: se enlazan en docs/articles/README.md, no se redistribuyen.
+docs/articles/*.pdf
