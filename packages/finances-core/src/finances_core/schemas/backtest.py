@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from finances_core.schemas.data_viewer import DatasetIdentifier
 from finances_core.schemas.strategy import HASH_PATTERN
@@ -29,10 +29,43 @@ StrategyOrigin = Literal["builtin", "local"]
 ParamScalar = int | float | bool | str
 
 
+#: Caracteres que convierten un componente en una ruta (separadores y unidad de Windows).
+_PATH_CHARS = frozenset("/\\:")
+_FIRST_PRINTABLE = 0x20
+_DEL = 0x7F
+
+
+def check_path_component(value: str) -> str:
+    """Valida que ``value`` sea un único segmento de ruta inerte (RF-18).
+
+    Rechaza el vacío, ``.``/``..``, los separadores ``/`` y ``\\``, las formas de unidad o
+    absolutas (``C:``, ``\\\\server``) y los caracteres de control.
+
+    Raises:
+        ValueError: SI ``value`` no es un segmento seguro.
+    """
+    if value in {"", ".", ".."}:
+        msg = f"componente de ruta inválido: {value!r}"
+        raise ValueError(msg)
+    if any(c in _PATH_CHARS or ord(c) < _FIRST_PRINTABLE or ord(c) == _DEL for c in value):
+        msg = f"componente de ruta con separador, unidad o carácter de control: {value!r}"
+        raise ValueError(msg)
+    return value
+
+
 class BacktestDataset(DatasetIdentifier):
-    """``DatasetIdentifier`` de una petición: además rechaza claves extra (RF-18)."""
+    """``DatasetIdentifier`` de una petición: rechaza claves extra y *path traversal* (RF-18).
+
+    Cada componente se usa como segmento del layout Hive bajo ``FT_PARQUET_DIR``; uno con
+    ``..``, separadores, unidad o caracteres de control podría salir de ese directorio.
+    """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
+
+    @field_validator("exchange", "market_type", "symbol", "timeframe")
+    @classmethod
+    def _check_path_component(cls, value: str) -> str:
+        return check_path_component(value)
 
 
 INT64_MIN = -(2**63)

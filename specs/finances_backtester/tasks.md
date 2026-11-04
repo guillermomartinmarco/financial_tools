@@ -4,7 +4,7 @@
 > Checks por paquete: `python -m ruff check`, `python -m ruff format --check`, `python -m mypy --strict src`, `python -m pytest -q`.
 > Las tareas `B*` (núcleo compartido) **preceden** a las `V*` de `specs/ft_vectorbt/tasks.md`; cada tarea indica su dependencia.
 > Tests del núcleo en `packages/finances-core/tests/unit/`; sin red y con `FT_PROJECT_ROOT` temporal.
-> Estado: 15 de 34 tareas completadas (`B0.1`, `B0.2`, `B0.3`, `B1.1`–`B1.11`, `P1`); el resto pendiente.
+> Estado: 16 de 34 tareas completadas (`B0.1`, `B0.2`, `B0.3`, `B1.1`, `B1.2`, `B1.3`, `B1.4`, `B1.5`, `B1.6`, `B1.7`, `B1.8`, `B1.9`, `B1.10`, `B1.11`, `B2.1`, `P1`); el resto pendiente.
 
 ## Fase 0: Gobernanza y esqueleto
 
@@ -58,9 +58,10 @@
 
 ## Fase 2: Datos (RF-4)
 
-- [ ] **B2.1**: `backtest/candles.py::read_candles` sobre `indicators_store.source` con filtro de rango inclusivo — depende de B1.1
+- [x] **B2.1**: `backtest/candles.py::read_candles` sobre `indicators_store.source` con filtro de rango inclusivo — depende de B1.1
   - **Hecho cuando**: tests con dataset Hive sintético: rango inclusivo, rango por defecto = todo, dtypes `Int64`/`Float32`, dataset inexistente → `SourceNotFoundError`, precio `<= 0`/nulo/`NaN` → `InvalidSourceError`, rango vacío → `EmptyRangeError`, `data_gaps` contado, no se escribe nada bajo `FT_PARQUET_DIR`.
   - **Nota (verificación de B1.1–B1.6)**: `DatasetIdentifier` acepta `symbol="../../etc"` o `exchange=".."` (ya en la base); `read_candles` debe validar cada componente antes de construir la ruta y rechazar el *path traversal* con un test.
+  - **Evidencia**: `test_backtest_candles.py` (27) y +46 casos en `test_backtest_schemas.py` verdes (RED: módulo inexistente y 40 casos de *traversal*). Rango inclusivo, rango por defecto, dtypes, `SourceNotFoundError`, `InvalidSourceError` (precio `<= 0`/nulo/`NaN`/`inf`, orden), `EmptyRangeError` y `data_gaps`; el árbol de `FT_PARQUET_DIR` queda idéntico tras leer. *Path traversal* en dos capas: `BacktestDataset` valida cada componente y `read_candles` revalida y exige que la ruta resuelta quede bajo `PARQUET_DIR`. Los precios se validan solo dentro del rango pedido; orden y dtypes sobre toda la serie.
 
 ## Fase 3: Costes, tablas canónicas y métricas (RF-5, RF-6, RF-7)
 
