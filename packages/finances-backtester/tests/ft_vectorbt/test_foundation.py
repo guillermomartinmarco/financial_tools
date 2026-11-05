@@ -13,6 +13,14 @@ from typer.testing import CliRunner
 from finances_backtester import ft_vectorbt
 from finances_backtester.ft_vectorbt import api, cli
 
+#: SGR escape sequences: Rich colours Typer's output when CI forces a colour terminal.
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def _plain(output: str) -> str:
+    return _ANSI.sub("", output)
+
+
 REPO_ROOT = Path(__file__).resolve().parents[4]
 CONTRACT_SUITE = Path(__file__).resolve().parents[1] / "contract" / "engine_contract.py"
 CORE_BACKTEST_MODULES = ("catalog", "runner", "engine_api", "results_store", "metrics", "identity")
@@ -71,9 +79,10 @@ def test_cli_help_lists_global_flags() -> None:
     """V0.3 / RF-6: ``--help`` responde y expone los flags globales."""
     result = CliRunner().invoke(cli.app, ["--help"])
     assert result.exit_code == 0, result.output
-    assert "ft_vectorbt" in result.output
+    output = _plain(result.output)
+    assert "ft_vectorbt" in output
     for flag in ("--verbose", "-v", "--quiet", "-q", "--log-format", "--format"):
-        assert flag in result.output
+        assert flag in output
 
 
 @pytest.mark.parametrize(
@@ -84,8 +93,8 @@ def test_cli_rejects_invalid_global_choice(flag: str, value: str) -> None:
     """RF-6: ``--log-format json|rich`` y ``--format table|json`` se validan al parsear."""
     result = CliRunner().invoke(cli.app, [flag, value])
     assert result.exit_code == 2
-    assert "Invalid value" in result.output
-    assert value in result.output
+    assert "Invalid value" in _plain(result.output)
+    assert value in _plain(result.output)
 
 
 @pytest.mark.parametrize(
@@ -99,4 +108,4 @@ def test_cli_rejects_invalid_global_choice(flag: str, value: str) -> None:
 )
 def test_cli_accepts_valid_global_choice(flag: str, value: str) -> None:
     result = CliRunner().invoke(cli.app, [flag, value])
-    assert "Invalid value" not in result.output
+    assert "Invalid value" not in _plain(result.output)
