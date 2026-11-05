@@ -23,6 +23,11 @@ from finances_downloader.ft_market_data_binance.service import (
 
 from .conftest import FakeBinance, ms
 
+# Art. 18 fija ≤ 200 ms como objetivo de producción; en un runner compartido de CI el tiempo
+# no es controlable, así que este techo solo detecta una regresión grosera. Que el endpoint no
+# descargue lo prueban la tarea PENDING al despachar y la ausencia de peticiones (deriva de T6.2).
+DISPATCH_CEILING_S = 2.0
+
 BASE = "/market-data/binance"
 QUERY: dict[str, Any] = {
     "symbols": ["BTCUSDT"],
@@ -86,7 +91,7 @@ def test_post_dispatches_immediately_with_absolute_poll_url(
     # La tarea ya existía (PENDING) al lanzar el background y no se hizo red en el endpoint.
     assert no_background == [(task_id, "PENDING")]
     assert fake_binance.requests == []
-    assert elapsed < 1.0
+    assert elapsed <= DISPATCH_CEILING_S  # Art. 18
     # GET /status nunca da 404 para una tarea despachada
     status = client.get(f"{BASE}/status/{task_id}")
     assert status.status_code == 200

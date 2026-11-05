@@ -112,6 +112,7 @@
 - [x] **T6.2**: `POST /download` → valida → genera plan → `BackgroundTasks.add_task(execute_download_plan)` → retorna `202` con `task_id`, `poll_url`
   - **Hecho cuando**: Test: response schema correcto; task_id UUID v7; poll_url absoluta; tarea se ejecuta en background.
   - **Hecho**: `test_api.py::test_post_dispatches_immediately_with_absolute_poll_url` (202, UUID v7, URL absoluta, tarea PENDING antes del background, sin red en el endpoint), `test_post_invalid_request_is_400`.
+  - **Deriva (05/11/2026, Art. 15)**: el techo de tiempo del despacho pasa de 1 s a 2 s (`DISPATCH_CEILING_S`), como en `ft_indicators` T5.4 y `ft_ta_lib` T4.4: el ≤ 200 ms del Art. 18 es el objetivo de producción y no se mide en un runner compartido de CI, donde el test falló de forma intermitente (1,25 s en `windows-latest`). Que el endpoint no descargue lo siguen probando de forma determinista la tarea PENDING al despachar y la ausencia de peticiones de red.
 - [x] **T6.3**: `GET /status/{task_id}` → retorna `DownloadProgress` actual
   - **Hecho cuando**: Test polling: POST → GET status (PENDING→PLANNING→...) → COMPLETED.
   - **Hecho**: `test_api.py::test_polling_reaches_completed` (PLANNING→…→COMPLETED), `test_status_unknown_task_404`, `test_get_endpoints_offload_blocking_io`.
