@@ -568,12 +568,44 @@ def _restore_aside(aside: Path | None, final: Path) -> None:
         logger.exception("backtest_aside_restore_failed", path=str(aside))
 
 
+def _install_without_force(tmp: Path, final: Path, stored: StoredRun) -> StoredRun | None:
+    """Instala ``tmp`` sin apartar nunca un resultado completo; ``None`` para reintentar.
+
+    Primero se intenta el ``rename``: si ``final`` ya existe y es un resultado completo (otro
+    escritor lo instaló, quizá tras la comprobación inicial), se devuelve sin escribir.
+    Apartar antes de comprobar dejaría ``final`` ausente un instante y otro escritor sin
+    ``force`` podría instalar el suyo: dos ``written = True``. Solo un ``final`` incompleto
+    (sin ``summary.json`` válido, p. ej. corrupto o de un esquema anterior) se aparta.
+    """
+    try:
+        _rename(tmp, final)
+    except FileExistsError:
+        existing = _load(final)
+        if existing is not None:
+            return existing
+    else:
+        return stored
+    aside = _move_aside(final)
+    try:
+        _rename(tmp, final)
+    except FileExistsError:
+        _discard_aside(aside)  # otro escritor instaló entre medias: se reintenta la carga
+        return None
+    except BaseException:
+        _restore_aside(aside, final)
+        raise
+    _discard_aside(aside)
+    return stored
+
+
 def _install(tmp: Path, final: Path, stored: StoredRun, *, force: bool) -> StoredRun:
     for _ in range(_INSTALL_ATTEMPTS):
-        existing = _load(final)
-        if existing is not None and not force:
-            return existing
-        aside = _move_aside(final)  # resultado a reemplazar (``force``) o directorio incompleto
+        if not force:
+            installed = _install_without_force(tmp, final, stored)
+            if installed is not None:
+                return installed
+            continue
+        aside = _move_aside(final)  # resultado a reemplazar
         try:
             _rename(tmp, final)
         except FileExistsError:
