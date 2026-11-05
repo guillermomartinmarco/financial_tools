@@ -213,7 +213,7 @@ python -m ruff check packages && python -m ruff format packages
 # Lint, tipado estricto y tests: ejecutar DENTRO de cada paquete (cada uno tiene su pyproject.toml).
 # ta-lib es dependencia de runtime de finances-analytics (ft_ta_lib); el contraste de ft_indicators
 # lo usa en sus tests y finances-api valida ambas herramientas entre sí solo por HTTP.
-for pkg in finances-core finances-downloader finances-analytics finances-api; do
+for pkg in finances-core finances-downloader finances-analytics finances-backtester finances-api; do
   (cd packages/$pkg && python -m ruff check . && python -m ruff format --check . \
     && python -m mypy --strict src && python -m pytest -q)
 done
@@ -238,3 +238,22 @@ el resumen del job y el JSON como artefacto. Si falla la ejecución semanal, `sc
 comenta, si ya hay uno abierto del mismo tipo) un issue `[real-data] <tipo>: benchmark-v1` con las etiquetas
 `real-data` y `real-data:<download|drift|unlocked|tests|infra>`. Una deriva del proveedor se corrige con
 `ft_datasets lock benchmark-v1 --update` en un PR revisado.
+
+### Verificación local en Linux (WSL, opcional)
+
+`scripts/wsl_ci.sh` repite los pasos de `ci.yml` en WSL (Ubuntu con `python3.12` y `rsync`) para detectar fallos
+que solo aparecen en Linux antes del *push*, sin gastar una ejecución de GitHub. GitHub CI sigue siendo el control
+obligatorio y los benchmarks quedan fuera (sus umbrales están calibrados en `ubuntu-24.04`).
+
+```bash
+wsl bash scripts/wsl_ci.sh                          # ruff + mypy --strict + pytest de todos los paquetes
+wsl bash scripts/wsl_ci.sh --package finances-core  # solo un paquete (repetible)
+# Tests sensibles a la concurrencia: un verde aislado no prueba nada, se repiten N veces
+wsl bash scripts/wsl_ci.sh --package finances-core --stress 40 -- tests/unit/test_backtest_results_store.py -k concurrent
+```
+
+El repositorio se copia con `rsync` a `~/financial_tools-wsl` (leer `/mnt/c` es lento) y el entorno de Linux vive en
+`~/.venvs/financial_tools`, nunca en `/tmp`, que WSL borra al reiniciar; el `.venv` de Windows no sirve porque sus
+ruedas (numba, vectorbt, ta-lib) son de otra plataforma. Las instalaciones editables se rehacen solas cuando cambia
+algún `pyproject.toml` (o con `--reinstall`). Desde Git Bash, anteponer `MSYS_NO_PATHCONV=1` si se pasan rutas
+`/mnt/...`. Variables: `FT_WSL_WORKDIR`, `FT_WSL_VENV`, `FT_WSL_PYTHON`.
