@@ -343,6 +343,78 @@ def test_second_write_without_force_returns_existing(tmp_path: Path) -> None:
     assert (first.path / "manifest.json").read_bytes() == before
 
 
+def _install_concurrently(results: Path) -> tuple[Path, bytes]:
+    """Prepares another writer's complete result; returns ``(final, manifest bytes)``."""
+    other = _write(results / "other")
+    final = results / other.path.relative_to(results / "other")
+    return final, (other.path / "manifest.json").read_bytes()
+
+
+def test_non_force_writer_never_moves_aside_a_complete_result(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Another writer installs its complete result right after this writer found none.
+    final, other_manifest = _install_concurrently(tmp_path)
+    other_dir = tmp_path / "other" / final.relative_to(tmp_path)
+    real_move_aside = results_store._move_aside
+    moved_complete: list[Path] = []
+
+    def racing_move_aside(path: Path) -> Path | None:
+        if path == final and not final.exists():
+            final.parent.mkdir(parents=True, exist_ok=True)
+            os.rename(other_dir, final)  # noqa: PTH104 - the other writer installs
+        if results_store._load(path) is not None:
+            moved_complete.append(path)
+        return real_move_aside(path)
+
+    monkeypatch.setattr(results_store, "_move_aside", racing_move_aside)
+    stored = _write(tmp_path, created_at_ms=1_900_000_000_000)
+
+    assert moved_complete == []
+    if (final / "manifest.json").read_bytes() == other_manifest:
+        assert stored.written is False
+    assert results_store.read_manifest(final) == stored.manifest
+    assert not list(final.parent.glob(f"{final.name}.*"))
+
+
+def test_result_installed_before_rename_is_kept_without_force(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    final, other_manifest = _install_concurrently(tmp_path)
+    other_dir = tmp_path / "other" / final.relative_to(tmp_path)
+    real_rename = results_store._rename
+
+    def racing_rename(src: Path, dst: Path) -> None:
+        if dst == final and not final.exists():
+            final.parent.mkdir(parents=True, exist_ok=True)
+            os.rename(other_dir, final)  # noqa: PTH104 - the other writer installs first
+        real_rename(src, dst)
+
+    monkeypatch.setattr(results_store, "_rename", racing_rename)
+    stored = _write(tmp_path, created_at_ms=1_900_000_000_000)
+
+    assert stored.written is False
+    assert (final / "manifest.json").read_bytes() == other_manifest
+    assert not list(final.parent.glob(f"{final.name}.*"))
+
+
+@pytest.mark.parametrize("damage", ["missing", "invalid"])
+def test_final_with_broken_summary_is_replaced_without_force(tmp_path: Path, damage: str) -> None:
+    first = _write(tmp_path)
+    summary = first.path / "summary.json"
+    if damage == "missing":
+        summary.unlink()
+    else:
+        summary.write_text("{}", encoding="utf-8")
+
+    second = _write(tmp_path, created_at_ms=1_900_000_000_000)
+
+    assert second.written is True
+    assert results_store.read_summary(second.path) == second.summary
+    assert second.manifest.created_at_ms == 1_900_000_000_000
+    assert not list(first.path.parent.glob(f"{first.path.name}.*"))
+
+
 def test_force_replaces_atomically_with_identical_content(tmp_path: Path) -> None:
     first = _write(tmp_path)
     payload = _payload_bytes(first.path)
