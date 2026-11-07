@@ -26,6 +26,8 @@ Sin variables nuevas (RF-11). `ENGINE_NAME = "vectorbt"`; `engine_version = f"ve
 |---|---|---|
 | `run` | `-d ex/mt/sym/tf`, `--strategy-id`, `--strategy-version`, `--start-ms`, `--end-ms`, `--initial-cash`, `--size-fraction`, `--fees-bps`, `--slippage-bps`, `--force`, `--request-file` | resumen (tabla o JSON), `run_id`, `cached`; exit RF-9 |
 | `kinds` | `--kind`, `--check` | estrategias registradas (`KindInfo`, incluidas carpetas locales inválidas); `--check` ejecuta `assert_strategy_contract` (solo CLI) |
+
+**Deriva (Art. 15) — acceso al registro sin romper el aislamiento (RF-21):** `kinds`/`--check` no pueden importar `finances_core.backtest.catalog` ni `strategies` (prohibidos en todo el paquete por `test_isolation.py`). Llegan al registro por la puerta sancionada `finances_core.backtest.strategy_source`, que se amplía con dos funciones aditivas: `kinds(settings) -> list[KindInfo]` (envuelve `get_registry(settings).kinds()`) y `check_contract(kind, settings)` (envuelve `assert_strategy_contract`). La CLI/API las consumen vía un paso delgado en `service.py`.
 | `runs` | filtros, `--limit`, `--cursor` | listado paginado |
 | `show` / `trades` / `equity` | `RUN_ID` (+ `--limit`, `--after-ms`) | manifiesto+resumen / páginas |
 | `status` / `result` | `TASK_ID` | estado / `BacktestTaskResult` |
@@ -91,6 +93,11 @@ Evidencia (V1.5): con estos ajustes, `trades` y `equity` del motor sobre el *fix
 
 ### 3.4 `service.py`
 `run_sync(request, settings, on_phase)`: instancia `VectorbtEngine`, llama a `run_backtest` (que obtiene el registro de estrategias del núcleo, calcula y normaliza las señales y las pasa al motor) y devuelve `BacktestTaskResult`. `dispatch(request, settings)` crea la tarea (`TaskRecorder` de `finances_core.marketdata.tasks_lifecycle` con `phase_order=("LOADING","SIGNALS","SIMULATING","PERSISTING")`; si resulta no ser genérico, V2.2 lo extrae a `finances_core.backtest.dispatch` sin cambiar a los tres consumidores existentes) y la ejecuta con `asyncio.to_thread` bajo un `asyncio.Semaphore(FT_BACKTEST_MAX_CONCURRENT)`.
+
+`kinds(settings)` y `check_strategies(kind, settings)` son pasos delgados sobre
+`strategy_source.kinds` / `strategy_source.check_contract` (Deriva §2.1): la CLI (`kinds`,
+`kinds --check`) y la API (`GET /kinds`) comparten el mismo acceso al registro sin importar
+`catalog`/`strategies` (RF-21).
 
 ### 3.5 Aislamiento (T0.3 análogo a `ft_ta_lib`)
 `tests/ft_vectorbt/test_isolation.py` (AST): `FORBIDDEN_ROOTS = ("finances_downloader", "finances_analytics", "finances_api")`, cualquier raíz `ft_*` y hermanas `finances_backtester.ft_*`; ningún import de `finances_core.backtest.strategies` ni `finances_core.backtest.catalog` en el motor (RF-21); `pandas`, `numpy` y `vectorbt` solo en `engine.py`; nombres de doble precisión solo en `engine.py`; y `test_engine_boundary.py` comprueba que la ampliación solo aparece en `to_framework_input` y el *downcast* solo en `from_framework_output`.
