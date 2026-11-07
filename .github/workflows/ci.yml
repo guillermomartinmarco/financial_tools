@@ -79,6 +79,17 @@ jobs:
           BENCH_ENFORCE: "1"
         run: python -m pytest -m benchmark -s -q tests/ft_ta_lib/benchmarks
 
+      # RF-12 / V7.1 de ft_vectorbt: benchmark B1 (VectorbtEngine.run sobre 1 000 000 de velas
+      # con senales sma_cross precalculadas) solo en ubuntu-24.04 (umbral provisional en
+      # tests/ft_vectorbt/benchmarks/thresholds.json, a recalibrar en CI): el job falla ante regresion.
+      - name: Benchmarks ft_vectorbt (ubuntu-24.04)
+        if: matrix.os == 'ubuntu-24.04'
+        working-directory: packages/finances-backtester
+        env:
+          BENCH_OUTPUT: ${{ github.workspace }}/bench-results/ft_vectorbt.json
+          BENCH_ENFORCE: "1"
+        run: python -m pytest -m benchmark -s -q tests/ft_vectorbt/benchmarks
+
       - name: Upload benchmark results
         if: matrix.os == 'ubuntu-24.04' && success()
         uses: actions/upload-artifact@v7
@@ -93,4 +104,12 @@ jobs:
         with:
           name: bench-ft_ta_lib-${{ github.sha }}
           path: bench-results/ft_ta_lib.json
+          if-no-files-found: error
+
+      - name: Upload benchmark results ft_vectorbt
+        if: matrix.os == 'ubuntu-24.04' && success()
+        uses: actions/upload-artifact@v7
+        with:
+          name: bench-ft_vectorbt-${{ github.sha }}
+          path: bench-results/ft_vectorbt.json
           if-no-files-found: error

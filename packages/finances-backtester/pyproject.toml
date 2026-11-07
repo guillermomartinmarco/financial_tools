@@ -96,4 +96,7 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "-v --tb=short"
+markers = [
+    "benchmark: benchmarks de desempeno (RF-12); excluidos por defecto",
+]
+addopts = "-v --tb=short -m 'not benchmark'"
