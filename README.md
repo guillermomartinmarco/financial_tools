@@ -16,7 +16,7 @@ Para garantizar el aislamiento y permitir ciclos SemVer independientes, las herr
 | **`finances-downloader`** | `ft_market_data_binance`, `ft_market_data_yfinance`, `ft_data_viewer`, `ft_datasets` (recetas de datasets reales reproducibles), `ft_market_data_manager` *(`compact`, `dedupe`, `prune` e `import` implementados)* | Asyncio, Polars, Parquet |
 | **`finances-analytics`** | `ft_indicators` (indicadores técnicos sobre OHLCV Hive), `ft_ta_lib` (catálogo completo de TA-Lib sobre OHLCV Hive) | Polars (cálculo `Float64`, persistencia `Float32`), TA-Lib (rueda binaria), Parquet Hive |
 | **`finances-api`** | `ft_serve` (raíz de composición: monta los routers de todas las herramientas) | FastAPI, Uvicorn |
-| **`finances-backtester`** *(planificado)* | `ft_vectorbt`, `ft_backtesting_py`, `ft_backtrader`, `ft_bt`, `ft_ffn`, `ft_backtestopt_spectre` (C++/CUDA), `ft_bot_paper_binance`, `ft_live_bot` | VectorBT, Backtrader, PyBind11, CMake |
+| **`finances-backtester`** *(ft_vectorbt operativo; resto planificado)* | `ft_vectorbt`, `ft_backtesting_py`, `ft_backtrader`, `ft_bt`, `ft_ffn`, `ft_backtestopt_spectre` (C++/CUDA), `ft_bot_paper_binance`, `ft_live_bot` | VectorBT, Backtrader, PyBind11, CMake |
 
 ---
 
@@ -36,7 +36,8 @@ Para garantizar el aislamiento y permitir ciclos SemVer independientes, las herr
 ### 2.3 Motores de Backtesting y Análisis
 *   **`ft_indicators`** (paquete `finances-analytics`): Catálogo cerrado de 12 indicadores técnicos (`sma`, `ema`, `wma`, `rsi`, `macd`, `bb`, `atr`, `stoch`, `roc`, `obv`, `adx` y `vwap` móvil) implementados con expresiones nativas de Polars (sin TA-Lib ni pandas en ejecución; TA-Lib solo como contraste en los tests de CI). Recalcula la serie completa de cada dataset descargado (Binance o Yahoo) sin anticipación y alineado 1:1 con la fuente (mismo `open_time_ms`, calentamiento conservado como nulo), y persiste cada indicador de forma idempotente en `FT_INDICATORS_DIR/{exchange}/market_type=…/symbol=…/timeframe=…/year=…/month=…/{indicator_id}.parquet` (`Float32`). Publica `stable_from_ms` (desde qué vela el indicador deja de depender de su semilla) y tolerancias `f32` como oráculo de futuros kernels GPU. Exporta a Parquet, CSV o JSON Lines, opcionalmente junto con el OHLCV fuente.
 *   **`ft_ta_lib`** (paquete `finances-analytics`): Envoltura delgada sobre **todo** el catálogo de TA-Lib (ta-lib 0.8.3 / TA-Lib C 0.8.3 (fijada con `ta-lib>=0.8.3,<0.8.4`): 237 funciones en 10 grupos, 236 soportadas; `MAVP` no, por requerir la entrada `periods`), descubierto en tiempo de ejecución con `talib.abstract`. Mismo contrato de datos que `ft_indicators` (alineación 1:1 por `open_time_ms`, calentamiento nulo, sin anticipación, recálculo completo idempotente) y mismo `FT_INDICATORS_DIR`, con prefijo `talib_` y manifiesto/bloqueo propios (`_manifest.ft_ta_lib.json`, `_lock.ft_ta_lib`). Salidas reales en `Float32`, patrones de velas y categóricas en `Int16` (±200) e índices (`MAXINDEX`, …) como `open_time_ms` `Int64` (RFC-0002). Nombres deterministas con todos los parámetros (`talib_rsi_14`, `talib_bbands_20_2_2_sma_upperband`, `talib_cdlengulfing`); las funciones con *unstable period* de TA-Lib publican `stable_from_ms` nulo (`unstable_period_unknown`). Exporta igual que `ft_indicators` y se valida contra ella en CI.
-*   **`ft_vectorbt` / `ft_backtesting_py` / `ft_backtrader` / `ft_bt`**: Envolturas modulares que exponen e interconectan los frameworks tradicionales al formato de datos canónico de la suite.
+*   **`ft_vectorbt`** (paquete `finances-backtester`): Primer motor de backtesting, **operativo**. Simula con [VectorBT](https://vectorbt.dev) (fijado `>=1.2.0,<1.3`) las señales que calcula el núcleo (`finances_core.backtest`) sobre un dataset del almacén Parquet, y persiste operaciones, curva de capital y métricas en `FT_RESULTS_DIR`. El motor **solo simula**: recibe `entries`/`exits` ya calculadas y no conoce `kind` ni parámetros (cualquier estrategia registrada funciona sin tocarlo). La frontera numérica de doble precisión (`pandas`/NumPy/`vectorbt`) queda **confinada a `engine.py`** por [RFC-0004](docs/rfc/); el resto de la suite mantiene `Float32`/`Int64`. Estrategias integradas: `sma_cross` (medias rápida/lenta), `rsi_reversion` (RSI de Wilder) y `donchian_breakout` (canales). Expone CLI (`ft_vectorbt`) y API (`/backtest/vectorbt`) simétricas (Art. 1), con despacho asíncrono 202 + polling y resultados deterministas e idempotentes (misma petición ⇒ archivos byte-idénticos; repetición `cached`).
+*   **`ft_backtesting_py` / `ft_backtrader` / `ft_bt`** *(planificados)*: Envolturas modulares que expondrán otros frameworks tradicionales al mismo formato de datos canónico y contrato de motor que `ft_vectorbt`.
     *   **Estrategias propias**: las estrategias viven en el núcleo (`finances_core/backtest/strategies/`, una carpeta por estrategia) y se pueden añadir estrategias Python locales en `FT_STRATEGIES_DIR`; la API nunca carga código. Guía paso a paso: [`docs/guides/strategy-authoring.md`](docs/guides/strategy-authoring.md).
     *   **Licencia de VectorBT**: `vectorbt` (fijado en `>=1.2.0,<1.3`) se distribuye bajo Apache 2.0 con *Commons Clause* v1.0, que **prohíbe venderlo**, incluido ofrecer a terceros por un pago un producto o servicio cuyo valor dependa sustancialmente de él. `ft_vectorbt` es para uso no comercial; un uso comercial exige otro motor (las estrategias viven en el núcleo y no dependen del motor).
 *   **`ft_ffn`**: Generador estadístico de métricas avanzadas de rendimiento (Sharpe, Sortino, Drawdown masivo).
@@ -158,11 +159,21 @@ ft_strategy_manager diff <strategy_id> --from v1 --to v2             # added/rem
 ft_strategy_manager versions <strategy_id>                           # historial inmutable
 ft_strategy_manager export <strategy_id> --format yaml -o strategy.yaml  # estrategia + todas las versiones
 ft_strategy_manager delete <strategy_id>                             # soft-delete (idempotente); --purge pide confirmación (--force la omite)
+
+# Backtesting con VectorBT (ft_vectorbt): simula las señales del núcleo sobre un dataset del almacén (dataset = exchange/market_type/symbol/timeframe)
+# Exit: 0 OK (incluye cached) · 1 no encontrado (estrategia/dataset/corrida/tarea) · 2 validación · 3 tarea FAILED / runtime de estrategia · 4 IO
+ft_vectorbt kinds                                                    # estrategias registradas (integradas + locales); --kind X filtra; --check corre el contrato de autor (solo CLI)
+ft_vectorbt run -d binance/futures/BTCUSDT/1h --strategy-id <id>     # síncrono; repetir devuelve cached; --force recalcula (archivos byte-idénticos); --start-ms/--end-ms/--initial-cash/--size-fraction/--fees-bps/--slippage-bps
+ft_vectorbt run -d binance/futures/BTCUSDT/1h --request-file req.json --format json  # req.json = cuerpo exacto de POST /backtest/vectorbt/run
+ft_vectorbt show <run_id>                                            # manifiesto + resumen (engine, n_trades, métricas)
+ft_vectorbt runs --strategy-id <id> --limit 20                      # listado paginado de corridas (--cursor); filtros -e/-m/-s/-t
+ft_vectorbt trades <run_id> --limit 100 --after-ms <next_after_ms>  # páginas de operaciones; curva de capital con `equity`
+ft_vectorbt status <task_id> ; ft_vectorbt result <task_id>         # consulta de tareas lanzadas por la API
 ```
 
 ### Ejecución en Modo Servicio (FastAPI)
 ```bash
-# Servicio HTTP único: /setup, /market-data/binance, /market-data/yfinance, /market-data/manager, /data, /datasets, /indicators, /ta-lib, /strategies y /health (docs en /docs)
+# Servicio HTTP único: /setup, /market-data/binance, /market-data/yfinance, /market-data/manager, /data, /datasets, /indicators, /ta-lib, /strategies, /backtest/vectorbt y /health (docs en /docs)
 ft_serve --port 8000
 
 # Yahoo Finance vía API: POST devuelve 202 con task_id y las URLs de polling
@@ -198,6 +209,13 @@ curl "http://localhost:8000/strategies?tag=fx&name=mean&limit=50"               
 curl -X PUT http://localhost:8000/strategies/<id> -H "Content-Type: application/json"   -d '{"parameters_patch":[{"op":"replace","path":"/fast","value":8}]}'                # nueva versión (400 si no hay cambios)
 curl "http://localhost:8000/strategies/<id>/diff?from=1&to=2"                         # también /versions y /export?format=yaml
 curl -X DELETE "http://localhost:8000/strategies/<id>?purge=false"                    # 204, idempotente
+
+# Backtesting VectorBT vía API (mismo contrato que la CLI, Art. 1; despacho asíncrono 202 + polling)
+curl -X POST http://localhost:8000/backtest/vectorbt/run -H "Content-Type: application/json" \
+  -d '{"dataset":{"exchange":"binance","market_type":"futures","symbol":"BTCUSDT","timeframe":"1h"},"strategy_id":"<id>"}'   # 202 + status=ACCEPTED, poll_url, result_url
+curl http://localhost:8000/backtest/vectorbt/status/<task_id>        # fase; GET /result/<task_id> (409 si no terminó, 404 inexistente, 500 si FAILED)
+curl http://localhost:8000/backtest/vectorbt/kinds                   # estrategias instaladas (solo lectura; no existe endpoint de carga de código)
+curl "http://localhost:8000/backtest/vectorbt/runs?strategy_id=<id>&limit=20"   # + /runs/<run_id> y /runs/<run_id>/{trades,equity}?after_ms=&limit=
 ```
 
 ---
