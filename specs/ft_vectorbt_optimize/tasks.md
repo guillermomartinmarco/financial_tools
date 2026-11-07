@@ -3,7 +3,7 @@
 > **Convención**: cada tarea es atómica, testeable y sigue TDD (Art. 7). **Hecho cuando**: criterio verificable.
 > Checks: `python -m ruff check`, `python -m ruff format --check`, `python -m mypy --strict src`, `python -m pytest -q` en `packages/finances-backtester`; `test_isolation.py` DEBE seguir verde.
 > Tests en `packages/finances-backtester/tests/ft_vectorbt/test_optimize.py` (reusa las *fixtures* de `conftest`: `FT_PROJECT_ROOT` temporal, *fixture* Hive, `strategies.db` temporal). Sin red.
-> **Prerrequisitos**: **Slice 1 (`backtest_metrics`) mergeado** (`OBJECTIVES`, `objective_value`, `TradingMetrics`); `ft_vectorbt` fases 0–7 (en `main`).
+> **Prerrequisitos**: **Slice 1 (`metrics`, módulo `finances_core.metrics`) mergeado** (`OBJECTIVES`, `objective_value`, `TradingMetrics`); `ft_vectorbt` fases 0–7 (en `main`).
 
 ## Fase O0: Dependencia y contratos
 
