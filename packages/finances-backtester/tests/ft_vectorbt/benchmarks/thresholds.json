@@ -1,0 +1,27 @@
+{
+  "description": "Umbrales RF-12 de ft_vectorbt (unica fuente; V7.1). Provisional hasta su calibracion canonica en CI ubuntu-24.04 (regla: 1.5 x mediana de 5 repeticiones, sin superar el provisional).",
+  "status": "provisional",
+  "rows": 1000000,
+  "timeframe": "1m",
+  "seed": 20261107,
+  "repeats": 5,
+  "scenarios": {
+    "B1": {
+      "max_median_s": 10.0,
+      "description": "VectorbtEngine.run (conversion + simulacion + conversion) con senales sma_cross(20,100) precalculadas por el nucleo (fuera del cronometro)"
+    }
+  },
+  "calibration": {
+    "status": "provisional",
+    "date": "2026-11-07",
+    "runner": "local Windows (NO canonico; recalibrar en CI ubuntu-24.04)",
+    "rule": "1.5 x median of 5 repeats, capped at provisional",
+    "measured_median_s": {
+      "B1": 2.77
+    },
+    "provisional_s": {
+      "B1": 10.0
+    },
+    "reason": "Primera medicion local en Windows (median 2.77 s, ~360k filas/s). El umbral provisional (10 s) deja margen para la variabilidad de los runners compartidos; la calibracion canonica se fija con la primera corrida real en ubuntu-24.04 (BENCH_OUTPUT) y actualiza max_median_s a 1.5 x esa mediana."
+  }
+}
