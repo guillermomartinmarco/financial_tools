@@ -16,6 +16,7 @@ import shutil
 from pathlib import Path
 
 import pytest
+import typer.main
 from finances_core.backtest.errors import OutputOutOfRangeError, StrategyRuntimeError
 from finances_core.config import FinancesSettings
 from finances_core.schemas.backtest import BacktestRequest
@@ -80,10 +81,13 @@ def test_help_lists_run_and_kinds() -> None:
 
 
 def test_run_help_lists_rf6_options() -> None:
-    # Force a wide terminal so Rich does not truncate long option names: CI runs
-    # without a TTY at a narrow width and would otherwise wrap/elide --dataset etc.
-    result = runner.invoke(cli.app, ["run", "--help"], env={"COLUMNS": "200"})
+    # `run --help` responds; assert the RF-6 options by introspecting the Click command
+    # rather than the Rich-rendered help text, which wraps/elides long option names by
+    # terminal width and colour (CI has no TTY and rendered --dataset unmatchable).
+    result = runner.invoke(cli.app, ["run", "--help"])
     assert result.exit_code == 0, result.output
+    command = typer.main.get_command(cli.app).commands["run"]
+    declared = {opt for param in command.params for opt in param.opts}
     for option in (
         "--dataset",
         "--strategy-id",
@@ -97,7 +101,7 @@ def test_run_help_lists_rf6_options() -> None:
         "--force",
         "--request-file",
     ):
-        assert option in result.output
+        assert option in declared
 
 
 # ------------------------------------------------------------------------ run OK
