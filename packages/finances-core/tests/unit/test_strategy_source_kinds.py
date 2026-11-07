@@ -11,6 +11,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+
 from finances_core.backtest import strategy_source
 from finances_core.backtest.errors import UnknownKindError
 
