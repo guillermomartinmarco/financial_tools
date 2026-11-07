@@ -137,6 +137,57 @@ def test_cli_optimize_runs(service_settings: FinancesSettings, tmp_path: Path) -
     assert "best_params" in result.output and "net_profit" in result.output
 
 
+def test_cli_optimize_with_start_bounds_history(
+    service_settings: FinancesSettings, tmp_path: Path
+) -> None:
+    sweep = _write_sweep(tmp_path)
+    result = runner.invoke(
+        cli.app,
+        [
+            "--format",
+            "json",
+            "optimize",
+            "-d",
+            "binance/spot/BTCUSDT/1h",
+            "--kind",
+            "sma_cross",
+            "--sweep",
+            str(sweep),
+            "--n-trials",
+            "3",
+            "--folds",
+            "2",
+            "--min-trades",
+            "1",
+            "--start",
+            "2024-01-01",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert "best_params" in result.output
+
+
+def test_cli_optimize_unparseable_start_exit_2(
+    service_settings: FinancesSettings, tmp_path: Path
+) -> None:
+    sweep = _write_sweep(tmp_path)
+    result = runner.invoke(
+        cli.app,
+        [
+            "optimize",
+            "-d",
+            "binance/spot/BTCUSDT/1h",
+            "--kind",
+            "sma_cross",
+            "--sweep",
+            str(sweep),
+            "--start",
+            "garbage",
+        ],
+    )
+    assert result.exit_code == 2, result.output
+
+
 def test_cli_unknown_objective_exit_2(service_settings: FinancesSettings, tmp_path: Path) -> None:
     sweep = _write_sweep(tmp_path)
     result = runner.invoke(

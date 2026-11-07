@@ -57,3 +57,8 @@
 - **O3–O4:** `evaluate_params` en memoria (sin persistir); estudio Optuna `TPESampler(seed)` con dirección mapeada (`maximize`/`minimize`), objetivo del catálogo `finances_core.metrics.OBJECTIVES`, trials inválidos → degenerado sin abortar (`n_pruned`), determinismo por semilla.
 - **O5:** comando `ft_vectorbt optimize` (todas las opciones de RF-1; objetivo/sweep inválidos → exit 2; estrategia/dataset inexistente → exit 1; exactamente uno de `--strategy-id`/`--kind`).
 - **O6:** `ruff` + `ruff format` + `mypy --strict` verdes; `test_optimize.py` (9 casos: sweep, folds, determinismo, constraint, objetivo desconocido, CLI); `test_isolation.py` verde (`optimize.py`/`cli.py` no importan `catalog`/`strategies`). Regresión: finances-core **1280**, finances-backtester **345 passed**.
+
+## Enmienda E1 — `--start`/`--end` amigables (reemplazan `--start-ms`/`--end-ms`)
+
+- [ ] **E1.O** — el comando `optimize` expone `--start`/`--end` (ISO 8601 | ms epoch | `now`) en lugar de `--start-ms`/`--end-ms`, convertidos a ms con `finances_core.timeutils.parse_time_input` antes de `anchored_folds`.
+  - **Hecho cuando**: `CliRunner`: `--start 2024-01-01` acota el histórico y `--start basura` → exit 2; `test_optimize.py` verde.

@@ -51,10 +51,11 @@ Los términos (dataset, barra, `kind`, `Signals`, `run_id`, costes) son los de `
 
 ### RF-6 — Interfaz CLI (Ubícuo, Art. 1)
 **EL SISTEMA DEBE** proveer el script `ft_vectorbt` (Typer) con flags globales `-v/--verbose`, `-q/--quiet`, `--log-format json|rich` y `--format table|json`:
-- `run -d exchange/market_type/symbol/timeframe --strategy-id ID [--strategy-version N] [--start-ms] [--end-ms] [--initial-cash] [--size-fraction] [--fees-bps] [--slippage-bps] [--force] [--request-file FILE.json]` — síncrono con barra de progreso Rich; `--request-file` acepta exactamente el cuerpo de la API.
+- `run -d exchange/market_type/symbol/timeframe --strategy-id ID [--strategy-version N] [--start] [--end] [--initial-cash] [--size-fraction] [--fees-bps] [--slippage-bps] [--force] [--request-file FILE.json]` — síncrono con barra de progreso Rich; `--request-file` acepta exactamente el cuerpo de la API.
 - `kinds [--kind KIND] [--check]` — estrategias registradas (integradas y locales, incluidas las carpetas inválidas con su error), versión, `code_hash` y esquema de parámetros; `--check` (solo CLI) ejecuta `assert_strategy_contract` sobre las locales (`finances_backtester` RF-20, A25) y sale con exit 2 si alguna falla.
 - `runs [--exchange --market-type --symbol --timeframe --strategy-id] [--limit --cursor]`, `show RUN_ID`, `trades RUN_ID [--limit --after-ms]`, `equity RUN_ID [--limit --after-ms]` — lectura de resultados almacenados.
 - `status TASK_ID`, `result TASK_ID` — consulta de tareas lanzadas por la API.
+- **SI** se indica el rango con `--start`/`--end` (o el cuerpo de la API `start`/`end`), **ENTONCES** se acepta en formato flexible — ISO 8601 (`2024-01-01`, `2024-01-01T00:00:00Z`), *ms epoch* (`1704067200000`) o `now` — y se convierte a ms UTC con `finances_core.timeutils.parse_time_input` (puente del núcleo, Art. 4, el mismo helper que los descargadores). **SI** el valor no es parseable, **ENTONCES** es error de validación (CLI exit 2, API `422`). Estas opciones **reemplazan** a `--start-ms`/`--end-ms` (cambio incompatible, alcanza también a `ft_vectorbt optimize`); como se admite *ms epoch*, el formato antiguo sigue siendo expresable.
 - Códigos de salida: RF-9.
 
 ### RF-7 — Interfaz API (Ubícuo, Art. 1, 18)
