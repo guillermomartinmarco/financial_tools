@@ -80,7 +80,9 @@ def test_help_lists_run_and_kinds() -> None:
 
 
 def test_run_help_lists_rf6_options() -> None:
-    result = runner.invoke(cli.app, ["run", "--help"])
+    # Force a wide terminal so Rich does not truncate long option names: CI runs
+    # without a TTY at a narrow width and would otherwise wrap/elide --dataset etc.
+    result = runner.invoke(cli.app, ["run", "--help"], env={"COLUMNS": "200"})
     assert result.exit_code == 0, result.output
     for option in (
         "--dataset",
