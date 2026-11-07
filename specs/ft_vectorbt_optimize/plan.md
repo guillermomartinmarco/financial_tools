@@ -14,7 +14,7 @@ specs/ft_vectorbt_optimize/  # este tridente
 ```
 
 Aislamiento: `optimize.py` vive en `ft_vectorbt`; importa `optuna`, `polars`,
-`finances_core.backtest.{runner, strategy_source, trading_metrics}` y el motor propio
+`finances_core.metrics` (catálogo), `finances_core.backtest.{runner, strategy_source}` y el motor propio
 `VectorbtEngine`. **No** importa `catalog`/`strategies` directamente (usa `strategy_source`,
 RF-21) ni herramientas hermanas (Art. 4). `test_isolation.py` debe seguir verde.
 
@@ -85,7 +85,7 @@ sobre el `open_time_ms` del dataset.
 ### 4.3 Evaluación en memoria (RF-7)
 `evaluate(params, window) -> TradingMetrics`:
 señales del núcleo (`strategy_source` + estrategia) sobre las velas de `window` → `VectorbtEngine.run`
-→ `trading_metrics.compute_trading_metrics(...)`. **No** usa `run_backtest`/persistencia; corre el
+→ `finances_core.metrics.compute_trading_metrics(...)`. **No** usa `run_backtest`/persistencia; corre el
 pipeline mínimo en memoria. (Si hace falta reutilizar lógica del runner sin persistir, se extrae un
 helper puro; no se cambia el comportamiento del `run` persistido.)
 

@@ -5,11 +5,11 @@
 Subcomando **`ft_vectorbt optimize`** que **optimiza los parámetros** de **una** estrategia
 técnica registrada sobre **un** dataset (mono-activo), con **Optuna** (sampler TPE sembrado),
 **walk-forward anclado** (validación fuera de muestra, anti-overfitting) y **objetivo elegible**
-del catálogo de métricas (Slice 1, `backtest_metrics`). Reutiliza el backtest de `ft_vectorbt`
+del catálogo de métricas (Slice 1, `finances_core.metrics`). Reutiliza el backtest de `ft_vectorbt`
 como **función de fitness**; no introduce motor nuevo ni capacidades cross-seccionales.
 
 Vive **dentro** de `ft_vectorbt` (respeta el aislamiento: no importa herramientas hermanas; usa
-`finances_core.backtest.{runner, metrics, trading_metrics, strategy_source}` y el motor propio).
+`finances_core.metrics` (catálogo) y `finances_core.backtest.{runner, strategy_source}` + el motor propio).
 `optuna` pasa a ser dependencia de `finances-backtester`.
 
 | ID | Rol | Historia |
@@ -28,7 +28,7 @@ Vive **dentro** de `ft_vectorbt` (respeta el aislamiento: no importa herramienta
 - **Walk-forward anclado obligatorio** (no opcional): un optimizador sin OOS es una fábrica de
   sobreajuste.
 - Objetivo **único** por corrida (multi-objetivo / Pareto fuera de alcance).
-- Depende de **Slice 1** (`backtest_metrics`: `OBJECTIVES`, `objective_value`, `TradingMetrics`).
+- Depende de **Slice 1** (`finances_core.metrics`: `OBJECTIVES`, `objective_value`, `TradingMetrics`).
 
 ---
 
@@ -63,7 +63,7 @@ objetivo sobre **OOS** y el **score del combo** es el agregado (`--fold-agg`) de
 la brecha de sobreajuste).
 
 ### RF-5 — Objetivo del catálogo (Ubicuo)
-**EL SISTEMA DEBE** resolver `--objective` contra `backtest_metrics.OBJECTIVES` (Slice 1),
+**EL SISTEMA DEBE** resolver `--objective` contra `finances_core.metrics.OBJECTIVES` (Slice 1),
 respetando su **dirección** (max/min). **SI** el nombre no está en el registro **ENTONCES**
 `unknown_objective` (exit 2). Los diagnósticos (`z_score`, `trade_count`) **NO** son objetivos.
 
