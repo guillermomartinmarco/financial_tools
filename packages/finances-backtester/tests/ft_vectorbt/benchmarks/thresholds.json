@@ -1,27 +1,42 @@
 {
-  "description": "Umbrales RF-12 de ft_vectorbt (unica fuente; V7.1). Provisional hasta su calibracion canonica en CI ubuntu-24.04 (regla: 1.5 x mediana de 5 repeticiones, sin superar el provisional).",
-  "status": "provisional",
+  "description": "Umbrales RF-12 de ft_vectorbt (unica fuente; V7.1). Calibrado con la primera corrida real en CI ubuntu-24.04.",
+  "status": "calibrated",
   "rows": 1000000,
   "timeframe": "1m",
   "seed": 20261107,
   "repeats": 5,
   "scenarios": {
     "B1": {
-      "max_median_s": 10.0,
+      "max_median_s": 0.5,
       "description": "VectorbtEngine.run (conversion + simulacion + conversion) con senales sma_cross(20,100) precalculadas por el nucleo (fuera del cronometro)"
     }
   },
   "calibration": {
-    "status": "provisional",
+    "status": "calibrated",
     "date": "2026-11-07",
-    "runner": "local Windows (NO canonico; recalibrar en CI ubuntu-24.04)",
-    "rule": "1.5 x median of 5 repeats, capped at provisional",
+    "runner": "github ubuntu-24.04 (pinned image)",
+    "commit": "a136eca",
+    "ci_run": "42357449335",
+    "rule": "1.5 x median of 5 repeats, redondeado hacia arriba con margen para la variabilidad de los runners compartidos",
     "measured_median_s": {
-      "B1": 2.77
+      "B1": 0.186
     },
-    "provisional_s": {
-      "B1": 10.0
+    "rows_per_s": {
+      "B1": 5388840
     },
-    "reason": "Primera medicion local en Windows (median 2.77 s, ~360k filas/s). El umbral provisional (10 s) deja margen para la variabilidad de los runners compartidos; la calibracion canonica se fija con la primera corrida real en ubuntu-24.04 (BENCH_OUTPUT) y actualiza max_median_s a 1.5 x esa mediana."
-  }
+    "reason": "Primera corrida real en CI (run 42357449335, artefacto bench-ft_vectorbt): mediana 0.186 s (~5.4M filas/s) en ubuntu-24.04. 1.5 x = 0.28 s; se fija max_median_s=0.5 s (~2.7x la mediana) para absorber la variabilidad observada en los benchmarks hermanos (ft_indicators oscilo 0.43-0.72 s entre corridas) sin perder la deteccion de regresiones materiales."
+  },
+  "calibration_history": [
+    {
+      "status": "provisional",
+      "date": "2026-11-07",
+      "runner": "local Windows (NO canonico)",
+      "measured_median_s": {
+        "B1": 2.77
+      },
+      "provisional_s": {
+        "B1": 10.0
+      }
+    }
+  ]
 }
