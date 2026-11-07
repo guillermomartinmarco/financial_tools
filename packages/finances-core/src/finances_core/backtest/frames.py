@@ -18,37 +18,30 @@ import polars as pl
 
 from finances_core.backtest.errors import OutputOutOfRangeError
 
-SIDE_LONG = 1
-EXIT_REASON_SIGNAL = 0
-EXIT_REASON_END_OF_DATA = 1
-
-SIDE_DOMAIN = frozenset({SIDE_LONG})
-EXIT_REASON_DOMAIN = frozenset({EXIT_REASON_SIGNAL, EXIT_REASON_END_OF_DATA})
-
-#: Una fila por operación completa, ordenada por ``entry_time_ms`` (RF-6).
-TRADES_SCHEMA = pl.Schema(
-    {
-        "entry_time_ms": pl.Int64,
-        "exit_time_ms": pl.Int64,
-        "side": pl.Int8,
-        "entry_price": pl.Float32,
-        "exit_price": pl.Float32,
-        "size": pl.Float32,
-        "fees": pl.Float32,
-        "pnl": pl.Float32,
-        "return": pl.Float32,
-        "exit_reason": pl.Int8,
-    }
+# El contrato canónico (schemas, dominios, constantes) vive en el hogar neutral
+# finances_core.metrics.frames (compartido con bot/analizador). Se re-exporta aquí para
+# compatibilidad: los consumidores siguen importando desde finances_core.backtest.frames.
+from finances_core.metrics.frames import (
+    EQUITY_SCHEMA,
+    EXIT_REASON_DOMAIN,
+    EXIT_REASON_END_OF_DATA,
+    EXIT_REASON_SIGNAL,
+    SIDE_DOMAIN,
+    SIDE_LONG,
+    TRADES_SCHEMA,
 )
 
-#: Una fila por barra del rango, ordenada por ``open_time_ms`` (RF-6).
-EQUITY_SCHEMA = pl.Schema(
-    {
-        "open_time_ms": pl.Int64,
-        "equity": pl.Float32,
-        "drawdown": pl.Float32,
-    }
-)
+__all__ = [
+    "EQUITY_SCHEMA",
+    "EXIT_REASON_DOMAIN",
+    "EXIT_REASON_END_OF_DATA",
+    "EXIT_REASON_SIGNAL",
+    "SIDE_DOMAIN",
+    "SIDE_LONG",
+    "TRADES_SCHEMA",
+    "EngineTables",
+    "validate_engine_output",
+]
 
 
 class EngineTables(Protocol):
