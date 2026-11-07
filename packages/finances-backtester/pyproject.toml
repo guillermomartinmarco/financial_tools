@@ -21,6 +21,9 @@ dependencies = [
     "vectorbt>=1.2.0,<1.3",
     "numpy>=2.5,<3",
     "pandas>=3.1,<4",
+    # ft_vectorbt optimize (Slice 2): optimización de parámetros con Optuna (TPE); Python puro,
+    # corre en CPU (incl. Jetson arm64). Pin con evidencia en specs/ft_vectorbt_optimize/tasks.md.
+    "optuna>=4.0,<5",
 ]
 
 [project.scripts]
