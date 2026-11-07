@@ -1,0 +1,54 @@
+{
+  "run_id": "73611cea53c0b5d99756135f60bf0b010b68501a2e707e1f0a874c4864d9013f",
+  "engine": "vectorbt",
+  "engine_version": "vectorbt 1.2.0",
+  "catalog_version": "1.0.0",
+  "result_schema_version": "1",
+  "request": {
+    "dataset": {
+      "exchange": "binance",
+      "market_type": "futures",
+      "symbol": "BTCUSDT",
+      "timeframe": "1h"
+    },
+    "strategy_id": "01a1b50f-2767-757d-b376-dddfcbe2d656",
+    "strategy_version": null,
+    "start_ms": null,
+    "end_ms": null,
+    "initial_cash": 10000.0,
+    "size_fraction": 1.0,
+    "fees_bps": 10.0,
+    "slippage_bps": 0.0,
+    "force": true
+  },
+  "strategy": {
+    "strategy_id": "01a1b50f-2767-757d-b376-dddfcbe2d656",
+    "name": "btcusdt_sma_cross",
+    "version": 1,
+    "hash": "61b3d6ddfef09ede2a21d30ce082c9198e91c796cd8e316ca4ea22cde5caa5b9",
+    "kind": "sma_cross",
+    "params": {
+      "fast": 20,
+      "slow": 100
+    },
+    "kind_version": "1.0.0",
+    "code_hash": "fbd45841f448c31cd9a265a13f0b0d8bfc367b06fba73cd9ff34654aeaf2f826",
+    "origin": "builtin"
+  },
+  "start_ms": 1567962000000,
+  "end_ms": 1793599200000,
+  "n_bars": 62678,
+  "data_hash": "3728e6d881356240f19bf580622af275a83075115132d6d666842df6efc5467b",
+  "data_gaps": 0,
+  "created_at_ms": 1794039141930,
+  "duration_ms": 7631,
+  "warnings": [],
+  "python_version": "3.14.0",
+  "libraries": {
+    "polars": "2.1.0",
+    "pydantic": "2.14.2"
+  },
+  "kind_version": "1.0.0",
+  "strategy_code_hash": "fbd45841f448c31cd9a265a13f0b0d8bfc367b06fba73cd9ff34654aeaf2f826",
+  "strategy_origin": "builtin"
+}

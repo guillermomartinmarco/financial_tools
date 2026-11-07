@@ -1,0 +1,15 @@
+{
+  "description": "Umbrales RF-12 de ft_vectorbt (unica fuente; V7.1). Provisional hasta su calibracion en CI ubuntu-24.04 (regla: 1.5 x mediana de 5 repeticiones).",
+  "status": "provisional",
+  "rows": 1000000,
+  "timeframe": "1m",
+  "seed": 20261107,
+  "repeats": 5,
+  "scenarios": {
+    "B1": {
+      "max_median_s": 0.0,
+      "description": "VectorbtEngine.run (conversion + simulacion + conversion) con senales sma_cross(20,100) precalculadas por el nucleo (fuera del cronometro)"
+    }
+  },
+  "calibration": null
+}
