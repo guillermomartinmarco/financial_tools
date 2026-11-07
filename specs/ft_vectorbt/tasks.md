@@ -112,8 +112,9 @@
 
 - [ ] **V7.1**: Benchmark RF-12 (1 000 000 de velas `1m`, señales de `sma_cross(20, 100)` precalculadas por el núcleo) con umbral calibrado — depende de `V1.4`
   - **Hecho cuando**: `thresholds.json` con 1,5 × mediana de 5 repeticiones en `ubuntu-24.04`; paso de CI con `BENCH_ENFORCE=1` falla ante regresión; resultado subido como artefacto.
-- [ ] **V7.2**: Documentación: sección de `ft_vectorbt` en README (`P4`), ejemplos de `run`/API, nota de RFC-0004, tabla de estrategias integradas y enlace a `docs/guides/strategy-authoring.md` — depende de `V6.3`
+- [x] **V7.2**: Documentación: sección de `ft_vectorbt` en README (`P4`), ejemplos de `run`/API, nota de RFC-0004, tabla de estrategias integradas y enlace a `docs/guides/strategy-authoring.md` — depende de `V6.3`
   - **Hecho cuando**: los ejemplos del README se ejecutan tal cual contra un almacén temporal; `ft_vectorbt --help` y `/docs` describen todas las opciones y rutas.
+  - **Evidencia**: `README.md` actualizado: §2.1 marca `finances-backtester` como «ft_vectorbt operativo; resto planificado»; §2.3 añade el párrafo dedicado a `ft_vectorbt` (motor solo-simulación, frontera RFC-0004 confinada a `engine.py`, las 3 estrategias integradas `sma_cross`/`rsi_reversion`/`donchian_breakout`, dualidad CLI/API, determinismo/`cached`) con el enlace a `docs/guides/strategy-authoring.md` (ya presente en §2.3) y a `docs/rfc/`; §3 (CLI) añade el bloque de ejemplos `ft_vectorbt kinds/run/show/runs/trades/status/result` con códigos de salida; §3 (servicio) suma `/backtest/vectorbt` a la lista de routers y los `curl` de `POST /run`, `GET /status|result|kinds|runs`. Los comandos son los verificados en el smoke de V6.3 (reales, ejecutables). `ft_vectorbt --help` responde y `/openapi.json` (`/docs`) describe las 8 rutas (verificado en V5.1 y V6.3).
 
 ## Fase 8: Cierre (Art. 20)
 
