@@ -505,3 +505,81 @@ def test_strategies_route_names_are_prefixed() -> None:
             names.append(route.name)
     assert len(names) == 8
     assert all(name.startswith("strategies_") for name in names)
+
+
+async def test_openapi_includes_the_eight_vectorbt_routes() -> None:
+    """``ft_vectorbt`` (plan §2.2) queda montado con sus 8 rutas bajo ``/backtest/vectorbt``."""
+    transport = httpx.ASGITransport(app=create_app())
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        paths = (await client.get("/openapi.json")).json()["paths"]
+    vectorbt = {
+        path: set(ops) for path, ops in paths.items() if path.startswith("/backtest/vectorbt")
+    }
+    assert vectorbt == {
+        "/backtest/vectorbt/run": {"post"},
+        "/backtest/vectorbt/status/{task_id}": {"get"},
+        "/backtest/vectorbt/result/{task_id}": {"get"},
+        "/backtest/vectorbt/kinds": {"get"},
+        "/backtest/vectorbt/runs": {"get"},
+        "/backtest/vectorbt/runs/{run_id}": {"get"},
+        "/backtest/vectorbt/runs/{run_id}/trades": {"get"},
+        "/backtest/vectorbt/runs/{run_id}/equity": {"get"},
+    }
+
+
+def test_vectorbt_route_names_resolve_to_vectorbt_routes() -> None:
+    """Los 8 nombres ``vectorbt_*`` resuelven bajo ``/backtest/vectorbt/`` (plan §2.2)."""
+    app = create_app()
+    task_id = "0190b2a5-0000-7000-8000-000000000000"
+    run_id = "0" * 64
+    assert app.url_path_for("vectorbt_run") == "/backtest/vectorbt/run"
+    assert app.url_path_for("vectorbt_kinds") == "/backtest/vectorbt/kinds"
+    assert app.url_path_for("vectorbt_runs") == "/backtest/vectorbt/runs"
+    for name in ("vectorbt_status", "vectorbt_result"):
+        assert app.url_path_for(name, task_id=task_id).startswith("/backtest/vectorbt/")
+    for name in ("vectorbt_run_detail", "vectorbt_trades", "vectorbt_equity"):
+        assert app.url_path_for(name, run_id=run_id).startswith("/backtest/vectorbt/runs/")
+
+
+async def test_vectorbt_dispatch_urls_point_to_vectorbt_routes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """En la app compuesta, ``POST /backtest/vectorbt/run`` responde ``202`` con ``poll_url``/
+    ``result_url`` bajo ``/backtest/vectorbt`` (nombres ``vectorbt_*`` únicos frente a los demás
+    routers). La corrida real se corta con un espía de ``run_task`` (sin VectorBT ni red)."""
+
+    async def _no_run(dispatched: Any, settings: Any = None) -> None:
+        return None
+
+    monkeypatch.setattr("finances_backtester.ft_vectorbt.service.run_task", _no_run)
+    _write_binance_dataset()
+    transport = httpx.ASGITransport(app=create_app())
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        created = await client.post(
+            "/strategies",
+            json={
+                "name": "vbt-smoke",
+                "parameters": {"kind": "sma_cross", "params": {"fast": 5, "slow": 20}},
+            },
+        )
+        assert created.status_code == 201, created.text
+        strategy_id = created.json()["strategy_id"]
+        response = await client.post(
+            "/backtest/vectorbt/run",
+            json={
+                "dataset": {
+                    "exchange": "binance",
+                    "market_type": "spot",
+                    "symbol": "BTCUSDT",
+                    "timeframe": "1h",
+                },
+                "strategy_id": strategy_id,
+                "fees_bps": 10.0,
+                "slippage_bps": 5.0,
+            },
+        )
+    assert response.status_code == 202, response.text
+    body = response.json()
+    assert body["status"] == "ACCEPTED"
+    assert "/backtest/vectorbt/status/" in body["poll_url"]
+    assert "/backtest/vectorbt/result/" in body["result_url"]

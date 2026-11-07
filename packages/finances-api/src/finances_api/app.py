@@ -16,6 +16,10 @@ from fastapi import FastAPI
 from fastapi.concurrency import run_in_threadpool
 from finances_analytics.ft_indicators.api import router as indicators_router
 from finances_analytics.ft_ta_lib.api import router as ta_lib_router
+
+# ``finances-backtester`` (``ft_vectorbt``) arrastra VectorBT/Numba: importar el router carga
+# esas dependencias pesadas al crear la app (ver riesgos en specs/ft_vectorbt/plan.md §7).
+from finances_backtester.ft_vectorbt.api import router as vectorbt_router
 from finances_core.config import FinancesSettings
 from finances_core.logging import configure_logging
 from finances_downloader.ft_data_viewer.api import router as viewer_router
@@ -75,8 +79,8 @@ def create_app(log_level: int = logging.INFO) -> FastAPI:
     ``ft_market_data_yfinance`` (``/market-data/yfinance``), ``ft_market_data_manager``
     (``/market-data/manager``), ``ft_data_viewer`` (``/data``),
     ``ft_datasets`` (``/datasets``), ``ft_indicators`` (``/indicators``), ``ft_ta_lib``
-    (``/ta-lib``), estas dos del paquete ``finances-analytics``, y ``ft_strategy_manager``
-    (``/strategies``).
+    (``/ta-lib``), estas dos del paquete ``finances-analytics``, ``ft_strategy_manager``
+    (``/strategies``) y ``ft_vectorbt`` (``/backtest/vectorbt``, paquete ``finances-backtester``).
     """
     app = FastAPI(
         title="financial_tools",
@@ -104,4 +108,5 @@ def create_app(log_level: int = logging.INFO) -> FastAPI:
     app.include_router(indicators_router)
     app.include_router(ta_lib_router)
     app.include_router(strategies_router)
+    app.include_router(vectorbt_router)
     return app

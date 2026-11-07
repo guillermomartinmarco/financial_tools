@@ -7,6 +7,8 @@ dependencies = [
     "finances-core",
     "finances-downloader",
     "finances-analytics",
+    # Arrastra VectorBT/Numba (ft_vectorbt, /backtest/vectorbt); ver specs/ft_vectorbt/plan.md §4.
+    "finances-backtester",
     "fastapi>=0.111",
     "typer>=0.12",
 ]
