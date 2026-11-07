@@ -17,16 +17,19 @@ from __future__ import annotations
 import json
 from enum import StrEnum
 from pathlib import Path
-from typing import Any, NoReturn
+from typing import Any, NoReturn, cast
 
 import structlog
 import typer
+from finances_core.backtest import strategy_source
+from finances_core.backtest.engine_api import CostModel
 from finances_core.backtest.errors import BacktestError
 from finances_core.backtest.results_store import StoredRun
 from finances_core.config import FinancesSettings
 from finances_core.indicators_store.source import SourceNotFoundError
 from finances_core.logging import LogFormat, configure_logging, level_from_flags
 from finances_core.marketdata.tasks_lifecycle import TaskNotFinishedError
+from finances_core.metrics import OBJECTIVES
 from finances_core.schemas.backtest import (
     BacktestDataset,
     BacktestRequest,
@@ -40,6 +43,7 @@ from rich.console import Console
 from rich.progress import BarColumn, MofNCompleteColumn, Progress, TextColumn, TimeElapsedColumn
 from rich.table import Table
 
+from . import optimize as optimizer
 from . import service
 
 COMPONENT = "ft_vectorbt"
@@ -601,6 +605,103 @@ def result(
     if task_result is None:
         _fail(f"Error: tarea no encontrada: {task_id}", EXIT_GENERIC)
     _print_result(task_result, _format(ctx))
+
+
+# ---------------------------------------------------------------- optimize
+
+
+def _resolve_kind(strategy_id: str | None, kind: str | None, settings: FinancesSettings) -> str:
+    if (strategy_id is None) == (kind is None):
+        msg = "Error de validación: use exactamente uno de --strategy-id o --kind"
+        _fail(msg, EXIT_VALIDATION)
+    if kind is not None:
+        return kind
+    assert strategy_id is not None  # noqa: S101 - garantizado por el XOR de arriba
+    return strategy_source.load(strategy_id, None, db_path=settings.STRATEGIES_DB_PATH).kind
+
+
+def _fmt_opt(value: float | None) -> str:
+    return "-" if value is None else f"{value:.6f}"
+
+
+def _print_optimize(result: optimizer.OptimizeResult, fmt: str) -> None:
+    if fmt == OutputFormat.JSON.value:
+        typer.echo(result.model_dump_json(indent=2))
+        return
+    table = Table(title="ft_vectorbt optimize")
+    table.add_column("Métrica", style="cyan")
+    table.add_column("Valor", style="green", overflow="fold")
+    table.add_row("objective", f"{result.objective} ({result.direction.value})")
+    table.add_row("best_score", f"{result.best_score:.6f}")
+    table.add_row("best_params", json.dumps(result.best_params))
+    table.add_row("n_trials", str(result.n_trials))
+    table.add_row("n_pruned", str(result.n_pruned))
+    table.add_row("seed", str(result.seed))
+    _out().print(table)
+    folds = Table(title="Folds (in-sample vs OOS)")
+    for column in ("fold", "in_sample", "oos"):
+        folds.add_column(column, overflow="fold")
+    for score in result.folds:
+        folds.add_row(str(score.fold), _fmt_opt(score.in_sample), _fmt_opt(score.oos))
+    _out().print(folds)
+
+
+@app.command()
+def optimize(  # noqa: PLR0913 - todas las opciones de RF-1
+    ctx: typer.Context,
+    dataset: str = typer.Option(
+        ..., "--dataset", "-d", help="Dataset exchange/market_type/symbol/timeframe"
+    ),
+    sweep_file: Path = typer.Option(..., "--sweep", help="JSON con el espacio de búsqueda"),
+    strategy_id: str | None = typer.Option(None, "--strategy-id", help="UUID v7 (o use --kind)"),
+    kind: str | None = typer.Option(None, "--kind", help="kind integrado (defaults como base)"),
+    objective: str = typer.Option("calmar", "--objective", help="métrica a optimizar"),
+    n_trials: int = typer.Option(50, "--n-trials", help="trials de Optuna"),
+    folds: int = typer.Option(4, "--folds", help="folds del walk-forward anclado"),
+    in_sample_ratio: float = typer.Option(0.75, "--in-sample-ratio"),
+    fold_agg: str = typer.Option("mean", "--fold-agg", help="mean | min | median"),
+    min_trades: int = typer.Option(10, "--min-trades", help="constraint: mínimo de operaciones"),
+    seed: int = typer.Option(42, "--seed"),
+    initial_cash: float = typer.Option(10_000.0, "--initial-cash"),
+    size_fraction: float = typer.Option(1.0, "--size-fraction"),
+    fees_bps: float = typer.Option(10.0, "--fees-bps"),
+    slippage_bps: float = typer.Option(0.0, "--slippage-bps"),
+    start_ms: int | None = typer.Option(None, "--start-ms"),
+    end_ms: int | None = typer.Option(None, "--end-ms"),
+) -> None:
+    """Optimiza parámetros con Optuna + walk-forward anclado; objetivo del catálogo (RF-1)."""
+    settings = FinancesSettings()
+    if objective not in OBJECTIVES:
+        _fail(f"Error de validación: objetivo desconocido {objective!r}", EXIT_VALIDATION)
+    if fold_agg not in ("mean", "min", "median"):
+        _fail(f"Error de validación: --fold-agg inválido {fold_agg!r}", EXIT_VALIDATION)
+    try:
+        ds = BacktestDataset.parse(dataset)
+        resolved_kind = _resolve_kind(strategy_id, kind, settings)
+        spec = optimizer.SweepSpec.model_validate_json(sweep_file.read_text(encoding="utf-8"))
+        result = optimizer.optimize(
+            dataset=ds,
+            kind=resolved_kind,
+            sweep=spec,
+            objective=objective,
+            n_trials=n_trials,
+            folds=folds,
+            in_sample_ratio=in_sample_ratio,
+            fold_agg=cast("optimizer.FoldAgg", fold_agg),
+            min_trades=min_trades,
+            seed=seed,
+            costs=CostModel(fees_bps=fees_bps, slippage_bps=slippage_bps),
+            size_fraction=size_fraction,
+            initial_cash=initial_cash,
+            start_ms=start_ms,
+            end_ms=end_ms,
+            settings=settings,
+        )
+    except typer.Exit:
+        raise
+    except Exception as exc:  # noqa: BLE001 - traducido a exit code por _handle
+        _handle(exc)
+    _print_optimize(result, _format(ctx))
 
 
 if __name__ == "__main__":
