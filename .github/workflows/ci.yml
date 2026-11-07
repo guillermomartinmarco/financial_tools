@@ -42,6 +42,9 @@ jobs:
       - name: TA-Lib binary wheel available
         run: python -c "import talib; print('talib', talib.__version__, 'C', talib.__ta_version__.decode())"
 
+      - name: Smoke vectorbt import
+        run: python -c "import vectorbt; print('vectorbt', vectorbt.__version__)"
+
       - name: Ruff (lint + format)
         run: |
           python -m ruff check packages
