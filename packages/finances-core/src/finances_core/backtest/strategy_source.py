@@ -16,8 +16,9 @@ from pathlib import Path
 
 from finances_core.backtest.catalog import StrategyRegistry, get_registry, parse_strategy_parameters
 from finances_core.backtest.errors import StrategyNotFoundError, StrategyVersionNotFoundError
+from finances_core.backtest.strategies.testing import assert_strategy_contract
 from finances_core.config import FinancesSettings
-from finances_core.schemas.backtest import ResolvedStrategy
+from finances_core.schemas.backtest import KindInfo, ResolvedStrategy
 from ft_strategy_manager import errors as manager_errors
 from ft_strategy_manager import service
 
@@ -66,3 +67,25 @@ def load(
         code_hash=active.code_hashes[kind],
         origin=active.origins[kind],
     )
+
+
+def kinds(settings: FinancesSettings | None = None) -> list[KindInfo]:
+    """Registered strategies as :class:`KindInfo` cards, deterministic order (RF-1).
+
+    The sanctioned door to the registry for engine tools that may not import
+    ``catalog`` (RF-21). Includes invalid local folders with their error, exactly as
+    :meth:`StrategyRegistry.kinds`.
+    """
+    cfg = settings if settings is not None else FinancesSettings()
+    return get_registry(cfg).kinds()
+
+
+def check_contract(kind: str, settings: FinancesSettings | None = None) -> None:
+    """Run the strategy contract checks on ``kind`` (RF-20); sanctioned door for RF-21.
+
+    Raises:
+        UnknownKindError: SI ``kind`` no está registrado.
+        StrategyContractError: SI la estrategia incumple el contrato (checks 1-4).
+    """
+    cfg = settings if settings is not None else FinancesSettings()
+    assert_strategy_contract(kind, get_registry(cfg))

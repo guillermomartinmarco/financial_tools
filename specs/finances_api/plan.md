@@ -22,6 +22,7 @@ class HealthResponse(BaseModel):
 | * | `/indicators/*` | ver `specs/ft_indicators/plan.md` §2.2 | `finances_analytics.ft_indicators.api.router` |
 | * | `/ta-lib/*` | ver `specs/ft_ta_lib/plan.md` §2.2 (rutas `ta_lib_*`) | `finances_analytics.ft_ta_lib.api.router` |
 | * | `/strategies/*` | ver `specs/ft_strategy_manager/plan.md` §2.2 (rutas `strategies_*`) | `ft_strategy_manager.api.router` (paquete `finances-core`) |
+| * | `/backtest/vectorbt/*` | ver `specs/ft_vectorbt/plan.md` §2.2 (8 rutas `vectorbt_*`) | `finances_backtester.ft_vectorbt.api.router` (paquete `finances-backtester`) |
 
 ```python
 def create_app() -> FastAPI:
@@ -35,6 +36,7 @@ def create_app() -> FastAPI:
     app.include_router(indicators_router)
     app.include_router(ta_lib_router)
     app.include_router(strategies_router)
+    app.include_router(vectorbt_router)
     return app
 ```
 
@@ -47,7 +49,7 @@ Entry point: `[project.scripts] ft_serve = "finances_api.cli:app"`.
 ## 4. Estructura
 ```
 packages/finances-api/
-├── pyproject.toml          # deps: finances-core, finances-downloader, finances-analytics, fastapi; extra [service]=uvicorn
+├── pyproject.toml          # deps: finances-core, finances-downloader, finances-analytics, finances-backtester (VectorBT/Numba), fastapi; extra [service]=uvicorn
 ├── src/finances_api/
 │   ├── __init__.py         # __version__
 │   ├── app.py              # create_app, lifespan, /health
