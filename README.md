@@ -36,7 +36,7 @@ Para garantizar el aislamiento y permitir ciclos SemVer independientes, las herr
 ### 2.3 Motores de Backtesting y Análisis
 *   **`ft_indicators`** (paquete `finances-analytics`): Catálogo cerrado de 12 indicadores técnicos (`sma`, `ema`, `wma`, `rsi`, `macd`, `bb`, `atr`, `stoch`, `roc`, `obv`, `adx` y `vwap` móvil) implementados con expresiones nativas de Polars (sin TA-Lib ni pandas en ejecución; TA-Lib solo como contraste en los tests de CI). Recalcula la serie completa de cada dataset descargado (Binance o Yahoo) sin anticipación y alineado 1:1 con la fuente (mismo `open_time_ms`, calentamiento conservado como nulo), y persiste cada indicador de forma idempotente en `FT_INDICATORS_DIR/{exchange}/market_type=…/symbol=…/timeframe=…/year=…/month=…/{indicator_id}.parquet` (`Float32`). Publica `stable_from_ms` (desde qué vela el indicador deja de depender de su semilla) y tolerancias `f32` como oráculo de futuros kernels GPU. Exporta a Parquet, CSV o JSON Lines, opcionalmente junto con el OHLCV fuente.
 *   **`ft_ta_lib`** (paquete `finances-analytics`): Envoltura delgada sobre **todo** el catálogo de TA-Lib (ta-lib 0.8.3 / TA-Lib C 0.8.3 (fijada con `ta-lib>=0.8.3,<0.8.4`): 237 funciones en 10 grupos, 236 soportadas; `MAVP` no, por requerir la entrada `periods`), descubierto en tiempo de ejecución con `talib.abstract`. Mismo contrato de datos que `ft_indicators` (alineación 1:1 por `open_time_ms`, calentamiento nulo, sin anticipación, recálculo completo idempotente) y mismo `FT_INDICATORS_DIR`, con prefijo `talib_` y manifiesto/bloqueo propios (`_manifest.ft_ta_lib.json`, `_lock.ft_ta_lib`). Salidas reales en `Float32`, patrones de velas y categóricas en `Int16` (±200) e índices (`MAXINDEX`, …) como `open_time_ms` `Int64` (RFC-0002). Nombres deterministas con todos los parámetros (`talib_rsi_14`, `talib_bbands_20_2_2_sma_upperband`, `talib_cdlengulfing`); las funciones con *unstable period* de TA-Lib publican `stable_from_ms` nulo (`unstable_period_unknown`). Exporta igual que `ft_indicators` y se valida contra ella en CI.
-*   **`ft_vectorbt`** (paquete `finances-backtester`): Primer motor de backtesting, **operativo**. Simula con [VectorBT](https://vectorbt.dev) (fijado `>=1.2.0,<1.3`) las señales que calcula el núcleo (`finances_core.backtest`) sobre un dataset del almacén Parquet, y persiste operaciones, curva de capital y métricas en `FT_RESULTS_DIR`. El motor **solo simula**: recibe `entries`/`exits` ya calculadas y no conoce `kind` ni parámetros (cualquier estrategia registrada funciona sin tocarlo). La frontera numérica de doble precisión (`pandas`/NumPy/`vectorbt`) queda **confinada a `engine.py`** por [RFC-0004](docs/rfc/); el resto de la suite mantiene `Float32`/`Int64`. Estrategias integradas: `sma_cross` (medias rápida/lenta), `rsi_reversion` (RSI de Wilder) y `donchian_breakout` (canales). Expone CLI (`ft_vectorbt`) y API (`/backtest/vectorbt`) simétricas (Art. 1), con despacho asíncrono 202 + polling y resultados deterministas e idempotentes (misma petición ⇒ archivos byte-idénticos; repetición `cached`).
+*   **`ft_vectorbt`** (paquete `finances-backtester`): Primer motor de backtesting, **operativo**. Simula con [VectorBT](https://vectorbt.dev) (fijado `>=1.2.0,<1.3`) las señales que calcula el núcleo (`finances_core.backtest`) sobre un dataset del almacén Parquet, y persiste operaciones, curva de capital y métricas en `FT_RESULTS_DIR`. El motor **solo simula**: recibe `entries`/`exits` ya calculadas y no conoce `kind` ni parámetros (cualquier estrategia registrada funciona sin tocarlo). La frontera numérica de doble precisión (`pandas`/NumPy/`vectorbt`) queda **confinada a `engine.py`** por [RFC-0004](docs/rfc/); el resto de la suite mantiene `Float32`/`Int64`. Estrategias integradas: `sma_cross` (medias rápida/lenta), `rsi_reversion` (RSI de Wilder) y `donchian_breakout` (canales). Expone CLI (`ft_vectorbt`) y API (`/backtest/vectorbt`) simétricas (Art. 1), con despacho asíncrono 202 + polling y resultados deterministas e idempotentes (misma petición ⇒ archivos byte-idénticos; repetición `cached`). Incluye el subcomando `ft_vectorbt optimize`: optimización de parámetros con **Optuna** y **walk-forward anclado** (score *out-of-sample*), con el objetivo elegido del catálogo de métricas neutral `finances_core.metrics` (ver §3).
 *   **`ft_backtesting_py` / `ft_backtrader` / `ft_bt`** *(planificados)*: Envolturas modulares que expondrán otros frameworks tradicionales al mismo formato de datos canónico y contrato de motor que `ft_vectorbt`.
     *   **Estrategias propias**: las estrategias viven en el núcleo (`finances_core/backtest/strategies/`, una carpeta por estrategia) y se pueden añadir estrategias Python locales en `FT_STRATEGIES_DIR`; la API nunca carga código. Guía paso a paso: [`docs/guides/strategy-authoring.md`](docs/guides/strategy-authoring.md).
     *   **Licencia de VectorBT**: `vectorbt` (fijado en `>=1.2.0,<1.3`) se distribuye bajo Apache 2.0 con *Commons Clause* v1.0, que **prohíbe venderlo**, incluido ofrecer a terceros por un pago un producto o servicio cuyo valor dependa sustancialmente de él. `ft_vectorbt` es para uso no comercial; un uso comercial exige otro motor (las estrategias viven en el núcleo y no dependen del motor).
@@ -165,11 +165,34 @@ ft_strategy_manager delete <strategy_id>                             # soft-dele
 ft_vectorbt kinds                                                    # estrategias registradas (integradas + locales); --kind X filtra; --check corre el contrato de autor (solo CLI)
 ft_vectorbt run -d binance/futures/BTCUSDT/1h --strategy-id <id>     # síncrono; repetir devuelve cached; --force recalcula (archivos byte-idénticos); --start-ms/--end-ms/--initial-cash/--size-fraction/--fees-bps/--slippage-bps
 ft_vectorbt run -d binance/futures/BTCUSDT/1h --request-file req.json --format json  # req.json = cuerpo exacto de POST /backtest/vectorbt/run
+ft_vectorbt optimize -d binance/futures/BTCUSDT/1h --kind sma_cross --sweep sweep.json  # Optuna + walk-forward anclado (score OOS); --objective (def calmar) --n-trials 50 --folds 4 --in-sample-ratio 0.75 --fold-agg mean|min|median --min-trades 10 --seed 42 (ver abajo)
 ft_vectorbt show <run_id>                                            # manifiesto + resumen (engine, n_trades, métricas)
 ft_vectorbt runs --strategy-id <id> --limit 20                      # listado paginado de corridas (--cursor); filtros -e/-m/-s/-t
 ft_vectorbt trades <run_id> --limit 100 --after-ms <next_after_ms>  # páginas de operaciones; curva de capital con `equity`
 ft_vectorbt status <task_id> ; ft_vectorbt result <task_id>         # consulta de tareas lanzadas por la API
 ```
+
+#### Optimización de parámetros (`ft_vectorbt optimize`)
+
+`optimize` busca los mejores parámetros de una estrategia con **Optuna** (muestreador TPE sembrado por `--seed`, por lo que es determinista) y **walk-forward anclado obligatorio**: la métrica que maximiza es siempre *out-of-sample*, agregando los folds OOS con `--fold-agg` (`mean` | `min` | `median`). El objetivo se elige del catálogo neutral `finances_core.metrics` con `--objective` (por defecto `calmar`); `--min-trades` es una *restricción* (los sets con menos operaciones en la corrida completa se descartan). Los trials inválidos se **degradan sin abortar** el estudio y la evaluación es **en memoria** (los trials no se persisten en `FT_RESULTS_DIR`). Hay que indicar **exactamente uno** de `--strategy-id` (estrategia guardada) o `--kind` (integrada, usa sus defaults como base). Otras opciones: `--initial-cash` (10000), `--size-fraction` (1.0), `--fees-bps` (10.0), `--slippage-bps` (0.0), `--start-ms`/`--end-ms`.
+
+El espacio de búsqueda se pasa como JSON con `--sweep`. El documento es `{"axes": [...]}` y cada eje tiene `param` (nombre del parámetro de la estrategia), `type` (`int` | `float` | `categorical`) y, según el tipo: `low`/`high` (más `step` y `log` opcionales) para numéricos, o `choices` (lista no vacía) para categóricos. Ejemplo optimizando `fast` y `slow` de `sma_cross`:
+
+```json
+{
+  "axes": [
+    {"param": "fast", "type": "int", "low": 5, "high": 50},
+    {"param": "slow", "type": "int", "low": 60, "high": 200, "step": 10}
+  ]
+}
+```
+
+```bash
+ft_vectorbt optimize -d binance/futures/BTCUSDT/1h --kind sma_cross --sweep sweep.json \
+  --objective calmar --n-trials 50 --folds 4 --in-sample-ratio 0.75 --fold-agg mean --min-trades 10 --seed 42
+```
+
+Mismos exit codes que el resto de `ft_vectorbt`: `2` validación (objetivo desconocido, sweep inválido, `--fold-agg` inválido, o no indicar exactamente uno de `--strategy-id`/`--kind`) y `1` estrategia/dataset no encontrado.
 
 ### Ejecución en Modo Servicio (FastAPI)
 ```bash
