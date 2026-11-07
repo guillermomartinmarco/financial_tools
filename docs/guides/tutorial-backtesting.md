@@ -280,6 +280,8 @@ ft_vectorbt show / trades / equity    #    leer los resultados
 
 ## Qué leer después
 
+- [«Optimizá los parámetros de tu estrategia»](tutorial-optimizacion.md) — el paso siguiente:
+  buscar automáticamente los mejores parámetros con `ft_vectorbt optimize`, sin sobreajustar.
 - [`README.md`](../../README.md) — mapa completo de la suite y todos los comandos.
 - [`strategy-authoring.md`](strategy-authoring.md) — cómo escribir tu propia estrategia en
   Python.
