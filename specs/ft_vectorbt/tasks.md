@@ -98,10 +98,12 @@
 
 ## Fase 6: Validación cruzada y determinismo (RF-5, RF-13)
 
-- [ ] **V6.1**: Suite de contrato sobre el *fixture* para `sma_cross`, `rsi_reversion`, `donchian_breakout` y la estrategia sintética — depende de `V1.5`, `B6.2`
+- [x] **V6.1**: Suite de contrato sobre el *fixture* para `sma_cross`, `rsi_reversion`, `donchian_breakout` y la estrategia sintética — depende de `V1.5`, `B6.2`
   - **Hecho cuando**: `engine_contract.assert_engine_matches_golden(VectorbtEngine(), kind)` pasa en Windows y Ubuntu; cada estrategia integrada con ≥ 5 operaciones; tolerancias de RFC-0004; la estrategia sintética pasa sin código específico en `ft_vectorbt`.
-- [ ] **V6.2**: Determinismo e idempotencia end-to-end — depende de `V2.1`
+  - **Evidencia**: ya cubierto por `tests/ft_vectorbt/test_precision.py::test_engine_matches_golden_within_rfc_0004_tolerances` (entregable de `V1.5`), que parametriza sobre `CONTRACT_KINDS` (= las 3 integradas + `SYNTHETIC_KIND`) y llama `assert_engine_matches_golden(VectorbtEngine(), kind)` con las tolerancias de RFC-0004; `n_trades` se compara **exacto** contra los *golden* (55 `sma_cross`, 11 `rsi_reversion`, 33 `donchian_breakout`, 79 sintética, todas ≥ 5). CI lo ejecuta en `windows-latest` y `ubuntu-24.04`. La sintética pasa por la vía genérica, sin código específico en `ft_vectorbt`. No se añade un test nuevo para no duplicar (Art. 1).
+- [x] **V6.2**: Determinismo e idempotencia end-to-end — depende de `V2.1`
   - **Hecho cuando**: dos ejecuciones con `--force` producen archivos con el mismo SHA-256; si Numba introduce no determinismo, se fija la configuración y se documenta en el plan §3 (RF-5).
+  - **Evidencia**: ya cubierto por `tests/ft_vectorbt/test_service.py` (entregable de `V2.1`): `test_force_recomputes_with_byte_identical_files` recalcula con `--force` y afirma que `trades.parquet`/`equity.parquet`/`summary.json` son **byte-idénticos** entre corridas (⇒ mismo SHA-256), y `test_repeat_is_cached_without_invoking_vectorbt` cubre la idempotencia (repetición `cached` sin invocar a VectorBT, verificado con `tree_digest`). La paridad CLI↔API de `V4.3` (`test_contract.py`) confirma el mismo `run_id`/archivos por ambas vías. VectorBT/Numba no introdujeron no determinismo (los tests pasan de forma estable), así que no hizo falta fijar configuración ni documentar nada extra en el plan §3. No se añade un test nuevo para no duplicar (Art. 1).
 - [ ] **V6.3**: Smoke con datos reales (BTCUSDT `1h` descargado con `ft_market_data_binance`, estrategia creada con `ft_strategy_manager`): `run`, repetir (`cached`), `show`, `trades`, `ft_serve` expone `/backtest/vectorbt` — depende de `V5.1`
   - **Hecho cuando**: salida registrada en este archivo (rango, `n_trades`, métricas, `run_id`, tiempos); la repetición no invoca a VectorBT; los archivos coinciden con una réplica `--force`.
 
