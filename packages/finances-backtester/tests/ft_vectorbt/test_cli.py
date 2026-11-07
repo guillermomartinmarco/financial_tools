@@ -92,8 +92,8 @@ def test_run_help_lists_rf6_options() -> None:
         "--dataset",
         "--strategy-id",
         "--strategy-version",
-        "--start-ms",
-        "--end-ms",
+        "--start",
+        "--end",
         "--initial-cash",
         "--size-fraction",
         "--fees-bps",
@@ -248,15 +248,32 @@ def test_run_invalid_range_exit_2(service_settings: FinancesSettings) -> None:
         DATASET.path_segment(),
         "--strategy-id",
         request.strategy_id,
-        "--start-ms",
-        "100",
-        "--end-ms",
-        "50",
+        "--start",
+        "2024-02-01",
+        "--end",
+        "2024-01-01",
     )
     assert result.exit_code == 2, result.output
 
 
 def test_run_empty_range_exit_2(service_settings: FinancesSettings) -> None:
+    request = sma_request()
+    # Rango válido pero muy posterior a los datos del fixture: no hay velas -> validación (exit 2).
+    result = _invoke(
+        "run",
+        "-d",
+        DATASET.path_segment(),
+        "--strategy-id",
+        request.strategy_id,
+        "--start",
+        "4102444800000",
+        "--end",
+        "4102444900000",
+    )
+    assert result.exit_code == 2, result.output
+
+
+def test_run_unparseable_start_exit_2(service_settings: FinancesSettings) -> None:
     request = sma_request()
     result = _invoke(
         "run",
@@ -264,10 +281,8 @@ def test_run_empty_range_exit_2(service_settings: FinancesSettings) -> None:
         DATASET.path_segment(),
         "--strategy-id",
         request.strategy_id,
-        "--start-ms",
-        "1",
-        "--end-ms",
-        "2",
+        "--start",
+        "garbage",
     )
     assert result.exit_code == 2, result.output
 

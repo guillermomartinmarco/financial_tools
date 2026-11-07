@@ -39,6 +39,7 @@ from finances_core.schemas.backtest import (
     RunsPage,
     TradesPage,
 )
+from finances_core.timeutils import parse_time_input
 from rich.console import Console
 from rich.progress import BarColumn, MofNCompleteColumn, Progress, TextColumn, TimeElapsedColumn
 from rich.table import Table
@@ -161,8 +162,8 @@ def _build_request(  # noqa: PLR0913 - refleja el cuerpo de BacktestRequest (RF-
     dataset: str | None,
     strategy_id: str | None,
     strategy_version: int | None,
-    start_ms: int | None,
-    end_ms: int | None,
+    start: str | None,
+    end: str | None,
     initial_cash: float | None,
     size_fraction: float | None,
     fees_bps: float | None,
@@ -183,8 +184,8 @@ def _build_request(  # noqa: PLR0913 - refleja el cuerpo de BacktestRequest (RF-
                 dataset,
                 strategy_id,
                 strategy_version,
-                start_ms,
-                end_ms,
+                start,
+                end,
                 initial_cash,
                 size_fraction,
                 fees_bps,
@@ -208,8 +209,8 @@ def _build_request(  # noqa: PLR0913 - refleja el cuerpo de BacktestRequest (RF-
     }
     optional = {
         "strategy_version": strategy_version,
-        "start_ms": start_ms,
-        "end_ms": end_ms,
+        "start": start,
+        "end": end,
         "initial_cash": initial_cash,
         "size_fraction": size_fraction,
         "fees_bps": fees_bps,
@@ -269,8 +270,12 @@ def run(  # noqa: PLR0913 - todas las opciones de RF-6
     strategy_version: int | None = typer.Option(
         None, "--strategy-version", help="Versión de la estrategia (por defecto, la última)"
     ),
-    start_ms: int | None = typer.Option(None, "--start-ms", help="Inicio del rango (ms UTC)"),
-    end_ms: int | None = typer.Option(None, "--end-ms", help="Fin inclusivo del rango (ms UTC)"),
+    start: str | None = typer.Option(
+        None, "--start", help="Inicio del rango (ISO 8601, ms epoch o 'now')"
+    ),
+    end: str | None = typer.Option(
+        None, "--end", help="Fin inclusivo del rango (ISO 8601, ms epoch o 'now')"
+    ),
     initial_cash: float | None = typer.Option(None, "--initial-cash", help="Caja inicial"),
     size_fraction: float | None = typer.Option(
         None, "--size-fraction", help="Fracción de la caja por operación (0 < f <= 1)"
@@ -291,8 +296,8 @@ def run(  # noqa: PLR0913 - todas las opciones de RF-6
             dataset=dataset,
             strategy_id=strategy_id,
             strategy_version=strategy_version,
-            start_ms=start_ms,
-            end_ms=end_ms,
+            start=start,
+            end=end,
             initial_cash=initial_cash,
             size_fraction=size_fraction,
             fees_bps=fees_bps,
@@ -666,8 +671,12 @@ def optimize(  # noqa: PLR0913 - todas las opciones de RF-1
     size_fraction: float = typer.Option(1.0, "--size-fraction"),
     fees_bps: float = typer.Option(10.0, "--fees-bps"),
     slippage_bps: float = typer.Option(0.0, "--slippage-bps"),
-    start_ms: int | None = typer.Option(None, "--start-ms"),
-    end_ms: int | None = typer.Option(None, "--end-ms"),
+    start: str | None = typer.Option(
+        None, "--start", help="Inicio del rango (ISO 8601, ms epoch o 'now')"
+    ),
+    end: str | None = typer.Option(
+        None, "--end", help="Fin inclusivo del rango (ISO 8601, ms epoch o 'now')"
+    ),
 ) -> None:
     """Optimiza parámetros con Optuna + walk-forward anclado; objetivo del catálogo (RF-1)."""
     settings = FinancesSettings()
@@ -679,6 +688,8 @@ def optimize(  # noqa: PLR0913 - todas las opciones de RF-1
         ds = BacktestDataset.parse(dataset)
         resolved_kind = _resolve_kind(strategy_id, kind, settings)
         spec = optimizer.SweepSpec.model_validate_json(sweep_file.read_text(encoding="utf-8"))
+        start_ms = parse_time_input(start) if start is not None else None
+        end_ms = parse_time_input(end) if end is not None else None
         result = optimizer.optimize(
             dataset=ds,
             kind=resolved_kind,

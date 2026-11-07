@@ -81,13 +81,53 @@ def test_request_defaults_follow_rf3() -> None:
 
 
 def test_request_accepts_inclusive_equal_range() -> None:
-    request = _request(start_ms=1_000, end_ms=1_000)
-    assert (request.start_ms, request.end_ms) == (1_000, 1_000)
+    request = _request(start="2024-01-01", end="2024-01-01")
+    assert (request.start_ms, request.end_ms) == (1_704_067_200_000, 1_704_067_200_000)
 
 
 def test_request_rejects_start_after_end() -> None:
     with pytest.raises(ValidationError, match="start_ms"):
-        _request(start_ms=2_000, end_ms=1_000)
+        _request(start="2024-02-01", end="2024-01-01")
+
+
+# Rango temporal flexible (RF-6/RF-7): --start/--end y los campos start/end son strings
+# que aceptan ISO 8601, ms epoch o 'now' y derivan start_ms/end_ms (plan "Rango temporal
+# flexible"). Reemplazan a los antiguos campos enteros start_ms/end_ms.
+def test_request_start_accepts_iso_date() -> None:
+    assert _request(start="2024-01-01").start_ms == 1_704_067_200_000
+
+
+def test_request_start_accepts_ms_epoch_string() -> None:
+    assert _request(start="1704067200000").start_ms == 1_704_067_200_000
+
+
+def test_request_start_accepts_now() -> None:
+    assert isinstance(_request(start="now").start_ms, int)
+
+
+def test_request_rejects_unparseable_start() -> None:
+    with pytest.raises(ValidationError):
+        _request(start="ayer")
+
+
+def test_request_rejects_short_digit_epoch() -> None:
+    # Borde: menos de 10 dígitos no es ms epoch válido (parse_time_input).
+    with pytest.raises(ValidationError):
+        _request(start="100")
+
+
+def test_request_rejects_legacy_start_ms_kwarg() -> None:
+    # El rename start_ms->start es incompatible: el campo viejo ya no existe (extra="forbid").
+    with pytest.raises(ValidationError):
+        _request(start_ms=1000)
+
+
+def test_request_model_dump_exposes_start_end_not_ms_fields() -> None:
+    dumped = _request(start="2024-01-01", end="2024-02-01").model_dump()
+    assert dumped["start"] == "2024-01-01"
+    assert dumped["end"] == "2024-02-01"
+    assert "start_ms" not in dumped
+    assert "end_ms" not in dumped
 
 
 @pytest.mark.parametrize("fraction", [0.0, -0.1, 1.0001, 2.0])
@@ -149,7 +189,7 @@ def test_request_rejects_version_below_one() -> None:
 
 
 def test_request_json_roundtrip_matches_request_file_body() -> None:
-    request = _request(start_ms=0, end_ms=10, strategy_version=2, force=True)
+    request = _request(start="2024-01-01", end="2024-02-01", strategy_version=2, force=True)
     assert BacktestRequest.model_validate_json(request.model_dump_json()) == request
 
 
@@ -262,28 +302,24 @@ def test_dispatch_status_is_fixed() -> None:
         BacktestDispatchResponse(task_id="t", status="DONE", poll_url="/s", result_url="/r")  # type: ignore[arg-type]
 
 
-# Enteros y booleanos estrictos: sin coerción desde textos ni bool, y rango Int64 (RF-3).
+# Enteros y booleanos estrictos: sin coerción desde textos ni bool (RF-3).
 @pytest.mark.parametrize(
     "overrides",
     [
-        {"start_ms": "5"},
-        {"end_ms": "5"},
         {"strategy_version": True},
         {"strategy_version": "2"},
         {"force": "yes"},
         {"force": 1},
-        {"start_ms": 2**63},
-        {"end_ms": -(2**63) - 1},
     ],
 )
-def test_request_rejects_coerced_or_out_of_int64_values(overrides: dict[str, Any]) -> None:
+def test_request_rejects_coerced_strict_values(overrides: dict[str, Any]) -> None:
     with pytest.raises(ValidationError):
         _request(**overrides)
 
 
-def test_request_accepts_int64_bounds() -> None:
-    request = _request(start_ms=-(2**63), end_ms=2**63 - 1)
-    assert (request.start_ms, request.end_ms) == (-(2**63), 2**63 - 1)
+def test_request_accepts_large_ms_epoch_strings() -> None:
+    request = _request(start="1704067200000", end="1735689600000")
+    assert (request.start_ms, request.end_ms) == (1_704_067_200_000, 1_735_689_600_000)
 
 
 @pytest.mark.parametrize("field", ["exchange", "symbol", "timeframe"])

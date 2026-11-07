@@ -219,6 +219,25 @@ async def test_request_with_code_or_path_fields_is_422(
     assert response.status_code == 422, response.text
 
 
+async def test_flexible_start_is_accepted(
+    service_settings: FinancesSettings, no_run: list[str]
+) -> None:
+    """El cuerpo acepta ``start``/``end`` flexibles (ISO 8601, ms epoch o 'now'), RF-7."""
+    body = _body(sma_request(start="2024-01-01", end="now"))
+    async with await _client() as client:
+        response = await client.post(f"{BASE}/run", json=body)
+    assert response.status_code == 202, response.text
+
+
+async def test_unparseable_start_is_422(service_settings: FinancesSettings) -> None:
+    """Un ``start`` no parseable es error de validación de forma (RF-7, 422)."""
+    body = _body(sma_request())
+    body["start"] = "ayer"
+    async with await _client() as client:
+        response = await client.post(f"{BASE}/run", json=body)
+    assert response.status_code == 422, response.text
+
+
 async def test_invalid_task_id_in_path_is_422(service_settings: FinancesSettings) -> None:
     async with await _client() as client:
         response = await client.get(f"{BASE}/status/not-a-valid-task-id-at-all")

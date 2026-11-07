@@ -24,7 +24,9 @@ Sin variables nuevas (RF-11). `ENGINE_NAME = "vectorbt"`; `engine_version = f"ve
 ### 2.1 CLI (`ft_vectorbt`)
 | Comando | Argumentos principales | Salida / exit |
 |---|---|---|
-| `run` | `-d ex/mt/sym/tf`, `--strategy-id`, `--strategy-version`, `--start-ms`, `--end-ms`, `--initial-cash`, `--size-fraction`, `--fees-bps`, `--slippage-bps`, `--force`, `--request-file` | resumen (tabla o JSON), `run_id`, `cached`; exit RF-9 |
+| `run` | `-d ex/mt/sym/tf`, `--strategy-id`, `--strategy-version`, `--start`, `--end`, `--initial-cash`, `--size-fraction`, `--fees-bps`, `--slippage-bps`, `--force`, `--request-file` | resumen (tabla o JSON), `run_id`, `cached`; exit RF-9 |
+
+**Rango temporal flexible (CLI + API).** `--start`/`--end` y los campos `start`/`end` del cuerpo `BacktestRequest` son strings que aceptan ISO 8601, *ms epoch* o `now`, convertidos a ms UTC con `finances_core.timeutils.parse_time_input` (puente del núcleo, Art. 4). `BacktestRequest` deriva `start_ms`/`end_ms` (propiedades en ms) a partir de `start`/`end`, de modo que el `runner` y el manifiesto (rango resuelto en ms) no cambian; el validador rechaza valores no parseables (API `422`, CLI exit 2). `ft_vectorbt optimize` recibe las mismas `--start`/`--end` y las convierte a ms para los folds. Reemplaza a `--start-ms`/`--end-ms`.
 | `kinds` | `--kind`, `--check` | estrategias registradas (`KindInfo`, incluidas carpetas locales inválidas); `--check` ejecuta `assert_strategy_contract` (solo CLI) |
 
 **Deriva (Art. 15) — acceso al registro sin romper el aislamiento (RF-21):** `kinds`/`--check` no pueden importar `finances_core.backtest.catalog` ni `strategies` (prohibidos en todo el paquete por `test_isolation.py`). Llegan al registro por la puerta sancionada `finances_core.backtest.strategy_source`, que se amplía con dos funciones aditivas: `kinds(settings) -> list[KindInfo]` (envuelve `get_registry(settings).kinds()`) y `check_contract(kind, settings)` (envuelve `assert_strategy_contract`). La CLI/API las consumen vía un paso delgado en `service.py`.

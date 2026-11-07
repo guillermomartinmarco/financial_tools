@@ -122,3 +122,12 @@
 - [x] **V8.1**: Matriz Art. 20 en el checklist del PR — depende de todas las anteriores
   - **Hecho cuando**: las 10 dimensiones marcadas con evidencia: Funcional (RF-1…RF-13 con tests), Contractual (specs firmadas, A1–A27 resueltos), Arquitectural (Art. 1 por `V4.3`, Art. 4 por `V0.4`), Datos (RFC-0004 aprobada, dtypes por `V1.1`, Pydantic), Concurrencia (`V2.1`–`V2.2`), Observabilidad (`V2.3`; métricas VRAM = N/A justificado, sin GPU), Resiliencia = N/A justificado (sin red), Calidad (ruff, `mypy --strict`, cobertura ≥ 90 % de la lógica de servicio), Desempeño (`V7.1`), Despliegue (`V4.1`, `V5.1`); checklist firmado por el Tech Lead.
   - **Evidencia**: la matriz Art. 20 de 10 dimensiones se incluye en el cuerpo del PR de cierre (calibración de V7.1), con todas las dimensiones evidenciadas (Desempeño por `V7.1` calibrado, el resto por V3.1–V7.2). La **firma del Tech Lead** es el merge de ese PR.
+
+## Enmienda E1 — Rango temporal amigable (`--start`/`--end`, reemplaza `--start-ms`/`--end-ms`)
+
+- [ ] **E1.1** — `BacktestRequest` (núcleo): `start`/`end: str | None` (ISO 8601 | ms epoch | `now`); deriva `start_ms`/`end_ms` (propiedades en ms) con `finances_core.timeutils.parse_time_input`; validador de campo rechaza no parseables; `_check_range` usa los ms derivados.
+  - **Hecho cuando**: tests del esquema: `start="2024-01-01"` → `start_ms == 1704067200000`; `"now"`; ms epoch como string; valor no parseable → `ValidationError`; `start > end` → error; `model_dump` usa claves `start`/`end`. finances-core verde (ruff/mypy/pytest).
+- [ ] **E1.2** — CLI `run` + API `POST /run`: `--start`/`--end` y el cuerpo `start`/`end` reemplazan a `--start-ms`/`--end-ms`; `--request-file` usa el nuevo cuerpo; el manifiesto/log de auditoría (rango resuelto en ms) NO cambia.
+  - **Hecho cuando**: `CliRunner`: `--start 2024-01-01` acota el rango correcto, `--start basura` → exit 2; API: body `{"start":"2024-01-01"}` OK y no parseable → 422; test de contrato CLI↔API sigue verde; se verifica por introspección del comando que lista `--start`/`--end` y no `--start-ms`/`--end-ms` (NO asertar sobre el texto de `--help`).
+- [ ] **E1.3** — Docs: README (`run`, subsección `optimize`, ejemplos) y tutoriales usan `--start`/`--end`.
+  - **Hecho cuando**: no queda `--start-ms`/`--end-ms` en README ni en `docs/guides/`; ruff (todo el árbol) + mypy --strict + pytest (core/backtester/api) verdes.
