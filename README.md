@@ -91,20 +91,20 @@ ft_data_viewer summary -e binance -m spot -s BTCUSDT -t 1h  # Estadísticas
 ft_data_viewer head -e binance -m spot -s BTCUSDT -t 1h -n 20  # Primeras 20 filas
 ft_data_viewer gaps -e binance -m spot -s BTCUSDT -t 1h      # Gaps temporales
 ft_data_viewer anomalies -e binance -m spot -s BTCUSDT -t 1h  # Duplicados, nulos, outliers
-ft_data_viewer candles -e binance -m spot -s BTCUSDT -t 1h --start-ms 1704067200000 --limit 500 --cols open_time_ms,close -f json  # Velas por rango (paginadas: usa next_after_ms como --after-ms)
-# API equivalente: GET /data/datasets/binance/spot/BTCUSDT/1h/candles?start_ms=1704067200000&limit=500&columns=open_time_ms,close&after_ms=<next_after_ms>
+ft_data_viewer candles -e binance -m spot -s BTCUSDT -t 1h --start 2024-01-01 --limit 500 --cols open_time_ms,close -f json  # Velas por rango (paginadas: usa next_after_ms como --after-ms)
+# API equivalente: GET /data/datasets/binance/spot/BTCUSDT/1h/candles?start=2024-01-01&limit=500&columns=open_time_ms,close&after_ms=<next_after_ms>
 ft_data_viewer export -e binance -m spot -s BTCUSDT -t 1h --start 2024-01-01 --end 2024-06-01 -o ./subset  # Exportar
 ft_data_viewer summary -e yfinance -m equity -s AAPL -t 1d  # Dataset de Yahoo (market_type detectado)
 ft_data_viewer compare --exchange-a binance --market-a spot --symbol-a BTCUSDT --timeframe-a 1h \
   --exchange-b binance --market-b futures --symbol-b BTCUSDT --timeframe-b 1h  # Spot vs Futures
 
-# Mantenimiento del almacén Parquet (único que escribe; sobre FT_PARQUET_DIR). Selectores repetibles: -e/-m/-s/-t, --start-ms/--end-ms
+# Mantenimiento del almacén Parquet (único que escribe; sobre FT_PARQUET_DIR). Selectores repetibles: -e/-m/-s/-t, --start/--end
 # Exit: 0 OK (incluye --dry-run y particiones en conflict) · 1 no encontrado/confirmación rechazada · 2 argumentos · 3 conflicto · 4 IO
 ft_market_data_manager compact -e binance -m spot -s BTCUSDT -t 1h --dry-run   # plan: un data.parquet ordenado por mes, sin escribir
 ft_market_data_manager compact -e binance -m spot -s BTCUSDT -t 1h -f json     # ejecuta; --format table|json
 ft_market_data_manager dedupe -e binance -s BTCUSDT --dry-run                  # duplicados por open_time_ms (prevalece la última fila)
-ft_market_data_manager prune -e binance -s BTCUSDT --before-ms 1706745600000 --dry-run  # meses completos anteriores a T; nunca recorta filas
-ft_market_data_manager prune -e binance -s BTCUSDT --before-ms 1706745600000   # pide confirmación (rechazarla = exit 1); --force la omite
+ft_market_data_manager prune -e binance -s BTCUSDT --before 2024-02-01 --dry-run  # meses completos anteriores a T; nunca recorta filas
+ft_market_data_manager prune -e binance -s BTCUSDT --before 2024-02-01   # pide confirmación (rechazarla = exit 1); --force la omite
 ft_market_data_manager import --source corregidas.csv -e binance -m spot -s BTCUSDT -t 1h --dry-run  # valida y muestra la vista previa; no escribe
 ft_market_data_manager import --source corregidas.parquet -e binance -m spot -s BTCUSDT -t 1h        # vista previa + confirmación (rechazarla = exit 1)
 ft_market_data_manager import --source velas.csv --ts-column time --ts-unit s -e binance -m spot -s ETHUSDT -t 1h --create --force  # crea el dataset; unidad explícita

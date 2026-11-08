@@ -146,16 +146,25 @@ def test_api_page_and_cursor(client: TestClient, dataset: Path) -> None:
 
 
 def test_api_empty_range_is_200(client: TestClient, dataset: Path) -> None:
-    res = client.get(f"{BASE}/candles", params={"start_ms": ts(900)})
+    res = client.get(f"{BASE}/candles", params={"start": ts(900)})
     assert res.status_code == 200
     assert res.json() == {"items": [], "count": 0, "next_after_ms": None}
+
+
+def test_api_friendly_start_date(client: TestClient, dataset: Path) -> None:
+    """Una fecha ISO 8601 se parsea en la ruta y limita el rango como el ms equivalente."""
+    body = client.get(f"{BASE}/candles", params={"start": "2024-01-01"}).json()
+    ms = client.get(f"{BASE}/candles", params={"start": JAN_2024_MS}).json()
+    assert body == ms
 
 
 @pytest.mark.parametrize(
     ("params", "status"),
     [
-        ({"start_ms": 10, "end_ms": 5}, 400),
+        ({"start": ts(50), "end": ts(5)}, 400),
         ({"columns": "nope"}, 400),
+        ({"start": "not-a-date"}, 400),
+        ({"end": "not-a-date"}, 400),
         ({"limit": 10001}, 422),
         ({"limit": 0}, 422),
     ],
@@ -186,9 +195,9 @@ def _cli(args: list[str]) -> Any:
 def test_cli_json_matches_api(client: TestClient, dataset: Path) -> None:
     res = _cli(
         [
-            "--start-ms",
+            "--start",
             str(ts(5)),
-            "--end-ms",
+            "--end",
             str(ts(50)),
             "--limit",
             "7",
@@ -201,9 +210,18 @@ def test_cli_json_matches_api(client: TestClient, dataset: Path) -> None:
     assert res.exit_code == 0, res.output
     api = client.get(
         f"{BASE}/candles",
-        params={"start_ms": ts(5), "end_ms": ts(50), "limit": 7, "columns": "open_time_ms,close"},
+        params={"start": ts(5), "end": ts(50), "limit": 7, "columns": "open_time_ms,close"},
     ).json()
     assert json.loads(res.stdout) == api
+
+
+def test_cli_friendly_start_date(client: TestClient, dataset: Path) -> None:
+    """``--start 2024-01-01`` (ISO 8601) equivale al ms epoch correspondiente."""
+    res = _cli(["--start", "2024-01-01", "-f", "json"])
+    assert res.exit_code == 0, res.output
+    ms = _cli(["--start", str(JAN_2024_MS), "-f", "json"])
+    assert ms.exit_code == 0, ms.output
+    assert json.loads(res.stdout) == json.loads(ms.stdout)
 
 
 def test_cli_table_and_empty(dataset: Path) -> None:
@@ -211,13 +229,14 @@ def test_cli_table_and_empty(dataset: Path) -> None:
     assert res.exit_code == 0, res.output
     assert "No rows" not in res.stdout
     assert res.stdout.count(chr(10)) >= 3
-    empty = _cli(["--start-ms", str(ts(900))])
+    empty = _cli(["--start", str(ts(900))])
     assert empty.exit_code == 0
     assert "No rows" in empty.stdout
 
 
 def test_cli_exit_codes(dataset: Path, parquet_dir: Path) -> None:
-    assert _cli(["--start-ms", "10", "--end-ms", "5"]).exit_code == 2
+    assert _cli(["--start", str(ts(50)), "--end", str(ts(5))]).exit_code == 2
+    assert _cli(["--start", "not-a-date"]).exit_code == 2
     assert _cli(["--cols", "nope"]).exit_code == 2
     assert _cli(["--limit", "10001"]).exit_code == 2
     missing = CliRunner().invoke(

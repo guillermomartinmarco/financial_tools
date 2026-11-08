@@ -370,10 +370,8 @@ def candles(
     market_type: str = typer.Option(..., "--market", "-m"),
     symbol: str = typer.Option(..., "--symbol", "-s"),
     timeframe: str = typer.Option(..., "--timeframe", "-t"),
-    start_ms: int | None = typer.Option(
-        None, "--start-ms", help="open_time_ms inicial (inclusivo)"
-    ),
-    end_ms: int | None = typer.Option(None, "--end-ms", help="open_time_ms final (inclusivo)"),
+    start: str | None = typer.Option(None, "--start", help="Inicio (ISO 8601, ms epoch o 'now')"),
+    end: str | None = typer.Option(None, "--end", help="Fin (ISO 8601, ms epoch o 'now')"),
     cols: str | None = typer.Option(None, "--cols", help=_COLS_HELP),
     limit: int = typer.Option(
         service.CANDLES_DEFAULT_LIMIT, "--limit", min=1, max=service.CANDLES_MAX_LIMIT
@@ -387,8 +385,8 @@ def candles(
         ident = service.make_identifier(exchange, market_type, symbol, timeframe)
         page = service.get_candles(
             ident,
-            start_ms=start_ms,
-            end_ms=end_ms,
+            start_ms=_parse_time(start, "--start"),
+            end_ms=_parse_time(end, "--end"),
             cols=service.parse_columns(cols),
             limit=limit,
             after_ms=after_ms,
