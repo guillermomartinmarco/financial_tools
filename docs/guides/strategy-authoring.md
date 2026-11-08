@@ -250,6 +250,9 @@ Las ayudas `_lib` no entran en ese hash: se versionan con `CATALOG_VERSION`.
 | `macd_trend` | `strategies/macd_trend/` | `{"kind": "macd_trend", "params": {"fast": 12, "slow": 26, "signal": 9}}` | cruce MACD/señal (momentum) |
 | `momentum_roc` | `strategies/momentum_roc/` | `{"kind": "momentum_roc", "params": {"n": 20, "threshold": 0.0}}` | momentum por tasa de cambio (estado) |
 | `high_breakout` | `strategies/high_breakout/` | `{"kind": "high_breakout", "params": {"window": 20}}` | ruptura del máximo de cierre (estado) |
+| `bollinger_reversion` | `strategies/bollinger_reversion/` | `{"kind": "bollinger_reversion", "params": {"n": 20, "k": 2.0}}` | reversión a las Bandas de Bollinger (estado) |
+| `zscore_reversion` | `strategies/zscore_reversion/` | `{"kind": "zscore_reversion", "params": {"n": 20, "threshold": 2.0}}` | reversión estadística por Z-Score (estado) |
+| `rsi2_connors` | `strategies/rsi2_connors/` | `{"kind": "rsi2_connors", "params": {"period": 2, "lower": 10.0, "upper": 70.0}}` | reversión RSI(2) de Connors (estado) |
 | `mi_momento` | ejemplo de esta guía | `{"kind": "mi_momento", "params": {"window": 10}}` | momento, autosuficiente |
 | `mi_estrategia` | `_template/` | `{"kind": "mi_estrategia", "params": {"window": 20}}` | cierre sobre su media |
 
