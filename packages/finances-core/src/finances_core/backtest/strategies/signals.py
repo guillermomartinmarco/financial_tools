@@ -51,9 +51,7 @@ def finalize(pos: pl.Series, *, n: int, warmup: int) -> pl.Series:
         raise InvalidSignalsError(msg)
 
     # Dominio: cualquier valor fuera de {-1, 0, 1} es error
-    out_of_domain = frame.filter(
-        ~pl.col("warm") & (~pl.col("pos").is_in([-1, 0, 1]))
-    )
+    out_of_domain = frame.filter(~pl.col("warm") & (~pl.col("pos").is_in([-1, 0, 1])))
     if out_of_domain.height > 0:
         msg = "invalid_signals: pos contiene valores fuera de domain {-1, 0, 1}"
         raise InvalidSignalsError(msg)

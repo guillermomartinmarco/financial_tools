@@ -225,9 +225,7 @@ async def test_exception_in_local_strategy_signals_fails_the_task(
     )
     text = logic.read_text(encoding="utf-8")
     assert body in text
-    logic.write_text(
-        text.replace(body, '        raise ValueError("local boom")'), encoding="utf-8"
-    )
+    logic.write_text(text.replace(body, '        raise ValueError("local boom")'), encoding="utf-8")
     simulate_calls: list[int] = []
     monkeypatch.setattr(engine, "simulate", lambda *a, **k: simulate_calls.append(1))
     request = make_request(create_strategy({"kind": SYNTHETIC_KIND, "params": {}}))

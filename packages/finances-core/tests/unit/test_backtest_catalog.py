@@ -141,8 +141,7 @@ def test_invalid_local_is_registered_with_readable_error(
 def test_import_error_reports_file_and_line_in_sibling(dirs: tuple[Path, Path]) -> None:
     logic = VALID_LOGIC.replace(
         "from finances_core.backtest.strategies import BaseStrategy",
-        "from finances_core.backtest.strategies import BaseStrategy\n"
-        "from . import helpers",
+        "from finances_core.backtest.strategies import BaseStrategy\nfrom . import helpers",
     )
     write_strategy(
         dirs[1], "sibling_fail", logic=logic, extra_files={"helpers.py": "x = 1\ny = {}['k']\n"}
@@ -169,8 +168,7 @@ def test_sibling_modules_load_without_touching_sys_path(dirs: tuple[Path, Path])
         "position_from_events(helpers.above(close, past), close < past)).to_series()",
     ).replace(
         "from finances_core.backtest.strategies import BaseStrategy",
-        "from finances_core.backtest.strategies import BaseStrategy\n\n"
-        "from . import helpers",
+        "from finances_core.backtest.strategies import BaseStrategy\n\nfrom . import helpers",
     )
     helpers = (
         "import polars as pl\n\n\n"

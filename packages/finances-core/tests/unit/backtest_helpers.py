@@ -136,9 +136,7 @@ def ohlc_frame(*, high: list[float], low: list[float], close: list[float]) -> pl
     )
 
 
-def builtin_position(
-    kind: str, candles: pl.DataFrame, **params: int | float
-) -> list[int]:
+def builtin_position(kind: str, candles: pl.DataFrame, **params: int | float) -> list[int]:
     """Posición-objetivo **normalizada** (``finalize``) de la integrada ``kind`` como lista.
 
     Usa el registro real del proceso (sin ``FT_STRATEGIES_DIR``), igual que el ``runner``.

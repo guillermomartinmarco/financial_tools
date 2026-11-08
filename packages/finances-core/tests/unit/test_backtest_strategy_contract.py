@@ -94,10 +94,7 @@ class Demo(BaseStrategy[DemoParams]):
     def signals(candles: pl.DataFrame, params: DemoParams) -> pl.Series:
         close = candles["close"]
         # Return a position series
-        return pl.Series(
-            (close > close.shift(params.window)).cast(pl.Int8),
-            dtype=pl.Int8
-        )
+        return pl.Series((close > close.shift(params.window)).cast(pl.Int8), dtype=pl.Int8)
 
 
 def test_valid_subclass_validates_and_runs_with_generic_params() -> None:

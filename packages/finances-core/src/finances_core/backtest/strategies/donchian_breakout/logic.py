@@ -48,7 +48,6 @@ class DonchianBreakout(BaseStrategy[DonchianBreakoutParams]):
         low = rolling_min_prev(pl.col("low"), params.window)
         return candles.select(
             position_from_events(
-                (close > high).fill_null(value=False),
-                (close < low).fill_null(value=False)
+                (close > high).fill_null(value=False), (close < low).fill_null(value=False)
             )
         ).to_series()
