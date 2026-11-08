@@ -86,7 +86,7 @@ def synthetic_candles(n: int = SYNTHETIC_BARS, seed: int = SYNTHETIC_SEED) -> pl
     quarter = max(n // 4, 1)
     close = 100.0
     level = close
-    rows: dict[str, list[Any]] = {name: [] for name in ("open", "high", "low", "close")}
+    rows: dict[str, list[Any]] = {name: [] for name in ("open", "high", "low", "close", "volume")}
     for t in range(n):
         segment = min(t // quarter, 3)
         if segment in (1, 3):
@@ -100,6 +100,9 @@ def synthetic_candles(n: int = SYNTHETIC_BARS, seed: int = SYNTHETIC_SEED) -> pl
         rows["close"].append(close)
         rows["high"].append(max(previous, close) * (1.0 + rng.uniform() * 0.005))
         rows["low"].append(min(previous, close) * (1.0 - rng.uniform() * 0.005))
+        # Volumen determinista y estrictamente positivo (RF-4, L0-G1): sin ceros, para
+        # que vwap/obv (que dividen por volumen acumulado) no degeneren en el sintético.
+        rows["volume"].append(1000.0 + rng.uniform() * 500.0)
     times = [_START_MS + t * _HOUR_MS for t in range(n)]
     return pl.DataFrame(
         {

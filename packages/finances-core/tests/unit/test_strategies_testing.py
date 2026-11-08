@@ -57,8 +57,10 @@ def test_synthetic_candles_are_deterministic_and_canonical() -> None:
             "high": pl.Float32,
             "low": pl.Float32,
             "close": pl.Float32,
+            "volume": pl.Float32,
         }
     )
+    assert (first["volume"] > 0).all()  # vwap/obv dividen por volumen: nunca cero
     assert first["open_time_ms"].is_sorted()
     assert first["open_time_ms"].n_unique() == first.height
     assert (first["low"] > 0).all()

@@ -35,16 +35,20 @@ TEMPLATE_KIND = "mi_estrategia"
 BUILTIN_KINDS = (
     "atr_channel_breakout",
     "bollinger_reversion",
+    "channel_breakout",
     "donchian_breakout",
     "ema_cross",
     "high_breakout",
+    "inside_bar_breakout",
     "keltner_breakout",
     "macd_trend",
     "momentum_roc",
+    "obv_trend",
     "rsi2_connors",
     "rsi_reversion",
     "sma_cross",
     "trend_filtered_reversion",
+    "vwap_reversion",
     "zscore_reversion",
 )
 

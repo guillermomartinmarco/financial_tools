@@ -136,6 +136,15 @@ def ohlc_frame(*, high: list[float], low: list[float], close: list[float]) -> pl
     )
 
 
+def ohlcv_frame(
+    *, high: list[float], low: list[float], close: list[float], volume: list[float]
+) -> pl.DataFrame:
+    """Velas RF-4 (``Int64`` / ``Float32``) con ``open = close`` y ``volume`` propio (L0-G1)."""
+    return ohlc_frame(high=high, low=low, close=close).with_columns(
+        pl.Series("volume", volume, dtype=pl.Float32)
+    )
+
+
 def builtin_position(kind: str, candles: pl.DataFrame, **params: int | float) -> list[int]:
     """Posición-objetivo **normalizada** (``finalize``) de la integrada ``kind`` como lista.
 
