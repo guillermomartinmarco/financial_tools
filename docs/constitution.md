@@ -1,7 +1,7 @@
 # Constitución Técnica de la Suite `financial_tools`
 
-**Versión:** 1.2.0  
-**Historial:** 1.2.0 (2026-11-02) — Art. 8: `pandas` admitido solo dentro del `engine.py` de un motor de backtesting aprobado por RFC (RFC-0004). 1.1.0 (2026-10-25) — Art. 5.1 bis y ajuste del Art. 5.4 (RFC-0003).  
+**Versión:** 1.3.0  
+**Historial:** 1.3.0 (2026-11-07) — Flujo híbrido SDD+ODD proporcional al riesgo: Art. 15 acotado (spec-first solo para contrato/alto riesgo), Art. 20 aclarado (la matriz es madurez de herramienta, no por-PR), Art. 7 reformulado, y aclaración de Gobernanza para mantenedor único (RFC-0005). 1.2.0 (2026-11-02) — Art. 8: `pandas` admitido solo dentro del `engine.py` de un motor de backtesting aprobado por RFC (RFC-0004). 1.1.0 (2026-10-25) — Art. 5.1 bis y ajuste del Art. 5.4 (RFC-0003).  
 **Estado:** Vigente  
 **Alcance:** Obligatorio para todos los contribuyentes, agentes de IA y pipelines de CI/CD.  
 **Ubicación canónica:** `docs/constitution.md`
@@ -57,7 +57,7 @@ Todo flujo alterno, condición de fallo, validación rechazada o excepción de n
 
 ## Artículo 7 — Estrategia Test-First (Definición de Hecho)
 
-Ninguna tarea (`tasks.md`) se marcará como completada (**Done**) sin que exista su **suite de tests unitarios** correspondiente cubriendo: camino feliz, bordes, y al menos un caso de fallo documentado en EARS (Art. 6). Cobertura mínima objetivo: **90%** sobre la lógica de servicio (no adaptadores).
+Toda **lógica de servicio con comportamiento testeable y determinista** **DEBE** cubrirse con su **suite de tests** (camino feliz, bordes y al menos un caso de fallo documentado en EARS, Art. 6) **antes de considerarse terminada**, exista o no una tarea en `tasks.md`. En el trabajo trackeado, ninguna tarea de `tasks.md` se marca **Done** sin su suite. Cuando una regla no es testeable de forma determinista (documentación, cambio no funcional), se aplica **verificación funcional proporcionada**, nunca evidencia inventada ni checks salteados. Cobertura mínima objetivo: **90%** sobre la lógica de servicio (no adaptadores).
 
 ## Artículo 8 — Polars sobre Pandas (Procesamiento Masivo)
 
@@ -97,9 +97,13 @@ Todo modelo de datos de mercado entrante (OHLCV, *ticks*, *fundamentals*, *order
 
 Las descargas desde APIs externas (brokers, *data vendors*, *on-chain*) **DEBEN** implementar control de tasa mediante algoritmo **Token Bucket** con **backoff exponencial** y *jitter* ante códigos `429` / `5xx`. La configuración (capacidad, recarga, *backoff* base) es parametrizable vía `Pydantic Settings` (prefijo `FT_`).
 
-## Artículo 15 — Documentación Viva (Spec-First)
+## Artículo 15 — Documentación Viva (Spec-First, proporcional al riesgo)
 
-**CADA** cambio de código funcional **EXIGE** la previa actualización de su especificación técnica asociada (`spec.md`, `plan.md`, `tasks.md` en `specs/ft_<herramienta>/`). No existe *merge* sin *spec* actualizada. La documentación es **contrato**, no apéndice.
+La especificación técnica (`spec.md`, `plan.md`, `tasks.md` en `specs/ft_<herramienta>/`) es **contrato, no apéndice**: la fuente de verdad durable de requisitos y contratos.
+
+- **Cambios de contrato o de alto riesgo** —herramienta nueva; contrato público de CLI/API/formato de *request*/*exports*; esquema o formato de datos persistidos; cambios numéricos o de precisión (Art. 5); seguridad; migraciones; o contratos entre herramientas— **EXIGEN** la actualización **previa** de la especificación: **no existe *merge* sin *spec* al día**. Si el cambio modifica un contrato ya especificado, se **enmienda** el `spec`/`plan` afectado y se reabre solo la tarea correspondiente; no se reescribe el tridente entero.
+- **Cambios pequeños o internos** —corrección de bug, refactor interno, documentación, helper interno, opción opcional— **NO EXIGEN** tridente, pero **NO DEBEN** contradecir la especificación vigente. Si la contradicen, dejan de ser pequeños y recaen en el punto anterior.
+- **Ante la duda** sobre si un cambio toca un contrato, se trata como de contrato.
 
 ## Artículo 16 — Hilos Seguros en Persistencia (Thread-Local / Pool)
 
@@ -118,6 +122,8 @@ El endpoint de ejecución de tareas pesadas (`POST /tasks` o equivalente CLI `ru
 Los binarios CUDA (Art. 11) **DEBEN** implementar control proactivo de VRAM: consultar memoria libre (`cudaMemGetInfo`), fragmentar *batches* dinámicamente, liberar *buffers* intermedios tan pronto dejen de ser referenciados, y exponer métricas de pico/actual a `structlog` (Art. 9). Caídas catastróficas por *Out-Of-Memory* son **inaceptables**.
 
 ## Artículo 20 — Criterios de Finalización (Matriz de Validación Cruzada 100%)
+
+La matriz es el **criterio de madurez de una herramienta**: se evalúa al declarar una `ft_<nombre>` **lista para producción**, y en ese hito debe pasar al **100%**. **No es un requisito por cada *pull request***. En un *pull request* individual se evidencian únicamente las **dimensiones que el cambio toca**, con detalle **proporcional al riesgo**: los PRs pequeños/internos llevan evidencia liviana; los de contrato o alto riesgo documentan las dimensiones afectadas y, cuando corresponde, la matriz completa.
 
 Una herramienta (`ft_<nombre>`) se considera **LISTA PARA PRODUCCIÓN** **SI Y SOLO SI** pasa el **100%** de la siguiente matriz de validación cruzada:
 
@@ -139,7 +145,7 @@ Una herramienta (`ft_<nombre>`) se considera **LISTA PARA PRODUCCIÓN** **SI Y S
 ## Gobernanza y Enmiendas
 
 - **Autoridad:** El *Tech Lead* del proyecto es el guardián de esta constitución.
-- **Enmiendas:** Requieren RFC documentado, aprobación por consenso del equipo *core*, y bump de versión del documento (`MAJOR` si rompe compatibilidad hacia atrás de proceso).
+- **Enmiendas:** Requieren RFC documentado, aprobación del **Tech Lead** (en un equipo, consenso del *core*), y *bump* de versión del documento (`MAJOR` si rompe compatibilidad hacia atrás de proceso).
 - **Excepciones:** Ninguna. Si un artículo resulta inaplicable a un caso borde, se abre RFC para enmendar el artículo, no para saltárselo.
 
 ---
