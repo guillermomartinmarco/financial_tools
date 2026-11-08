@@ -15,7 +15,15 @@ import pytest
 from finances_core.backtest import strategy_source
 from finances_core.backtest.errors import UnknownKindError
 
-BUILTIN_KINDS = ["donchian_breakout", "rsi_reversion", "sma_cross"]
+BUILTIN_KINDS = [
+    "donchian_breakout",
+    "ema_cross",
+    "high_breakout",
+    "macd_trend",
+    "momentum_roc",
+    "rsi_reversion",
+    "sma_cross",
+]
 
 
 def _empty_strategies_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

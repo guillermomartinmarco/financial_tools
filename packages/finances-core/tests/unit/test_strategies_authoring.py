@@ -32,7 +32,15 @@ GUIDE = REPO_ROOT / "docs" / "guides" / "strategy-authoring.md"
 PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 TEMPLATE = BUILTIN_DIR / "_template"
 TEMPLATE_KIND = "mi_estrategia"
-BUILTIN_KINDS = ("donchian_breakout", "rsi_reversion", "sma_cross")
+BUILTIN_KINDS = (
+    "donchian_breakout",
+    "ema_cross",
+    "high_breakout",
+    "macd_trend",
+    "momentum_roc",
+    "rsi_reversion",
+    "sma_cross",
+)
 
 _MARKER_RE = re.compile(r"^<!--\s*guia:(archivo|python|comando)\s*(.*?)\s*-->\s*$")
 _FENCE_RE = re.compile(r"^(`{3,}|~{3,})")

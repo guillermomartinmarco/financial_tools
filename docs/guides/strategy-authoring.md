@@ -246,10 +246,14 @@ Las ayudas `_lib` no entran en ese hash: se versionan con `CATALOG_VERSION`.
 | `sma_cross` | `strategies/sma_cross/` | `{"kind": "sma_cross", "params": {"fast": 20, "slow": 100}}` | cruce de medias (evento) |
 | `rsi_reversion` | `strategies/rsi_reversion/` | `{"kind": "rsi_reversion", "params": {"period": 14, "lower": 30, "upper": 70}}` | RSI de Wilder, reversión |
 | `donchian_breakout` | `strategies/donchian_breakout/` | `{"kind": "donchian_breakout", "params": {"window": 20}}` | ruptura del canal (estado) |
+| `ema_cross` | `strategies/ema_cross/` | `{"kind": "ema_cross", "params": {"fast": 12, "slow": 26}}` | cruce de EMAs (evento) |
+| `macd_trend` | `strategies/macd_trend/` | `{"kind": "macd_trend", "params": {"fast": 12, "slow": 26, "signal": 9}}` | cruce MACD/señal (momentum) |
+| `momentum_roc` | `strategies/momentum_roc/` | `{"kind": "momentum_roc", "params": {"n": 20, "threshold": 0.0}}` | momentum por tasa de cambio (estado) |
+| `high_breakout` | `strategies/high_breakout/` | `{"kind": "high_breakout", "params": {"window": 20}}` | ruptura del máximo de cierre (estado) |
 | `mi_momento` | ejemplo de esta guía | `{"kind": "mi_momento", "params": {"window": 10}}` | momento, autosuficiente |
 | `mi_estrategia` | `_template/` | `{"kind": "mi_estrategia", "params": {"window": 20}}` | cierre sobre su media |
 
-Las tres integradas viven en `packages/finances-core/src/finances_core/backtest/strategies/`
+Las integradas viven en `packages/finances-core/src/finances_core/backtest/strategies/`
 y su `README.md` documenta la matemática exacta (RF-2); son el mejor punto de partida
 para combinar `_lib` con expresiones Polars.
 
