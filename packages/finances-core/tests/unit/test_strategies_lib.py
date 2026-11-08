@@ -6,16 +6,26 @@ a la implementación. Todas las ayudas devuelven ``Float32``/``Boolean`` (RF-11)
 
 from __future__ import annotations
 
+import math
+
 import polars as pl
 import pytest
 
 from finances_core.backtest.strategies._lib import (
+    atr,
     cross_above,
     cross_below,
+    ema,
+    obv,
+    roc,
     rolling_max_prev,
     rolling_min_prev,
+    rolling_std_stable,
     rsi_wilder,
     sma,
+    vwap,
+    wma,
+    zscore,
 )
 
 
@@ -140,3 +150,158 @@ def test_rolling_max_and_min_prev_exclude_current_bar() -> None:
     # t=3: x[0..2] = 3, 1, 4; t=4: 1, 4, 1; t=5: 4, 1, 5 (nunca incluye x[t])
     assert out["hi"].to_list() == [None, None, None, 4.0, 4.0, 5.0]
     assert out["lo"].to_list() == [None, None, None, 1.0, 1.0, 1.0]
+
+
+# ------------------------------------------------------ fundación _lib L1 (Enmienda L1)
+def _ohlcv(
+    high: list[float], low: list[float], close: list[float], volume: list[float]
+) -> pl.DataFrame:
+    return pl.DataFrame(
+        {
+            "high": pl.Series(high, dtype=pl.Float32),
+            "low": pl.Series(low, dtype=pl.Float32),
+            "close": pl.Series(close, dtype=pl.Float32),
+            "volume": pl.Series(volume, dtype=pl.Float32),
+        }
+    )
+
+
+def test_ema_is_sma_seeded_and_recursive() -> None:
+    out = _f32([1.0, 2.0, 3.0, 4.0, 6.0]).select(ema(pl.col("x"), 3)).to_series()
+    assert out.dtype == pl.Float32
+    # semilla SMA(1,2,3)=2 en t=2; alpha=0.5: t=3 -> 0.5*4+0.5*2=3; t=4 -> 0.5*6+0.5*3=4.5
+    assert out.to_list() == [None, None, 2.0, 3.0, 4.5]
+
+
+def test_rolling_std_stable_is_population_std() -> None:
+    out = _f32([1.0, 2.0, 3.0, 4.0, 6.0]).select(rolling_std_stable(pl.col("x"), 3))["x"]
+    assert out.dtype == pl.Float32
+    # var poblacional: t=2 x=[1,2,3] var=2/3; t=4 x=[3,4,6] mean=13/3 var=14/9
+    expected = [None, None, (2 / 3) ** 0.5, (2 / 3) ** 0.5, (14 / 9) ** 0.5]
+    assert out.to_list() == pytest.approx(expected, abs=1e-5)
+
+
+def test_zscore_uses_population_mean_and_std() -> None:
+    out = _f32([1.0, 2.0, 3.0, 4.0, 6.0]).select(zscore(pl.col("x"), 3))["x"]
+    assert out.dtype == pl.Float32
+    # t=2: (3-2)/sqrt(2/3)=1.2247; t=4: (6-13/3)/sqrt(14/9)=1.3363
+    expected = [None, None, 1.0 / (2 / 3) ** 0.5, 1.0 / (2 / 3) ** 0.5, (5 / 3) / (14 / 9) ** 0.5]
+    assert out.to_list() == pytest.approx(expected, abs=1e-4)
+
+
+def test_zscore_is_null_when_std_is_zero() -> None:
+    out = _f32([5.0, 5.0, 5.0, 5.0]).select(zscore(pl.col("x"), 3))["x"]
+    assert out.to_list() == [None, None, None, None]
+
+
+def test_roc_is_fraction_over_n_bars() -> None:
+    out = _f32([1.0, 2.0, 3.0, 4.0, 6.0]).select(roc(pl.col("x"), 2))["x"]
+    assert out.dtype == pl.Float32
+    # t=2: 3/1-1=2; t=3: 4/2-1=1; t=4: 6/3-1=1
+    assert out.to_list() == [None, None, 2.0, 1.0, 1.0]
+
+
+def test_roc_is_null_when_denominator_is_zero() -> None:
+    out = _f32([0.0, 1.0, 2.0, 3.0]).select(roc(pl.col("x"), 2))["x"]
+    assert out.to_list() == [None, None, None, 2.0]  # t=2 usa x[0]=0 -> null
+
+
+def test_wma_weights_are_linear_with_current_bar_heaviest() -> None:
+    out = _f32([1.0, 2.0, 3.0, 4.0, 6.0]).select(wma(pl.col("x"), 3)).to_series()
+    assert out.dtype == pl.Float32
+    # pesos 3,2,1 / 6: t=2 (9+4+1)/6=14/6; t=3 (12+6+2)/6=20/6; t=4 (18+8+3)/6=29/6
+    assert out.to_list() == pytest.approx([None, None, 14 / 6, 20 / 6, 29 / 6], abs=1e-5)
+
+
+def test_atr_is_wilder_mean_of_true_range() -> None:
+    frame = _ohlcv(
+        [10.0, 11.0, 12.0, 11.0, 13.0],
+        [9.0, 10.0, 11.0, 10.0, 12.0],
+        [9.5, 10.5, 11.5, 10.5, 13.0],
+        [100.0, 200.0, 150.0, 300.0, 250.0],
+    )
+    out = frame.select(atr(pl.col("high"), pl.col("low"), pl.col("close"), 3)).to_series()
+    assert out.dtype == pl.Float32
+    # TR = 1, 1.5, 1.5, 1.5, 2.5; Wilder(3): semilla t=3 = 1.5; t=4 = (1.5*2+2.5)/3 = 11/6
+    assert out.to_list() == pytest.approx([None, None, None, 1.5, 11 / 6], abs=1e-5)
+
+
+def test_obv_accumulates_signed_volume_from_zero() -> None:
+    frame = _ohlcv(
+        [10.0, 11.0, 12.0, 11.0, 13.0],
+        [9.0, 10.0, 11.0, 10.0, 12.0],
+        [9.5, 10.5, 11.5, 10.5, 13.0],
+        [100.0, 200.0, 150.0, 300.0, 250.0],
+    )
+    out = frame.select(obv(pl.col("close"), pl.col("volume"))).to_series()
+    assert out.dtype == pl.Float32
+    # 0; +200; +150; -300; +250 -> acumulado
+    assert out.to_list() == [0.0, 200.0, 350.0, 50.0, 300.0]
+
+
+def test_vwap_is_rolling_volume_weighted_typical_price() -> None:
+    frame = _ohlcv(
+        [10.0, 11.0, 12.0, 11.0, 13.0],
+        [9.0, 10.0, 11.0, 10.0, 12.0],
+        [9.5, 10.5, 11.5, 10.5, 13.0],
+        [100.0, 200.0, 150.0, 300.0, 250.0],
+    )
+    out = frame.select(
+        vwap(pl.col("high"), pl.col("low"), pl.col("close"), pl.col("volume"), 3)
+    ).to_series()
+    assert out.dtype == pl.Float32
+    # tp = 9.5, 10.5, 11.5, 10.5, 38/3; t=2: 4775/450; t=3: 6975/650
+    expected = [
+        None,
+        None,
+        4775 / 450,
+        6975 / 650,
+        (11.5 * 150 + 10.5 * 300 + (38 / 3) * 250) / 700,
+    ]
+    assert out.to_list() == pytest.approx(expected, abs=1e-3)
+
+
+def test_vwap_is_null_when_window_volume_is_zero() -> None:
+    frame = _ohlcv([2.0, 2.0, 2.0], [1.0, 1.0, 1.0], [1.5, 1.5, 1.5], [0.0, 0.0, 0.0])
+    out = frame.select(
+        vwap(pl.col("high"), pl.col("low"), pl.col("close"), pl.col("volume"), 2)
+    ).to_series()
+    assert out.to_list() == [None, None, None]
+
+
+# --------------------------------------------------- estabilidad de prefijo (RFC-0006)
+def _prefix_frame(n: int = 128) -> pl.DataFrame:
+    # Serie determinista no trivial (sin numpy); volumen > 0 estrictamente.
+    close = [100.0 + 10.0 * math.sin(i / 7.0) + (i % 13) * 0.5 for i in range(n)]
+    high = [c + 1.25 + (i % 5) * 0.1 for i, c in enumerate(close)]
+    low = [c - 1.25 - (i % 7) * 0.1 for i, c in enumerate(close)]
+    volume = [100.0 + (i % 17) * 10.0 for i in range(n)]
+    return _ohlcv(high, low, close, volume)
+
+
+_PREFIX_PRIMITIVES = {
+    "sma": lambda: sma(pl.col("close"), 12),
+    "ema": lambda: ema(pl.col("close"), 12),
+    "wma": lambda: wma(pl.col("close"), 12),
+    "rsi_wilder": lambda: rsi_wilder(pl.col("close"), 14),
+    "rolling_std_stable": lambda: rolling_std_stable(pl.col("close"), 20),
+    "zscore": lambda: zscore(pl.col("close"), 20),
+    "roc": lambda: roc(pl.col("close"), 10),
+    "atr": lambda: atr(pl.col("high"), pl.col("low"), pl.col("close"), 14),
+    "obv": lambda: obv(pl.col("close"), pl.col("volume")),
+    "vwap": lambda: vwap(pl.col("high"), pl.col("low"), pl.col("close"), pl.col("volume"), 20),
+    "rolling_max_prev": lambda: rolling_max_prev(pl.col("high"), 20),
+    "rolling_min_prev": lambda: rolling_min_prev(pl.col("low"), 20),
+}
+
+
+@pytest.mark.parametrize("name", sorted(_PREFIX_PRIMITIVES))
+def test_primitive_is_prefix_stable_bit_for_bit(name: str) -> None:
+    # f(x[:k]) == f(x)[:k] exacto para todo k: ninguna primitiva mira barras futuras
+    # ni depende del largo total (rolling_std/var de Polars fallarían este test; #50/RFC-0006).
+    frame = _prefix_frame()
+    build = _PREFIX_PRIMITIVES[name]
+    full = frame.select(build()).to_series().to_list()
+    for k in (21, 40, 64, 97, frame.height - 1, frame.height):
+        part = frame.head(k).select(build()).to_series().to_list()
+        assert part == full[:k], f"{name}: prefijo inestable en k={k}"

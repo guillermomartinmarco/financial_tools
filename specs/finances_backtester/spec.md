@@ -366,3 +366,55 @@ eventos** en `position_from_events`:
   `strategy-authoring.md` y los tests que referencian `entries`/`exits` quedan migrados; suites
   finances-core y finances-backtester verdes; ruff/mypy verdes. El motor (`ft_vectorbt`) **no se
   modifica**. `-1` (corto) queda reservado para G2b.
+
+## Enmienda L1 — Fundación de `strategies/_lib` (8 primitivas)
+
+Lote 1 de la biblioteca de estrategias (`docs/design/strategy-library.md`). Amplía las ayudas
+compartidas `strategies/_lib` con ocho primitivas **prefijo-estables** (solo barras `≤ t`, RF-20),
+`pl.Expr -> pl.Expr`, salida `Float32` (RF-11), para habilitar las familias de estrategias de los
+Lotes 2–5. Es un cambio **aditivo**: ninguna estrategia integrada existente las usa, así que el
+`run_id` y los goldens de `sma_cross`/`rsi_reversion`/`donchian_breakout` quedan **byte-idénticos**
+y **`CATALOG_VERSION` *no* se bumpea** (igual criterio que L0-G1: bumpear invalidaría la caché sin
+motivo; el bump solo corresponde a un cambio de semántica de una ayuda ya existente, A22).
+
+**Estabilidad de prefijo (normativa).** Para toda primitiva `f` y toda serie `x`, truncar la
+entrada no altera el prefijo de la salida: `f(x[:k]) == f(x)[:k]` **bit a bit** para todo `k`. Por
+eso las ayudas con varianza/ventana se construyen con `rolling_sum` reconstruido, **nunca** con
+`rolling_std`/`rolling_var`/`ewm_*` no deterministas por *chunking* (RFC-0006, bug Bollinger #50).
+La varianza de `rolling_std_stable`/`zscore` se acumula en `Float64` (evita cancelación en `Float32`;
+**excepción RFC-0007** del guard de pureza, acotada por nombre de función) y se baja a `Float32` al
+final. Las demás primitivas son `Float32` puro.
+
+**Semántica normativa (población, no muestra; comparaciones estrictas; calentamiento → `null`):**
+
+- `ema(x, n)` — media exponencial con `alpha = 2/(n+1)`, `adjust=False`, **sembrada** con `SMA(n)`
+  en `t = n-1`; `ema[t] = alpha·x[t] + (1-alpha)·ema[t-1]` para `t ≥ n`; `null` para `t < n-1`.
+- `atr(high, low, close, n)` — `TR[t] = max(high[t]-low[t], |high[t]-close[t-1]|, |low[t]-close[t-1]|)`
+  (en `t=0`, sin `close[t-1]`, `TR[0] = high[0]-low[0]`); `atr = `media de Wilder de `TR` con
+  periodo `n` (reusa `_wilder_mean`); `null` para `t < n`.
+- `rolling_std_stable(x, n)` — desviación estándar **poblacional** (`ddof=0`) de `x[t-n+1..t]`,
+  prefijo-estable: `var = E[x²] - E[x]²` con sumas rodantes en `Float64` (RFC-0007; `Float32` da
+  171 % de error a escala BTC por cancelación), `var` recortada a `≥ 0`, `std = sqrt(var)` casteada
+  a `Float32`; `null` para `t < n-1`.
+- `zscore(x, n)` — `(x[t] - SMA(x,n)[t]) / rolling_std_stable(x,n)[t]`; **SI** `std == 0`
+  **ENTONCES** `null`; `null` para `t < n-1`. (Cálculo interno en `Float64`, salida `Float32`.)
+- `roc(x, n)` — tasa de cambio como **fracción**: `x[t]/x[t-n] - 1`; **SI** `x[t-n] == 0`
+  **ENTONCES** `null`; `null` para `t < n`.
+- `wma(x, n)` — media ponderada lineal, peso `n` a la barra actual y `1` a `t-n+1`:
+  `Σ_{k=0}^{n-1} (n-k)·x[t-k] / (n(n+1)/2)`; `null` para `t < n-1`. (Interno `Float64`, salida `Float32`.)
+- `obv(close, volume)` — On-Balance Volume acumulado: `obv[0] = 0`;
+  `obv[t] = obv[t-1] + sign(close[t]-close[t-1])·volume[t]` con `sign ∈ {-1,0,+1}` (`0` en empate).
+  Acumulado con `cum_sum` (prefijo-estable por construcción); sin `null`.
+- `vwap(high, low, close, volume, n)` — VWAP de **ventana rodante** `n` (sin estado de sesión):
+  `tp = (high+low+close)/3`; `vwap[t] = Σ(tp·volume)[t-n+1..t] / Σ(volume)[t-n+1..t]` con sumas en
+  `Float64`; **SI** `Σ volume == 0` **ENTONCES** `null`; `null` para `t < n-1`.
+
+- **Hecho cuando**: las ocho primitivas existen en `finances_core/backtest/strategies/_lib` y en su
+  `__all__`, con la semántica de arriba; cada una tiene un test de **valor** hand-computed (listas
+  literales `Float32`, nunca llamando a la implementación) y participa de un test de
+  **estabilidad de prefijo** bit a bit (`f(x[:k]) == f(x)[:k]` para varios `k`, que fallaría si se
+  usara `rolling_std`); `rolling_std_stable`/`zscore` acumulan en `Float64` (RFC-0007 firmado, con
+  excepción acotada en `test_backtest_isolation`); el `run_id` y los goldens de las
+  tres integradas quedan **byte-idénticos** y `CATALOG_VERSION` **no** cambia; `strategy-authoring.md`
+  lista las nuevas ayudas; suite finances-core verde; ruff / mypy `--strict` / `ruff format --check`
+  verdes.

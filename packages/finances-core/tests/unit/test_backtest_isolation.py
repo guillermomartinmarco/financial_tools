@@ -31,6 +31,12 @@ FORBIDDEN_ROOTS = frozenset(
 )
 #: Única excepción ``ft_*`` (ADR-B02): el envoltorio de ``ft_strategy_manager``.
 FT_EXCEPTIONS = {"finances_core.backtest.strategy_source": frozenset({"ft_strategy_manager"})}
+#: Excepción ``Float64`` (RFC-0007): acumulación de varianza en ``_lib``, por función nombrada.
+#: La identidad ``E[x²]-E[x]²`` sufre cancelación catastrófica en ``Float32`` (171% de error a
+#: escala BTC); se acumula en ``Float64`` y se baja a ``Float32`` (mismo motivo que RFC-0006).
+DOUBLE_EXCEPTIONS = {
+    "finances_core.backtest.strategies._lib": frozenset({"rolling_std_stable", "zscore"}),
+}
 
 
 def _imported(node: ast.AST, package: str) -> list[str]:
@@ -63,8 +69,10 @@ def violations(source: str, module_name: str, *, is_package: bool = False) -> li
     """Infracciones ``"<línea>: <causa>"`` de ``source`` (``module_name`` resuelve relativos)."""
     package = module_name if is_package else module_name.rsplit(".", 1)[0]
     allowed_ft = FT_EXCEPTIONS.get(module_name, frozenset())
+    tree = ast.parse(source)
+    double_ok = _double_exception_lines(tree, DOUBLE_EXCEPTIONS.get(module_name, frozenset()))
     found: list[str] = []
-    for node in ast.walk(ast.parse(source)):
+    for node in ast.walk(tree):
         line = getattr(node, "lineno", 0)
         for module in _imported(node, package):
             root = module.split(".", 1)[0]
@@ -75,9 +83,20 @@ def violations(source: str, module_name: str, *, is_package: bool = False) -> li
         found.extend(
             f"{line}: nombre de doble precisión {name} (RFC-0004)"
             for name in _names(node)
-            if name in DOUBLE_NAMES
+            if name in DOUBLE_NAMES and line not in double_ok
         )
     return found
+
+
+def _double_exception_lines(tree: ast.AST, allowed_funcs: frozenset[str]) -> set[int]:
+    """Líneas dentro de las funciones con excepción ``Float64`` de RFC-0007 (por nombre)."""
+    lines: set[int] = set()
+    if not allowed_funcs:
+        return lines
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef) and node.name in allowed_funcs:
+            lines.update(range(node.lineno, (node.end_lineno or node.lineno) + 1))
+    return lines
 
 
 def _modules() -> list[tuple[Path, str, bool]]:
@@ -127,6 +146,27 @@ def test_checker_detects_violations(source: str) -> None:
 def test_checker_detects_violations_in_builtin_strategies() -> None:
     source = "import polars as pl\nx = pl.col('close').cast(pl.Float64)\n"
     assert violations(source, "finances_core.backtest.strategies.sma_cross.logic")
+
+
+def test_double_exception_is_scoped_to_named_lib_functions() -> None:
+    # RFC-0007: Float64 permitido dentro de rolling_std_stable/zscore, flagueado fuera.
+    allowed = (
+        "import polars as pl\n"
+        "def rolling_std_stable(x: pl.Expr, n: int) -> pl.Expr:\n"
+        "    return x.cast(pl.Float64).rolling_sum(window_size=n).cast(pl.Float32)\n"
+    )
+    assert violations(allowed, "finances_core.backtest.strategies._lib", is_package=True) == []
+    leaked = (
+        "import polars as pl\n"
+        "def ema(x: pl.Expr, n: int) -> pl.Expr:\n"
+        "    return x.cast(pl.Float64)\n"
+    )
+    assert violations(leaked, "finances_core.backtest.strategies._lib", is_package=True)
+    # y en otro módulo del núcleo no hay excepción alguna
+    assert violations(
+        "import polars as pl\ndef rolling_std_stable():\n    return pl.Float64\n",
+        "finances_core.backtest.metrics",
+    )
 
 
 def test_ft_strategy_manager_only_allowed_in_strategy_source() -> None:
