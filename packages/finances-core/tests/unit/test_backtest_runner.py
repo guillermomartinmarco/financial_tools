@@ -43,7 +43,7 @@ from finances_core.backtest.frames import (
     TRADES_SCHEMA,
 )
 from finances_core.backtest.strategies import Signals
-from finances_core.backtest.strategies.signals import finalize
+from finances_core.backtest.strategies.signals import finalize, position_to_signals
 from finances_core.config import FinancesSettings
 from finances_core.marketdata.tasks_lifecycle import json_field
 from finances_core.schemas.backtest import BacktestRequest, CostModel
@@ -288,8 +288,8 @@ def test_full_pipeline_writes_run_and_completes_task(
     assert (call["size_fraction"], call["initial_cash"]) == (1.0, 10_000.0)
     strategy = registry.get("sma_cross")
     params = strategy.Params.model_validate({"fast": 3, "slow": 7})
-    expected = finalize(
-        strategy.signals(call["candles"], params), n=120, warmup=strategy.warmup(params)
+    expected = position_to_signals(
+        finalize(strategy.signals(call["candles"], params), n=120, warmup=strategy.warmup(params))
     )
     assert call["signals"].entries.to_list() == expected.entries.to_list()
     assert call["signals"].exits.to_list() == expected.exits.to_list()
@@ -429,7 +429,7 @@ def _assert_failed_without_writing(
     ("body", "error", "code"),
     [
         (
-            "return Signals(entries=(close > past).cast(pl.Int8), exits=close < past)",
+            "return pl.select(position_from_events(close > past, close < past)).to_series() * 2",
             InvalidSignalsError,
             "invalid_signals",
         ),
@@ -444,7 +444,7 @@ def test_signal_failures_fail_task_without_writing(
     code: str,
 ) -> None:
     local = tmp_path / "local"
-    original = "return Signals(entries=close > past, exits=close < past)"
+    original = "return pl.select(position_from_events(close > past, close < past)).to_series()"
     assert original in VALID_LOGIC
     write_strategy(local, "bad_kind", logic=VALID_LOGIC.replace(original, body))
     engine = FakeEngine()

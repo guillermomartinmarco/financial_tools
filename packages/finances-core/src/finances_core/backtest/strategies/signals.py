@@ -13,49 +13,74 @@ from finances_core.backtest.errors import InvalidSignalsError
 from finances_core.backtest.strategies.base import Signals
 
 
-def _check_series(name: str, value: object, n: int) -> pl.Series:
-    if not isinstance(value, pl.Series):
-        msg = f"invalid_signals: {name} debe ser pl.Series (recibido {type(value).__name__})"
-        raise InvalidSignalsError(msg)
-    if value.dtype != pl.Boolean:
-        msg = f"invalid_signals: {name} debe ser Boolean (recibido {value.dtype})"
-        raise InvalidSignalsError(msg)
-    if value.len() != n:
-        msg = f"invalid_signals: {name} tiene longitud {value.len()}, se esperaba {n}"
-        raise InvalidSignalsError(msg)
-    return value
-
-
-def finalize(sig: Signals, *, n: int, warmup: int) -> Signals:
-    """Valida y normaliza las señales de una estrategia.
+def finalize(pos: pl.Series, *, n: int, warmup: int) -> pl.Series:
+    """Valida y normaliza la posición-objetivo de una estrategia.
 
     Args:
-        sig: salida de ``Strategy.signals``.
+        pos: salida de ``Strategy.signals``.
         n: número de barras (``candles.height``).
-        warmup: ``Strategy.warmup(params)``; las barras ``t < warmup`` no tienen señal.
+        warmup: ``Strategy.warmup(params)``; la posición es 0 para ``t < warmup``.
 
     Raises:
-        InvalidSignalsError: SI ``entries``/``exits`` no son ``pl.Series`` ``Boolean``,
+        InvalidSignalsError: SI ``pos`` no es casteable a ``Int8`` sin pérdida,
             su longitud difiere de ``n`` o hay nulos en ``t >= warmup``.
     """
-    entries = _check_series("entries", getattr(sig, "entries", None), n)
-    exits = _check_series("exits", getattr(sig, "exits", None), n)
-    frame = pl.DataFrame({"entries": entries, "exits": exits}).with_columns(
+    if not isinstance(pos, pl.Series):
+        msg = f"invalid_signals: pos debe ser pl.Series (recibido {type(pos).__name__})"
+        raise InvalidSignalsError(msg)
+
+    try:
+        pos = pos.cast(pl.Int8)
+    except (pl.exceptions.ComputeError, pl.exceptions.InvalidOperationError):
+        msg = "invalid_signals: pos no es casteable a Int8 sin pérdida"
+        raise InvalidSignalsError(msg) from None
+
+    if pos.len() != n:
+        msg = f"invalid_signals: pos tiene longitud {pos.len()}, se esperaba {n}"
+        raise InvalidSignalsError(msg)
+
+    # Validar dominio {-1, 0, 1} y nulos en t >= warmup
+    frame = pl.DataFrame({"pos": pos}).with_columns(
         warm=pl.int_range(pl.len(), dtype=pl.Int64) < max(warmup, 0)
     )
-    nulls = frame.filter(~pl.col("warm")).select(
-        pl.col("entries").null_count() + pl.col("exits").null_count()
-    )
+
+    # Nulos en t >= warmup son error
+    nulls = frame.filter(~pl.col("warm")).select(pl.col("pos").null_count())
     if nulls.item() > 0:
         msg = f"invalid_signals: hay {nulls.item()} nulos en barras t >= warmup ({warmup})"
         raise InvalidSignalsError(msg)
-    cleaned = frame.select(
-        pl.when(pl.col("warm")).then(False).otherwise(pl.col(name).fill_null(False)).alias(name)
-        for name in ("entries", "exits")
-    )
-    both = pl.col("entries") & pl.col("exits")
-    out = cleaned.select(
-        (pl.col("entries") & ~both).alias("entries"),
-        (pl.col("exits") & ~both).alias("exits"),
-    )
-    return Signals(entries=out["entries"], exits=out["exits"])
+
+    # Dominio: cualquier valor fuera de {-1, 0, 1} es error
+    out_of_domain = frame.filter(~pl.col("warm") & (~pl.col("pos").is_in([-1, 0, 1])))
+    if out_of_domain.height > 0:
+        msg = "invalid_signals: pos contiene valores fuera de domain {-1, 0, 1}"
+        raise InvalidSignalsError(msg)
+
+    # Normalización: t < warmup -> 0 (plano)
+    return frame.select(
+        pl.when(pl.col("warm")).then(0).otherwise(pl.col("pos")).cast(pl.Int8).alias("position")
+    )["position"]
+
+
+def position_to_signals(pos: pl.Series) -> Signals:
+    """Deriva flancos (entries/exits) para el motor largo/plano a partir de la posición.
+
+    Reglas:
+    - entries[t] = (pos[t]==1) & (pos[t-1]!=1)
+    - exits[t] = (pos[t]!=1) & (pos[t-1]==1)
+    - pos[-1] = 0 (la primera barra puede abrir)
+
+    Raises:
+        StrategyRuntimeError: SI ``pos`` contiene -1 (corto no soportado hasta G2b).
+    """
+    if bool((pos == -1).any()):
+        msg = "invalid_signals: short (-1) no soportado hasta G2b (motor largo/plano)"
+        raise InvalidSignalsError(msg)
+
+    # Shift para obtener pos[t-1], llenando el primer elemento con 0
+    prev_pos = pos.shift(1).fill_null(0)
+
+    entries = (pos == 1) & (prev_pos != 1)
+    exits = (pos != 1) & (prev_pos == 1)
+
+    return Signals(entries=entries, exits=exits)

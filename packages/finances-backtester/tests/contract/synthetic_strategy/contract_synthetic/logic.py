@@ -9,7 +9,8 @@ ejecuta ``Signals`` arbitrarias sin código por estrategia.
 from __future__ import annotations
 
 import polars as pl
-from finances_core.backtest.strategies import BaseStrategy, Signals
+from finances_core.backtest.strategies import BaseStrategy
+from finances_core.backtest.strategies._lib import position_from_events
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -33,10 +34,11 @@ class ContractSynthetic(BaseStrategy[ContractSyntheticParams]):
         return 0
 
     @staticmethod
-    def signals(candles: pl.DataFrame, params: ContractSyntheticParams) -> Signals:
+    def signals(candles: pl.DataFrame, params: ContractSyntheticParams) -> pl.Series:
         t = pl.int_range(pl.len(), dtype=pl.Int64)
-        frame = candles.select(
-            entries=((t * 7) % params.entry_stride) == 0,
-            exits=((t * 5 + 1) % params.exit_stride) == 0,
-        )
-        return Signals(entries=frame["entries"], exits=frame["exits"])
+        return candles.select(
+            position_from_events(
+                ((t * 7) % params.entry_stride) == 0,
+                ((t * 5 + 1) % params.exit_stride) == 0,
+            )
+        ).to_series()

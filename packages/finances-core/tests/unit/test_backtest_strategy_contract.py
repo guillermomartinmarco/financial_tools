@@ -19,57 +19,57 @@ from finances_core.backtest.strategies import (
 from finances_core.backtest.strategies.signals import finalize
 
 
-def _sig(entries: list[bool | None], exits: list[bool | None]) -> Signals:
-    return Signals(pl.Series(entries, dtype=pl.Boolean), pl.Series(exits, dtype=pl.Boolean))
+def _pos(values: list[int | None]) -> pl.Series:
+    return pl.Series(values, dtype=pl.Int8)
 
 
 # ------------------------------------------------------------------------ finalize
-def test_finalize_rejects_non_boolean_dtype() -> None:
-    sig = Signals(pl.Series([1, 0, 1], dtype=pl.Int8), pl.Series([False] * 3))
-    with pytest.raises(InvalidSignalsError, match="entries.*Boolean"):
+def test_finalize_rejects_value_not_castable_to_int8() -> None:
+    # Un dtype más ancho vale si cada valor cabe en Int8; 200 desborda y se rechaza.
+    sig = pl.Series([1, 0, 200], dtype=pl.Int32)
+    with pytest.raises(InvalidSignalsError, match="Int8"):
         finalize(sig, n=3, warmup=0)
 
 
 def test_finalize_rejects_non_series() -> None:
-    sig = Signals([True, False], pl.Series([False, False]))  # type: ignore[arg-type]
-    with pytest.raises(InvalidSignalsError, match="entries"):
-        finalize(sig, n=2, warmup=0)
+    sig = [1, 0, 1]  # type: ignore[arg-type]
+    with pytest.raises(InvalidSignalsError, match="pl.Series"):
+        finalize(sig, n=3, warmup=0)
 
 
 def test_finalize_rejects_length_mismatch() -> None:
-    with pytest.raises(InvalidSignalsError, match="exits.*longitud"):
-        finalize(_sig([False, False, False], [False, False]), n=3, warmup=0)
+    with pytest.raises(InvalidSignalsError, match="longitud"):
+        finalize(_pos([0, 0, 0]), n=4, warmup=0)
 
 
 def test_finalize_rejects_nulls_after_warmup() -> None:
     with pytest.raises(InvalidSignalsError, match="nulos"):
-        finalize(_sig([False, False, None], [False, False, False]), n=3, warmup=2)
+        finalize(_pos([0, 0, None]), n=3, warmup=2)
 
 
-def test_finalize_converts_nulls_and_warmup_to_false() -> None:
-    out = finalize(_sig([None, True, True, False], [True, None, False, True]), n=4, warmup=2)
-    assert out.entries.to_list() == [False, False, True, False]
-    assert out.exits.to_list() == [False, False, False, True]
-    assert out.entries.dtype == pl.Boolean
-    assert out.exits.dtype == pl.Boolean
-    assert out.entries.null_count() == 0
+def test_finalize_converts_nulls_and_warmup_to_zero() -> None:
+    out = finalize(_pos([None, 1, 1, 0]), n=4, warmup=2)
+    assert out.to_list() == [0, 0, 1, 0]
+    assert out.dtype == pl.Int8
+    assert out.null_count() == 0
 
 
 def test_finalize_cancels_simultaneous_entry_and_exit() -> None:
-    out = finalize(_sig([True, True, False], [True, False, True]), n=3, warmup=0)
-    assert out.entries.to_list() == [False, True, False]
-    assert out.exits.to_list() == [False, False, True]
+    # In the new contract, this is handled by position_from_events.
+    # finalize only validates the resulting position.
+    # We test that it accepts a valid position.
+    out = finalize(_pos([0, 1, 0]), n=3, warmup=0)
+    assert out.to_list() == [0, 1, 0]
 
 
 def test_finalize_warmup_beyond_length_masks_everything() -> None:
-    out = finalize(_sig([True, True], [False, True]), n=2, warmup=10)
-    assert out.entries.to_list() == [False, False]
-    assert out.exits.to_list() == [False, False]
+    out = finalize(_pos([1, 1]), n=2, warmup=10)
+    assert out.to_list() == [0, 0]
 
 
 def test_finalize_names_output_series() -> None:
-    out = finalize(_sig([True], [False]), n=1, warmup=0)
-    assert (out.entries.name, out.exits.name) == ("entries", "exits")
+    out = finalize(_pos([0]), n=1, warmup=0)
+    assert out.name == "position"
 
 
 # --------------------------------------------------------------------- BaseStrategy
@@ -91,9 +91,10 @@ class Demo(BaseStrategy[DemoParams]):
         return params.window
 
     @staticmethod
-    def signals(candles: pl.DataFrame, params: DemoParams) -> Signals:
+    def signals(candles: pl.DataFrame, params: DemoParams) -> pl.Series:
         close = candles["close"]
-        return Signals(close > close.shift(params.window), close < close.shift(params.window))
+        # Return a position series
+        return pl.Series((close > close.shift(params.window)).cast(pl.Int8), dtype=pl.Int8)
 
 
 def test_valid_subclass_validates_and_runs_with_generic_params() -> None:
@@ -101,7 +102,7 @@ def test_valid_subclass_validates_and_runs_with_generic_params() -> None:
     params = DemoParams.model_validate(Demo.default_params)
     candles = pl.DataFrame({"close": pl.Series([1.0, 2.0, 3.0, 2.0], dtype=pl.Float32)})
     out = finalize(Demo.signals(candles, params), n=4, warmup=Demo.warmup(params))
-    assert out.entries.to_list() == [False, False, True, False]
+    assert out.to_list() == [0, 0, 1, 0]
     assert Demo.metrics_target is None
     assert isinstance(Demo(), Demo)
 

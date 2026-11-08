@@ -18,7 +18,7 @@ from finances_core.backtest.catalog import StrategyRegistry, get_registry
 from finances_core.backtest.engine_api import BacktestEngine, CostModel, EngineOutput
 from finances_core.backtest.errors import StrategyRuntimeError
 from finances_core.backtest.frames import validate_engine_output
-from finances_core.backtest.strategies.signals import finalize
+from finances_core.backtest.strategies.signals import finalize, position_to_signals
 from finances_core.config import FinancesSettings
 
 
@@ -60,7 +60,8 @@ def evaluate_params(  # noqa: PLR0913 - modelo de ejecución completo (RF-5) con
         raw = strategy_cls.signals(candles, validated)
     except Exception as exc:
         raise StrategyRuntimeError(kind, exc) from exc
-    signals = finalize(raw, n=candles.height, warmup=warmup)
+    pos = finalize(raw, n=candles.height, warmup=warmup)
+    signals = position_to_signals(pos)
     output = engine.run(candles, signals, costs, size_fraction, initial_cash)
     validate_engine_output(output, candles.height)
     return output

@@ -38,6 +38,7 @@ import polars as pl
 import pytest
 from finances_core.backtest.catalog import BUILTIN_DIR, build_registry
 from finances_core.backtest.engine_api import CostModel, Signals
+from finances_core.backtest.strategies.signals import finalize, position_to_signals
 
 from finances_backtester.ft_vectorbt.engine import VectorbtEngine
 
@@ -119,7 +120,10 @@ def sma_signals(candles: pl.DataFrame) -> Signals:
     """Senales de ``sma_cross`` con sus parametros por defecto (20/100), via el nucleo."""
     strategy = build_registry(builtin_dir=BUILTIN_DIR, local_dir=None).get(KIND)
     params = strategy.Params.model_validate(dict(strategy.default_params))
-    return strategy.signals(candles, params)
+    pos = finalize(
+        strategy.signals(candles, params), n=candles.height, warmup=strategy.warmup(params)
+    )
+    return position_to_signals(pos)
 
 
 # ------------------------------------------------------------------ medicion

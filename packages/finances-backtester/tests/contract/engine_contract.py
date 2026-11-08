@@ -38,7 +38,7 @@ from finances_core.backtest.errors import OutputOutOfRangeError
 from finances_core.backtest.frames import validate_engine_output
 from finances_core.backtest.metrics import compute
 from finances_core.backtest.strategies.base import Signals
-from finances_core.backtest.strategies.signals import finalize
+from finances_core.backtest.strategies.signals import finalize, position_to_signals
 from finances_core.schemas.backtest import CostModel
 
 from tests.contract.fixture import GOLDEN_COSTS, GOLDEN_PARAMS, KINDS, TIMEFRAME, fixture_candles
@@ -158,7 +158,8 @@ def core_signals(kind: str) -> Signals:
     )
     candles = fixture_candles().to_frame()
     raw = strategy.signals(candles, params)
-    signals: Signals = finalize(raw, n=candles.height, warmup=strategy.warmup(params))
+    pos = finalize(raw, n=candles.height, warmup=strategy.warmup(params))
+    signals: Signals = position_to_signals(pos)
     return signals
 
 

@@ -214,10 +214,18 @@ async def test_exception_in_local_strategy_signals_fails_the_task(
     folder = Path(service_settings.STRATEGIES_DIR) / SYNTHETIC_KIND
     shutil.copytree(SYNTHETIC_DIR / SYNTHETIC_KIND, folder, ignore=shutil.ignore_patterns("__*"))
     logic = folder / "logic.py"
-    body = 'return Signals(entries=frame["entries"], exits=frame["exits"])'
+    body = (
+        "        t = pl.int_range(pl.len(), dtype=pl.Int64)\n"
+        "        return candles.select(\n"
+        "            position_from_events(\n"
+        "                ((t * 7) % params.entry_stride) == 0,\n"
+        "                ((t * 5 + 1) % params.exit_stride) == 0,\n"
+        "            )\n"
+        "        ).to_series()"
+    )
     text = logic.read_text(encoding="utf-8")
     assert body in text
-    logic.write_text(text.replace(body, 'raise ValueError("local boom")'), encoding="utf-8")
+    logic.write_text(text.replace(body, '        raise ValueError("local boom")'), encoding="utf-8")
     simulate_calls: list[int] = []
     monkeypatch.setattr(engine, "simulate", lambda *a, **k: simulate_calls.append(1))
     request = make_request(create_strategy({"kind": SYNTHETIC_KIND, "params": {}}))

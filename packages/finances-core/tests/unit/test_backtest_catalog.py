@@ -50,7 +50,7 @@ def _registry(dirs: tuple[Path, Path]) -> StrategyRegistry:
 
 
 def test_constants() -> None:
-    assert CATALOG_VERSION == "1.0.0"
+    assert CATALOG_VERSION == "1.1.0"
     assert RESULT_SCHEMA_VERSION == "1"
 
 
@@ -140,9 +140,8 @@ def test_invalid_local_is_registered_with_readable_error(
 
 def test_import_error_reports_file_and_line_in_sibling(dirs: tuple[Path, Path]) -> None:
     logic = VALID_LOGIC.replace(
-        "from finances_core.backtest.strategies import BaseStrategy, Signals",
-        "from finances_core.backtest.strategies import BaseStrategy, Signals\n"
-        "from . import helpers",
+        "from finances_core.backtest.strategies import BaseStrategy",
+        "from finances_core.backtest.strategies import BaseStrategy\nfrom . import helpers",
     )
     write_strategy(
         dirs[1], "sibling_fail", logic=logic, extra_files={"helpers.py": "x = 1\ny = {}['k']\n"}
@@ -164,12 +163,12 @@ def test_invalid_folder_name_is_rejected_without_import(dirs: tuple[Path, Path])
 
 def test_sibling_modules_load_without_touching_sys_path(dirs: tuple[Path, Path]) -> None:
     logic = VALID_LOGIC.replace(
-        "        return Signals(entries=close > past, exits=close < past)",
-        "        return Signals(entries=helpers.above(close, past), exits=close < past)",
+        "return pl.select(position_from_events(close > past, close < past)).to_series()",
+        "return pl.select("
+        "position_from_events(helpers.above(close, past), close < past)).to_series()",
     ).replace(
-        "from finances_core.backtest.strategies import BaseStrategy, Signals",
-        "from finances_core.backtest.strategies import BaseStrategy, Signals\n\n"
-        "from . import helpers",
+        "from finances_core.backtest.strategies import BaseStrategy",
+        "from finances_core.backtest.strategies import BaseStrategy\n\nfrom . import helpers",
     )
     helpers = (
         "import polars as pl\n\n\n"

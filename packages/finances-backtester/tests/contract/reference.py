@@ -229,6 +229,37 @@ def reference_signals(kind: str, candles: Candles, params: Params) -> SignalPair
     )
 
 
+def reference_position(entries: Sequence[bool], exits: Sequence[bool]) -> list[int]:
+    """Posición-objetivo largo/plano sostenida a partir de eventos (RF-16, enmienda L0-G2a).
+
+    Semantica de ``_lib.position_from_events``, reimplementada en Python puro para no
+    depender del núcleo: entrada tiene prioridad, la posición se mantiene entre eventos y
+    arranca plana (0).
+    """
+    pos: list[int] = []
+    current = 0
+    for enter, exit_ in zip(entries, exits, strict=True):
+        if enter:
+            current = 1
+        elif exit_:
+            current = 0
+        pos.append(current)
+    return pos
+
+
+def position_edges(pos: Sequence[int]) -> SignalPair:
+    """Flancos de la posición largo/plano: entra en +1 (``enter``) y deja +1 (``exit``)."""
+    n = len(pos)
+    enters = [False] * n
+    exits = [False] * n
+    prev = 0
+    for t, value in enumerate(pos):
+        enters[t] = value == 1 and prev != 1
+        exits[t] = value != 1 and prev == 1
+        prev = value
+    return enters, exits
+
+
 def threshold_margin(kind: str, candles: Candles, params: Params) -> tuple[float, int]:
     """Menor distancia relativa ``|a - b| / |b|`` de toda comparación de umbral evaluada.
 

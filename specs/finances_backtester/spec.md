@@ -181,7 +181,7 @@ Tabla común a todos los motores (cada `ft_*` la reproduce en su spec):
 - `Params`: modelo Pydantic con `model_config = ConfigDict(extra="forbid")`, **fuente única** de tipos, rangos y relaciones (validadores); el JSON Schema se exporta desde él (RF-1).
 - `default_params`: valores por defecto que **DEBEN** validar contra `Params`.
 - `warmup(params) -> int`: primer índice `t` con señal posible; el núcleo fuerza `false` en `t < warmup` y lo usa para `insufficient_history` (RF-4).
-- `signals(candles: pl.DataFrame, params) -> Signals`: función **pura y determinista** que recibe las velas de RF-4 (`Float32`/`Int64`) y devuelve `Signals(entries, exits)`, dos `pl.Series` `Boolean` de la misma longitud que `candles` (pueden construirse con expresiones Polars). Solo Polars `Float32`; sin `pandas`/NumPy/`float64` (RF-11), sin E/S, sin red, sin estado entre llamadas, sin aleatoriedad no sembrada, sin leer fuera de `candles`.
+- `signals(candles: pl.DataFrame, params) -> pl.Series` (posición-objetivo `Int8 {-1,0,+1}`; **ver Enmienda L0-G2a**): función **pura y determinista** que recibe las velas de RF-4 (`Float32`/`Int64`) y devuelve `Signals(entries, exits)`, dos `pl.Series` `Boolean` de la misma longitud que `candles` (pueden construirse con expresiones Polars). Solo Polars `Float32`; sin `pandas`/NumPy/`float64` (RF-11), sin E/S, sin red, sin estado entre llamadas, sin aleatoriedad no sembrada, sin leer fuera de `candles`.
 - `metrics_target` (opcional): `MetricsTarget(metric, direction)` con `metric` ∈ nombres de RF-7 y `direction` ∈ `{max, min}`; es **solo informativo** en este ciclo (objetivo declarado para una futura optimización); no cambia la ejecución.
 - **Normalización de señales** (`signals.finalize`, común a todos los motores): **SI** `entries`/`exits` no son `Boolean` o su longitud difiere de `candles.height` o hay nulos en `t ≥ warmup`, **ENTONCES** `invalid_signals`; los nulos y valores con `t < warmup` pasan a `false`; las barras con `entry` y `exit` simultáneas pasan ambas a `false`.
 - **SI** `signals` lanza una excepción, **ENTONCES** `strategy_runtime_error` (la tarea falla; el detalle se registra en el log, sin trazas en la respuesta de la API).
@@ -324,3 +324,45 @@ existente lo usa, así que ni los resultados ni el `run_id` cambian. Por eso **`
   **byte-idénticos** (ninguna usa volumen, y `CATALOG_VERSION` no cambia);
   `strategy-authoring.md` y `_template` documentan que `volume` está disponible. Tests: nuevo caso
   que verifica la presencia y dtype de `volume` en el frame de señales + un `volume < 0` → `invalid_source`.
+
+## Enmienda L0-G2a — Migración del contrato de señales a posición-objetivo
+
+Segundo slice del Lote 0 (`docs/design/strategy-library.md`). Reemplaza el contrato por **eventos**
+`Signals(entries, exits)` booleanos por una **posición-objetivo** por barra, preparando cortos
+(G2b) sin reescribir estrategias. Cambio de contrato **breaking** → `CATALOG_VERSION` sube de
+`1.0.0` a `1.1.0` (el `run_id` incluye `catalog_version`, así que cambia; el **output** de
+`trades`/`equity` de las 3 integradas DEBE quedar byte-idéntico).
+
+**Contrato nuevo:**
+- `signals(candles, params) -> pl.Series` de **`Int8`** con dominio `{-1, 0, +1}` (`+1` largo,
+  `0` plano, `-1` corto), misma longitud que `candles`. Es la **posición deseada al cierre de
+  `t`** (no un evento). Sigue siendo pura, determinista, Polars `Float32`, sin anticipación.
+- **Helper `strategies/_lib.position_from_events(enter: pl.Expr, exit_: pl.Expr) -> pl.Expr`**:
+  `when(enter).then(1).when(exit_).then(0).otherwise(None).forward_fill().fill_null(0)` (cast
+  `Int8`). Es **prefijo-estable** (`forward_fill` solo mira el pasado) y reproduce una posición
+  sostenida largo/plano a partir de los mismos eventos de entrada/salida. (`enter` tiene
+  prioridad sobre `exit_` en el mismo `t`.)
+- **`finalize(pos, *, n, warmup)`**: valida `pl.Series` `Int8` (o casteable sin pérdida), longitud
+  `n`, dominio `{-1,0,+1}`; nulos en `t ≥ warmup` → `invalid_signals`; nulos y toda `t < warmup`
+  → `0` (plano). Ya no existe el conflicto "entry y exit simultáneas".
+- **Runner → motor (G2a, motor largo/plano)**: tras `finalize`, el runner deriva los flancos para
+  el motor actual: `entries[t] = pos[t]==1 ∧ pos[t-1]≠1`, `exits[t] = pos[t]≠1 ∧ pos[t-1]==1`
+  (`pos[-1]=0`). **SI** `pos` contiene `-1` (corto), **ENTONCES** `strategy_runtime_error`
+  (`short no soportado hasta G2b`). El contrato del motor (`engine_api`, RF-10) **no cambia**:
+  sigue recibiendo `Signals(entries, exits)`; el motor no se toca en G2a.
+
+**Migración de las 3 integradas (comportamiento idéntico):** cada una envuelve sus **mismos
+eventos** en `position_from_events`:
+- `sma_cross`: `position_from_events(cross_above(fast,slow), cross_below(fast,slow))` (preserva las
+  ties: en `fast==slow` no hay evento y la posición se sostiene).
+- `rsi_reversion`: `position_from_events(cross_below(rsi,lower), cross_above(rsi,upper))` (histéresis).
+- `donchian_breakout`: `position_from_events(close>high_prev, close<low_prev)` (sostiene en el canal).
+
+- **Hecho cuando**: `signals` devuelve `Int8 {-1,0,+1}`; `finalize` y el runner implementan lo de
+  arriba; las 3 integradas migradas; el **`trades`/`equity` de las 3 queda byte-idéntico** sobre
+  la serie sintética de contrato y sobre un dataset real (comparación de output del motor, no de
+  las listas de señales); `CATALOG_VERSION == "1.1.0"` y el vector fijo de `run_id` se recomputa;
+  la prueba de no-anticipación (RF-20 punto 4) compara la **serie `pos`** `head(k)`; `_template`,
+  `strategy-authoring.md` y los tests que referencian `entries`/`exits` quedan migrados; suites
+  finances-core y finances-backtester verdes; ruff/mypy verdes. El motor (`ft_vectorbt`) **no se
+  modifica**. `-1` (corto) queda reservado para G2b.

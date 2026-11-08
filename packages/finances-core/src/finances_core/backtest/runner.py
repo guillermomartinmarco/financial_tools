@@ -40,8 +40,7 @@ from finances_core.backtest.catalog import (
 from finances_core.backtest.engine_api import BacktestEngine, EngineOutput
 from finances_core.backtest.errors import BacktestError, StrategyRuntimeError
 from finances_core.backtest.frames import validate_engine_output
-from finances_core.backtest.strategies.base import Signals
-from finances_core.backtest.strategies.signals import finalize
+from finances_core.backtest.strategies.signals import finalize, position_to_signals
 from finances_core.config import FinancesSettings
 from finances_core.schemas.backtest import (
     BacktestRequest,
@@ -169,13 +168,13 @@ def _error_message(exc: BaseException) -> str:
 
 def _compute_signals(
     registry: StrategyRegistry, strategy: ResolvedStrategy, frame: pl.DataFrame
-) -> tuple[Signals, int]:
+) -> tuple[pl.Series, int]:
     """Señales normalizadas (RF-16) y ``warmup`` de la estrategia resuelta.
 
     Raises:
         StrategyRuntimeError: SI ``warmup``/``signals`` lanzan una excepción.
-        InvalidSignalsError: SI la salida no es ``Boolean``, de longitud ``n`` y sin nulos
-            en ``t >= warmup``.
+        InvalidSignalsError: SI la salida no es casteable a Int8, de longitud ``n``
+            y sin nulos en ``t >= warmup``.
     """
     strategy_cls = registry.get(strategy.kind)
     params = strategy_cls.Params.model_validate(strategy.params)
@@ -313,7 +312,9 @@ def _run(  # noqa: PLR0913, PLR0917 - estado interno de run_backtest
 
     phases.advance("SIGNALS")
     mark = time.perf_counter()
-    signals, warmup = _compute_signals(active, strategy, candles.frame)
+    pos, warmup = _compute_signals(active, strategy, candles.frame)
+    # Derivar flancos para el motor largo/plano (G2a)
+    signals = position_to_signals(pos)
     fields["signals_ms"] = _ms(time.perf_counter() - mark)
 
     phases.advance("SIMULATING")

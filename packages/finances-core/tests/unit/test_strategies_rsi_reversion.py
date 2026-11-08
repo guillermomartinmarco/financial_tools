@@ -22,7 +22,7 @@ Caso de 10 barras calculado a mano con ``period = 2``, ``lower = 30``, ``upper =
 from __future__ import annotations
 
 import pytest
-from backtest_helpers import builtin_signals, candles_frame
+from backtest_helpers import builtin_position, candles_frame
 
 from finances_core.backtest.catalog import BUILTIN_DIR, get_registry, parse_strategy_parameters
 from finances_core.backtest.errors import InvalidParamsError
@@ -33,13 +33,12 @@ from finances_core.config import FinancesSettings
 KIND = "rsi_reversion"
 CLOSES = [10.0, 11.0, 12.0, 11.0, 9.0, 10.0, 13.0, 13.0, 13.0, 10.0]
 PARAMS = {"period": 2, "lower": 30.0, "upper": 70.0}
-F, T = False, True
 
 
 def test_hand_computed_ten_bars() -> None:
-    entries, exits = builtin_signals(KIND, candles_frame(CLOSES), **PARAMS)
-    assert entries == [F, F, F, F, T, F, F, F, F, T]
-    assert exits == [F, F, F, F, F, F, T, F, F, F]
+    # entradas en t=4, 9 y salida en t=6 -> posición sostenida (largo/plano):
+    pos = builtin_position(KIND, candles_frame(CLOSES), **PARAMS)
+    assert pos == [0, 0, 0, 0, 1, 1, 0, 0, 0, 1]
 
 
 def test_warmup_is_period_plus_one() -> None:
@@ -48,17 +47,15 @@ def test_warmup_is_period_plus_one() -> None:
 
 
 def test_flat_series_rsi_50_has_no_signal() -> None:
-    entries, exits = builtin_signals(KIND, candles_frame([7.0] * 10), **PARAMS)
-    assert entries == [F] * 10
-    assert exits == [F] * 10
+    pos = builtin_position(KIND, candles_frame([7.0] * 10), **PARAMS)
+    assert pos == [0] * 10
 
 
 def test_only_gains_rsi_100_has_no_signal() -> None:
     # RSI = 100 desde la semilla: nunca hay una barra previa <= upper
     closes = [float(10 + i) for i in range(10)]
-    entries, exits = builtin_signals(KIND, candles_frame(closes), **PARAMS)
-    assert entries == [F] * 10
-    assert exits == [F] * 10
+    pos = builtin_position(KIND, candles_frame(closes), **PARAMS)
+    assert pos == [0] * 10
 
 
 @pytest.mark.parametrize(

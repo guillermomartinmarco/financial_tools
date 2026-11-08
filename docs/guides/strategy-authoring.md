@@ -50,8 +50,9 @@ print(estrategias)
    genera de él. `default_params` debe validar contra `Params`.
 3. **Escribe `warmup(params)`**: el primer índice `t` en el que tu señal puede existir.
    El núcleo fuerza `false` en `t < warmup` y lo usa para `insufficient_history`.
-4. **Escribe `signals(candles, params)`**: función pura que devuelve
-   `Signals(entries, exits)`, dos `pl.Series` `Boolean` de longitud `candles.height`.
+4. **Escribe `signals(candles, params)`**: función pura que devuelve una `pl.Series`
+   `Int8` de posición-objetivo {-1, 0, +1} (hoy solo largo/plano: {0, +1}) de longitud
+   `candles.height`: +1 mantener largo, 0 plano, -1 corto (aún no ejecutable).
    `candles` trae `open_time_ms` (`Int64`) y `open`, `high`, `low`, `close`, `volume` (`Float32`).
    Usa solo barras `≤ t` y las ayudas de `finances_core.backtest.strategies._lib`
    (`sma`, `rsi_wilder`, `rolling_max_prev`, `rolling_min_prev`, `cross_above`,
@@ -101,7 +102,7 @@ from __future__ import annotations
 import polars as pl
 from pydantic import BaseModel, ConfigDict, Field
 
-from finances_core.backtest.strategies import BaseStrategy, Signals
+from finances_core.backtest.strategies import BaseStrategy
 
 
 class MiMomentoParams(BaseModel):
@@ -122,14 +123,17 @@ class MiMomento(BaseStrategy[MiMomentoParams]):
         return params.window
 
     @staticmethod
-    def signals(candles: pl.DataFrame, params: MiMomentoParams) -> Signals:
+    def signals(candles: pl.DataFrame, params: MiMomentoParams) -> pl.Series:
         close = pl.col("close")
         past = close.shift(params.window)  # shift positivo: solo mira hacia atrás
-        frame = candles.select(
-            entries=(close > past).fill_null(value=False),
-            exits=(close < past).fill_null(value=False),
+        enter = close > past
+        exit_ = close < past
+        # Posición-objetivo largo/plano: entra en +1, sale a 0, mantiene entre eventos.
+        position = (
+            pl.when(enter).then(1).when(exit_).then(0).otherwise(None)
+            .forward_fill().fill_null(0).cast(pl.Int8)
         )
-        return Signals(entries=frame["entries"], exits=frame["exits"])
+        return candles.select(position).to_series()
 ```
 
 <!-- guia:archivo $FT_STRATEGIES_DIR/mi_momento/README.md -->

@@ -24,7 +24,8 @@ from __future__ import annotations
 import polars as pl
 from pydantic import BaseModel, ConfigDict, Field
 
-from finances_core.backtest.strategies import BaseStrategy, Signals
+from finances_core.backtest.strategies import BaseStrategy
+from finances_core.backtest.strategies._lib import position_from_events
 
 
 class MomentumParams(BaseModel):
@@ -45,10 +46,10 @@ class Momentum(BaseStrategy[MomentumParams]):
         return params.window
 
     @staticmethod
-    def signals(candles: pl.DataFrame, params: MomentumParams) -> Signals:
+    def signals(candles: pl.DataFrame, params: MomentumParams) -> pl.Series:
         close = candles["close"]
         past = close.shift(params.window)
-        return Signals(entries=close > past, exits=close < past)
+        return pl.select(position_from_events(close > past, close < past)).to_series()
 '''
 
 #: README válido para :data:`VALID_LOGIC`. ``{table}`` es la tabla de parámetros.
@@ -135,17 +136,14 @@ def ohlc_frame(*, high: list[float], low: list[float], close: list[float]) -> pl
     )
 
 
-def builtin_signals(
-    kind: str, candles: pl.DataFrame, **params: int | float
-) -> tuple[list[bool], list[bool]]:
-    """Señales **normalizadas** (``finalize``) de la integrada ``kind`` como listas.
+def builtin_position(kind: str, candles: pl.DataFrame, **params: int | float) -> list[int]:
+    """Posición-objetivo **normalizada** (``finalize``) de la integrada ``kind`` como lista.
 
     Usa el registro real del proceso (sin ``FT_STRATEGIES_DIR``), igual que el ``runner``.
+    Los valores son ``Int8`` en ``{-1, 0, +1}`` (hoy solo largo/plano: ``{0, +1}``).
     """
     strategy = get_registry(FinancesSettings()).get(kind)
     validated = strategy.Params.model_validate(params)
     raw = strategy.signals(candles, validated)
-    assert raw.entries.null_count() == 0  # calentamiento = false, nunca nulo
-    assert raw.exits.null_count() == 0
-    sig = finalize(raw, n=candles.height, warmup=strategy.warmup(validated))
-    return sig.entries.to_list(), sig.exits.to_list()
+    pos = finalize(raw, n=candles.height, warmup=strategy.warmup(validated))
+    return pos.to_list()

@@ -37,6 +37,8 @@ from tests.contract.reference import (
     Candles,
     Costs,
     equity_frame,
+    position_edges,
+    reference_position,
     reference_signals,
     simulate,
     summarize,
@@ -210,7 +212,8 @@ def test_each_strategy_trades_at_least_five_times(kind: str) -> None:
 def test_reference_reproduces_golden(kind: str) -> None:
     candles = fixture_candles()
     entries, exits = reference_signals(kind, candles, GOLDEN_PARAMS[kind])
-    assert (entries, exits) == golden_signals(kind)
+    # El golden guarda los flancos de la posición-objetivo (L0-G2a), no los eventos crudos.
+    assert position_edges(reference_position(entries, exits)) == golden_signals(kind)
     sim = simulate(candles, entries, exits, GOLDEN_COSTS)
     assert trades_frame(sim).equals(golden_table("trades", kind))
     assert equity_frame(candles, sim).equals(golden_table("equity", kind))

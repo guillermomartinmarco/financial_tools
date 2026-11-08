@@ -26,7 +26,7 @@ from finances_core.backtest.strategies.testing import (
 SIGNALS_BODY = """\
         close = candles["close"]
         past = close.shift(params.window)
-        return Signals(entries=close > past, exits=close < past)
+        return pl.select(position_from_events(close > past, close < past)).to_series()
 """
 
 
@@ -95,7 +95,8 @@ def test_lookahead_with_shift_minus_one_fails(tmp_path: Path) -> None:
         '        close = candles["close"]\n'
         "        future = close.shift(-1)\n"
         "        up = (future > close).fill_null(False)\n"
-        "        return Signals(entries=up, exits=(future < close).fill_null(False))\n"
+        "        down = (future < close).fill_null(False)\n"
+        "        return pl.select(position_from_events(up, down)).to_series()\n"
     )
     registry = _registry(tmp_path, peek_kind=_logic(body))
     with pytest.raises(StrategyContractError, match="anticipación") as exc:
@@ -106,21 +107,21 @@ def test_lookahead_with_shift_minus_one_fails(tmp_path: Path) -> None:
 def test_deterministic_lookahead_is_detected_at_every_cut(tmp_path: Path) -> None:
     body = (
         '        nxt = candles["close"].shift(-1).is_not_null()\n'
-        "        return Signals(entries=nxt, exits=nxt & False)\n"
+        "        return pl.select(position_from_events(nxt, ~nxt)).to_series()\n"
     )
     with pytest.raises(StrategyContractError, match=r"k=4: .*t=3") as exc:
         assert_strategy_contract("next_kind", _registry(tmp_path, next_kind=_logic(body)))
     assert exc.value.check == 4
 
 
-def test_wrong_dtype_fails(tmp_path: Path) -> None:
+def test_out_of_domain_position_fails(tmp_path: Path) -> None:
     body = (
         '        close = candles["close"]\n'
         "        flags = (close > close.shift(1)).fill_null(False).cast(pl.Int8)\n"
-        "        return Signals(entries=flags, exits=flags)\n"
+        "        return flags * 2\n"  # valores {0, 2}: fuera de {-1, 0, +1}
     )
-    with pytest.raises(StrategyContractError, match="Boolean") as exc:
-        assert_strategy_contract("int_kind", _registry(tmp_path, int_kind=_logic(body)))
+    with pytest.raises(StrategyContractError, match="domain") as exc:
+        assert_strategy_contract("dom_kind", _registry(tmp_path, dom_kind=_logic(body)))
     assert exc.value.check == 3
 
 
@@ -128,7 +129,7 @@ def test_nulls_after_warmup_fail(tmp_path: Path) -> None:
     body = (
         '        close = candles["close"]\n'
         "        past = close.shift(params.window + 5)\n"
-        "        return Signals(entries=close > past, exits=close < past)\n"
+        "        return (close > past).cast(pl.Int8)\n"  # nulos más allá del calentamiento
     )
     with pytest.raises(StrategyContractError, match="nulos") as exc:
         assert_strategy_contract("null_kind", _registry(tmp_path, null_kind=_logic(body)))
@@ -140,7 +141,7 @@ def test_mutating_candles_fails(tmp_path: Path) -> None:
         '        close = candles["close"]\n'
         '        candles.drop_in_place("open")\n'
         "        past = close.shift(params.window)\n"
-        "        return Signals(entries=close > past, exits=close < past)\n"
+        "        return pl.select(position_from_events(close > past, close < past)).to_series()\n"
     )
     with pytest.raises(StrategyContractError, match="muta") as exc:
         assert_strategy_contract("mut_kind", _registry(tmp_path, mut_kind=_logic(body)))
@@ -154,7 +155,7 @@ def test_non_deterministic_strategy_fails(tmp_path: Path) -> None:
         "        flip = len(_CALLS) % 2 == 0\n"
         "        past = close.shift(params.window)\n"
         "        cond = (close > past) if flip else (close < past)\n"
-        "        return Signals(entries=cond, exits=~cond)\n"
+        "        return pl.select(position_from_events(cond, ~cond)).to_series()\n"
     )
     registry = _registry(tmp_path, rand_kind=_logic(body, prelude="_CALLS: list[int] = []"))
     with pytest.raises(StrategyContractError, match="determinista") as exc:
@@ -174,7 +175,7 @@ def test_every_valid_cut_is_evaluated(tmp_path: Path) -> None:
         "        SEEN.append(candles.height)\n"
         '        close = candles["close"]\n'
         "        past = close.shift(params.window)\n"
-        "        return Signals(entries=close > past, exits=close < past)\n"
+        "        return pl.select(position_from_events(close > past, close < past)).to_series()\n"
     )
     registry = _registry(tmp_path, spy_kind=_logic(body, prelude="SEEN: list[int] = []"))
     assert_strategy_contract("spy_kind", registry)
@@ -187,7 +188,7 @@ def test_warmup_beyond_series_discards_cuts_without_error(tmp_path: Path) -> Non
         "        SEEN.append(candles.height)\n"
         '        close = candles["close"]\n'
         "        past = close.shift(params.window)\n"
-        "        return Signals(entries=close > past, exits=close < past)\n"
+        "        return pl.select(position_from_events(close > past, close < past)).to_series()\n"
     )
     logic = _logic(body, prelude="SEEN: list[int] = []", warmup="10_000")
     registry = _registry(tmp_path, long_kind=logic)
@@ -211,7 +212,8 @@ def test_check_params_are_also_verified(tmp_path: Path) -> None:
     )
     with pytest.raises(StrategyContractError, match="window=50") as exc:
         assert_strategy_contract("multi_kind", _registry(tmp_path, multi_kind=logic))
-    assert exc.value.check == 3
+    # window=50 inyecta shift(-1): con posición-objetivo el flanco se detecta como look-ahead.
+    assert exc.value.check == 4
 
 
 # ------------------------------------------------------------ estructura y AST
