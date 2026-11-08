@@ -244,7 +244,7 @@ Opciones útiles de `optimize` (todas tienen valor por defecto):
 --min-trades       operaciones mínimas en el histórico (restricción, def: 10)
 --seed             semilla -> reproducibilidad (def: 42)
 --initial-cash --size-fraction --fees-bps --slippage-bps   caja y costos (como en run)
---start-ms --end-ms                                        acotar el rango temporal
+--start --end                                             acotar el rango temporal (ISO 8601, ms epoch o 'now')
 ```
 
 ## Qué leer después

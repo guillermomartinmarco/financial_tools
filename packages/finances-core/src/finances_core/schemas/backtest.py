@@ -26,6 +26,7 @@ from pydantic import (
 
 from finances_core.schemas.data_viewer import DatasetIdentifier
 from finances_core.schemas.strategy import HASH_PATTERN
+from finances_core.timeutils import parse_time_input
 
 #: Identificador de estrategia (RF-16): igual al nombre de su carpeta.
 KIND_PATTERN = r"^[a-z][a-z0-9_]{2,39}$"
@@ -88,14 +89,39 @@ class BacktestRequest(BaseModel):
     strategy_id: str = Field(pattern=UUID7_PATTERN)
     # None => última versión (ft_strategy_manager RF-2).
     strategy_version: int | None = Field(default=None, ge=1, strict=True)
-    # Rango inclusivo sobre open_time_ms (Int64, ms UTC); None => todo el dataset.
-    start_ms: int | None = Field(default=None, ge=INT64_MIN, le=INT64_MAX, strict=True)
-    end_ms: int | None = Field(default=None, ge=INT64_MIN, le=INT64_MAX, strict=True)
+    # Rango inclusivo flexible sobre open_time_ms (RF-6/RF-7): ISO 8601, ms epoch o 'now';
+    # None => todo el dataset. Se convierte a ms UTC con el puente del núcleo
+    # ``finances_core.timeutils.parse_time_input`` (Art. 4). Las propiedades derivadas
+    # ``start_ms``/``end_ms`` entregan los ms resueltos a los consumidores (runner, manifiesto).
+    start: str | None = Field(default=None, description="ISO 8601, ms epoch o 'now'")
+    end: str | None = Field(default=None, description="ISO 8601, ms epoch o 'now'")
     initial_cash: float = Field(default=10_000.0, gt=0, allow_inf_nan=False)
     size_fraction: float = Field(default=1.0, gt=0, le=1)
     fees_bps: float = Field(default=10.0, ge=0, allow_inf_nan=False)
     slippage_bps: float = Field(default=0.0, ge=0, allow_inf_nan=False)
     force: bool = Field(default=False, strict=True)
+
+    @field_validator("start", "end")
+    @classmethod
+    def _check_parseable(cls, value: str | None) -> str | None:
+        """Valida que ``value`` sea parseable (RF-6/RF-7) y conserva la cadena original.
+
+        Raises:
+            ValueError: SI ``value`` no es ISO 8601, ms epoch ni ``'now'``.
+        """
+        if value is not None:
+            parse_time_input(value)  # lanza ValueError si no es parseable
+        return value
+
+    @property
+    def start_ms(self) -> int | None:
+        """Inicio del rango en ms UTC derivado de ``start`` (None => todo el dataset)."""
+        return parse_time_input(self.start) if self.start is not None else None
+
+    @property
+    def end_ms(self) -> int | None:
+        """Fin inclusivo del rango en ms UTC derivado de ``end`` (None => todo el dataset)."""
+        return parse_time_input(self.end) if self.end is not None else None
 
     @model_validator(mode="after")
     def _check_range(self) -> BacktestRequest:

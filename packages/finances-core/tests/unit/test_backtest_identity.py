@@ -293,7 +293,7 @@ def test_force_does_not_influence_run_id() -> None:
 
 
 def test_requested_range_does_not_influence_run_id_only_effective_range() -> None:
-    requested = _request(start_ms=T0 - 10 * HOUR_MS, end_ms=T0 + 10 * HOUR_MS)
+    requested = _request(start="2024-01-01", end="2024-02-01")
     assert _run_id(requested) == _run_id()
 
 

@@ -40,7 +40,9 @@ Vive **dentro** de `ft_vectorbt` (respeta el aislamiento: no importa herramienta
 defaults como base), `--sweep FILE.json` (espacio de búsqueda), `--objective NAME`
 (por defecto **`calmar`**), `--n-trials N`, `--folds K`, `--in-sample-ratio R`,
 `--min-trades M`, `--fold-agg {mean|min|median}` (por defecto `mean`), `--seed S`,
-`--start-ms`/`--end-ms`, `--fees-bps`/`--slippage-bps`/`--initial-cash`/`--size-fraction`,
+`--start`/`--end` (ISO 8601, *ms epoch* o `now`; convertidos a ms con
+`finances_core.timeutils.parse_time_input`; reemplazan a `--start-ms`/`--end-ms`),
+`--fees-bps`/`--slippage-bps`/`--initial-cash`/`--size-fraction`,
 `--format table|json`. Salida: mejores parámetros, score, desglose por fold y métricas
 in-sample vs OOS.
 
