@@ -253,6 +253,9 @@ Las ayudas `_lib` no entran en ese hash: se versionan con `CATALOG_VERSION`.
 | `bollinger_reversion` | `strategies/bollinger_reversion/` | `{"kind": "bollinger_reversion", "params": {"n": 20, "k": 2.0}}` | reversión a las Bandas de Bollinger (estado) |
 | `zscore_reversion` | `strategies/zscore_reversion/` | `{"kind": "zscore_reversion", "params": {"n": 20, "threshold": 2.0}}` | reversión estadística por Z-Score (estado) |
 | `rsi2_connors` | `strategies/rsi2_connors/` | `{"kind": "rsi2_connors", "params": {"period": 2, "lower": 10.0, "upper": 70.0}}` | reversión RSI(2) de Connors (estado) |
+| `keltner_breakout` | `strategies/keltner_breakout/` | `{"kind": "keltner_breakout", "params": {"n": 20, "k": 2.0}}` | ruptura del canal de Keltner (estado) |
+| `atr_channel_breakout` | `strategies/atr_channel_breakout/` | `{"kind": "atr_channel_breakout", "params": {"n": 14, "k": 1.0}}` | ruptura de volatilidad ATR (estado) |
+| `trend_filtered_reversion` | `strategies/trend_filtered_reversion/` | `{"kind": "trend_filtered_reversion", "params": {"trend_n": 200, "rsi_period": 2, "rsi_lower": 10.0, "rsi_upper": 70.0}}` | reversión RSI filtrada por tendencia (estado) |
 | `mi_momento` | ejemplo de esta guía | `{"kind": "mi_momento", "params": {"window": 10}}` | momento, autosuficiente |
 | `mi_estrategia` | `_template/` | `{"kind": "mi_estrategia", "params": {"window": 20}}` | cierre sobre su media |
 

@@ -31,15 +31,18 @@ from .conftest import create_strategy, make_request, sma_request
 
 #: Estrategias integradas en orden determinista (igual que la CLI).
 BUILTIN_KINDS = [
+    "atr_channel_breakout",
     "bollinger_reversion",
     "donchian_breakout",
     "ema_cross",
     "high_breakout",
+    "keltner_breakout",
     "macd_trend",
     "momentum_roc",
     "rsi2_connors",
     "rsi_reversion",
     "sma_cross",
+    "trend_filtered_reversion",
     "zscore_reversion",
 ]
 #: run_id SHA-256 válido por forma pero inexistente en el almacén.
