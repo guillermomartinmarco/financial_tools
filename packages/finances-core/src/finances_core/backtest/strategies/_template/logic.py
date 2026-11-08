@@ -13,6 +13,7 @@ Reglas que comprueba el núcleo (RF-16…RF-20):
 - ``signals`` es pura y determinista: solo lee ``candles`` (``open_time_ms`` ``Int64``;
   ``open``/``high``/``low``/``close``/``volume`` ``Float32``), no guarda estado y nunca mira barras
   futuras (nada de ``shift`` negativo).
+- ``signals`` devuelve una serie ``Int8`` de posición-objetivo {{-1, 0, +1}}.
 """
 
 from __future__ import annotations
@@ -20,8 +21,8 @@ from __future__ import annotations
 import polars as pl
 from pydantic import BaseModel, ConfigDict, Field
 
-from finances_core.backtest.strategies import BaseStrategy, Signals
-from finances_core.backtest.strategies._lib import cross_above, cross_below, sma
+from finances_core.backtest.strategies import BaseStrategy
+from finances_core.backtest.strategies._lib import cross_above, cross_below, sma, position_from_events
 
 
 class MiEstrategiaParams(BaseModel):
@@ -51,12 +52,9 @@ class MiEstrategia(BaseStrategy[MiEstrategiaParams]):
         return params.window
 
     @staticmethod
-    def signals(candles: pl.DataFrame, params: MiEstrategiaParams) -> Signals:
+    def signals(candles: pl.DataFrame, params: MiEstrategiaParams) -> pl.Series:
         close = pl.col("close")
         average = sma(close, params.window)
-        frame = candles.select(
-            entries=cross_above(close, average),
-            exits=cross_below(close, average),
-        )
-        # Dos pl.Series Boolean de longitud candles.height (sin nulos tras warmup).
-        return Signals(entries=frame["entries"], exits=frame["exits"])
+        return candles.select(
+            position_from_events(cross_above(close, average), cross_below(close, average))
+        ).to_series()

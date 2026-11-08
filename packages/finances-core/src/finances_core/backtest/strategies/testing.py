@@ -122,7 +122,7 @@ def _describe(params: BaseModel) -> str:
 
 def _run(
     kind: str, check: int, strategy: StrategyClass, candles: pl.DataFrame, params: BaseModel
-) -> Signals:
+) -> pl.Series:
     where = f"con {_describe(params)} y {candles.height} barras"
     warmup = strategy.warmup(params)
     if isinstance(warmup, bool) or not isinstance(warmup, int) or warmup < 0:
@@ -138,7 +138,7 @@ def _run(
         raise StrategyContractError(kind, check, f"{exc} ({where})") from None
 
 
-def _check_signals(kind: str, strategy: StrategyClass, params: BaseModel) -> Signals:
+def _check_signals(kind: str, strategy: StrategyClass, params: BaseModel) -> pl.Series:
     candles = synthetic_candles()
     snapshot = candles.clone()
     first = _run(kind, 3, strategy, candles, params)
@@ -146,7 +146,7 @@ def _check_signals(kind: str, strategy: StrategyClass, params: BaseModel) -> Sig
         message = f"signals muta candles (con {_describe(params)})"
         raise StrategyContractError(kind, 3, message)
     second = _run(kind, 3, strategy, candles, params)
-    if not (first.entries.equals(second.entries) and first.exits.equals(second.exits)):
+    if not first.equals(second):
         message = f"signals no es determinista: dos llamadas difieren (con {_describe(params)})"
         raise StrategyContractError(kind, 3, message)
     return first
@@ -157,20 +157,19 @@ def _first_difference(left: pl.Series, right: pl.Series) -> int:
     return int(differs[0]) if differs.len() else -1
 
 
-def _check_lookahead(kind: str, strategy: StrategyClass, params: BaseModel, full: Signals) -> None:
+def _check_lookahead(kind: str, strategy: StrategyClass, params: BaseModel, full: pl.Series) -> None:
     candles = synthetic_candles()
     for k in lookahead_cuts(strategy.warmup(params), candles.height):
         part = _run(kind, 4, strategy, candles.head(k), params)
-        for name in ("entries", "exits"):
-            expected = getattr(full, name).head(k)
-            got: pl.Series = getattr(part, name)
-            if not got.equals(expected):
-                t = _first_difference(got, expected)
-                message = (
-                    f"anticipación (look-ahead): k={k}: la barra t={t} de {name} cambia al "
-                    f"truncar las barras posteriores (con {_describe(params)})"
-                )
-                raise StrategyContractError(kind, 4, message)
+        expected = full.head(k)
+        got: pl.Series = part
+        if not got.equals(expected):
+            t = _first_difference(got, expected)
+            message = (
+                f"anticipación (look-ahead): k={k}: la barra t={t} de la posición cambia al "
+                f"truncar las barras posteriores (con {_describe(params)})"
+            )
+            raise StrategyContractError(kind, 4, message)
 
 
 def _params_to_check(strategy: StrategyClass) -> list[BaseModel]:

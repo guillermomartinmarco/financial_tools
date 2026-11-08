@@ -12,8 +12,8 @@ from typing import Self
 import polars as pl
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from finances_core.backtest.strategies import BaseStrategy, MetricsTarget, Signals
-from finances_core.backtest.strategies._lib import cross_above, cross_below, sma
+from finances_core.backtest.strategies import BaseStrategy, MetricsTarget
+from finances_core.backtest.strategies._lib import cross_above, cross_below, sma, position_from_events
 
 
 class SmaCrossParams(BaseModel):
@@ -47,11 +47,9 @@ class SmaCross(BaseStrategy[SmaCrossParams]):
         return params.slow
 
     @staticmethod
-    def signals(candles: pl.DataFrame, params: SmaCrossParams) -> Signals:
+    def signals(candles: pl.DataFrame, params: SmaCrossParams) -> pl.Series:
         fast = sma(pl.col("close"), params.fast)
         slow = sma(pl.col("close"), params.slow)
-        frame = candles.select(
-            entries=cross_above(fast, slow),
-            exits=cross_below(fast, slow),
-        )
-        return Signals(entries=frame["entries"], exits=frame["exits"])
+        return candles.select(
+            position_from_events(cross_above(fast, slow), cross_below(fast, slow))
+        ).to_series()

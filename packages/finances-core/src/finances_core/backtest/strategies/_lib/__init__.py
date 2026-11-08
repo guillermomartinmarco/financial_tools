@@ -4,12 +4,12 @@ Cada ayuda recibe y devuelve una ``pl.Expr``: se componen dentro de ``candles.se
 sin materializar series intermedias. Solo usan datos de las barras ``<= t`` (RF-20).
 
 Los cruces devuelven ``false`` (nunca nulo) mientras falta algún dato: el calentamiento
-no genera señal (RF-2). El código de ``_lib`` no entra en el ``strategy_code_hash`` de
-cada estrategia; un cambio de su semántica exige subir ``CATALOG_VERSION`` (A22).
+no genera señal (RF-2). El código de ``_lib`` no entra en el ``strategy_code_hash``
+de cada estrategia; un cambio de su semántica exige subir ``CATALOG_VERSION`` (A22).
 
 Importación (integradas y locales)::
 
-    from finances_core.backtest.strategies._lib import cross_above, sma
+    from finances_core.backtest.strategies._lib import cross_above, sma, position_from_events
 """
 
 from __future__ import annotations
@@ -71,7 +71,7 @@ def rsi_wilder(close: pl.Expr, period: int) -> pl.Expr:
 
     ``Δ[t] = close[t] - close[t-1]``; ganancia ``max(Δ, 0)`` y pérdida ``max(-Δ, 0)``;
     ``RSI = 100 - 100 / (1 + RS)`` con ``RS = media_ganancia / media_pérdida``. SI la
-    media de pérdidas es 0 y la de ganancias > 0, ENTONCES 100; SI ambas son 0, 50.
+    media de pérdidas es 0 y de ganancias > 0, ENTONCES 100; SI ambas son 0, 50.
     """
     delta = close - close.shift(1)
     gain = _wilder_mean(delta.clip(lower_bound=0.0), period)
@@ -95,6 +95,25 @@ def rolling_min_prev(x: pl.Expr, window: int) -> pl.Expr:
     return x.shift(1).rolling_min(window_size=window)
 
 
+def position_from_events(enter: pl.Expr, exit_: pl.Expr) -> pl.Expr:
+    """Deriva una posición sostenida largo/plano a partir de eventos de entrada/salida.
+
+    ``enter` tiene prioridad sobre ``exit_`` en el mismo ``t``.
+    Sigue la semántica: ``when(enter).then(1).when(exit_).then(0).otherwise(None).forward_fill().fill_null(0)``.
+    Cast a ``Int8``.
+    """
+    return (
+        pl.when(enter)
+        .then(1)
+        .when(exit_)
+        .then(0)
+        .otherwise(None)
+        .forward_fill()
+        .fill_null(0)
+        .cast(pl.Int8)
+    )
+
+
 __all__ = [
     "cross_above",
     "cross_below",
@@ -102,4 +121,5 @@ __all__ = [
     "rolling_min_prev",
     "rsi_wilder",
     "sma",
+    "position_from_events",
 ]

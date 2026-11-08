@@ -12,8 +12,8 @@ from typing import Self
 import polars as pl
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from finances_core.backtest.strategies import BaseStrategy, MetricsTarget, Signals
-from finances_core.backtest.strategies._lib import cross_above, cross_below, rsi_wilder
+from finances_core.backtest.strategies import BaseStrategy, MetricsTarget
+from finances_core.backtest.strategies._lib import cross_above, cross_below, rsi_wilder, position_from_events
 
 
 class RsiReversionParams(BaseModel):
@@ -48,10 +48,8 @@ class RsiReversion(BaseStrategy[RsiReversionParams]):
         return params.period + 1
 
     @staticmethod
-    def signals(candles: pl.DataFrame, params: RsiReversionParams) -> Signals:
+    def signals(candles: pl.DataFrame, params: RsiReversionParams) -> pl.Series:
         rsi = rsi_wilder(pl.col("close"), params.period)
-        frame = candles.select(
-            entries=cross_below(rsi, params.lower),
-            exits=cross_above(rsi, params.upper),
-        )
-        return Signals(entries=frame["entries"], exits=frame["exits"])
+        return candles.select(
+            position_from_events(cross_below(rsi, params.lower), cross_above(rsi, params.upper))
+        ).to_series()

@@ -34,7 +34,7 @@ from finances_core.schemas.backtest import KindInfo
 
 logger = structlog.get_logger(__name__)
 
-CATALOG_VERSION = "1.0.0"
+CATALOG_VERSION = "1.1.0"
 RESULT_SCHEMA_VERSION = "1"
 #: Carpeta de las estrategias integradas (``finances_core/backtest/strategies/``).
 BUILTIN_DIR = Path(strategies.__file__).resolve().parent

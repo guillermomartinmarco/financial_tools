@@ -79,8 +79,10 @@ class BaseStrategy(ABC, Generic[P]):
 
     @staticmethod
     @abstractmethod
-    def signals(candles: pl.DataFrame, params: P) -> Signals:
-        """Señales puras y deterministas sobre las velas de RF-4 (Polars ``Float32``)."""
+    def signals(candles: pl.DataFrame, params: P) -> pl.Series:
+        """Posición-objetivo ``Int8 {-1, 0, +1}`` al cierre de cada barra ``t``.
+        (+1 largo, 0 plano, -1 corto). Pura y determinista sobre las velas de RF-4.
+        """
 
 
 def _require_str(cls: type, name: str) -> str:

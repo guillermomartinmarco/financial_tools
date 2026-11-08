@@ -11,8 +11,8 @@ from __future__ import annotations
 import polars as pl
 from pydantic import BaseModel, ConfigDict, Field
 
-from finances_core.backtest.strategies import BaseStrategy, MetricsTarget, Signals
-from finances_core.backtest.strategies._lib import rolling_max_prev, rolling_min_prev
+from finances_core.backtest.strategies import BaseStrategy, MetricsTarget
+from finances_core.backtest.strategies._lib import rolling_max_prev, rolling_min_prev, position_from_events
 
 
 class DonchianBreakoutParams(BaseModel):
@@ -38,12 +38,13 @@ class DonchianBreakout(BaseStrategy[DonchianBreakoutParams]):
         return params.window
 
     @staticmethod
-    def signals(candles: pl.DataFrame, params: DonchianBreakoutParams) -> Signals:
+    def signals(candles: pl.DataFrame, params: DonchianBreakoutParams) -> pl.Series:
         close = pl.col("close")
         high = rolling_max_prev(pl.col("high"), params.window)
         low = rolling_min_prev(pl.col("low"), params.window)
-        frame = candles.select(
-            entries=(close > high).fill_null(value=False),
-            exits=(close < low).fill_null(value=False),
-        )
-        return Signals(entries=frame["entries"], exits=frame["exits"])
+        return candles.select(
+            position_from_events(
+                (close > high).fill_null(value=False),
+                (close < low).fill_null(value=False)
+            )
+        ).to_series()
