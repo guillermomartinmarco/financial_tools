@@ -22,7 +22,7 @@ máximo de ``high`` y el mínimo de ``low`` de ``t-3..t-1`` (excluyen la barra a
 from __future__ import annotations
 
 import pytest
-from backtest_helpers import builtin_signals, ohlc_frame
+from backtest_helpers import builtin_position, ohlc_frame
 
 from finances_core.backtest.catalog import BUILTIN_DIR, get_registry, parse_strategy_parameters
 from finances_core.backtest.errors import InvalidParamsError
@@ -34,13 +34,12 @@ KIND = "donchian_breakout"
 HIGH = [10.0, 11.0, 12.0, 11.0, 13.0, 12.0, 11.0, 10.0, 9.0, 12.0]
 LOW = [9.0, 10.0, 11.0, 10.0, 12.0, 11.0, 10.0, 9.0, 8.0, 10.0]
 CLOSE = [9.5, 10.5, 11.5, 10.5, 13.0, 11.5, 10.5, 9.5, 8.5, 12.0]
-F, T = False, True
 
 
 def test_hand_computed_ten_bars() -> None:
-    entries, exits = builtin_signals(KIND, ohlc_frame(high=HIGH, low=LOW, close=CLOSE), window=3)
-    assert entries == [F, F, F, F, T, F, F, F, F, T]
-    assert exits == [F, F, F, F, F, F, F, T, T, F]
+    # entrada en t=4, 9 y salidas en t=7, 8 -> posición sostenida (largo/plano):
+    pos = builtin_position(KIND, ohlc_frame(high=HIGH, low=LOW, close=CLOSE), window=3)
+    assert pos == [0, 0, 0, 0, 1, 1, 1, 0, 0, 1]
 
 
 def test_channel_including_current_bar_would_change_the_result() -> None:
@@ -50,22 +49,21 @@ def test_channel_including_current_bar_would_change_the_result() -> None:
     included_low_7 = min(LOW[5:8])
     assert not CLOSE[4] > included_high_4
     assert not CLOSE[7] < included_low_7
-    entries, exits = builtin_signals(KIND, ohlc_frame(high=HIGH, low=LOW, close=CLOSE), window=3)
-    assert entries[4] is True
-    assert exits[7] is True
+    pos = builtin_position(KIND, ohlc_frame(high=HIGH, low=LOW, close=CLOSE), window=3)
+    assert pos[3] == 0 and pos[4] == 1  # entrada (flanco) en t=4
+    assert pos[6] == 1 and pos[7] == 0  # salida (flanco) en t=7
 
 
 def test_warmup_is_window_and_has_no_signal() -> None:
     strategy = get_registry(FinancesSettings()).get(KIND)
     assert strategy.warmup(strategy.Params(window=3)) == 3
-    entries, exits = builtin_signals(KIND, ohlc_frame(high=HIGH, low=LOW, close=CLOSE), window=3)
-    assert entries[:3] == [F, F, F]
-    assert exits[:3] == [F, F, F]
+    pos = builtin_position(KIND, ohlc_frame(high=HIGH, low=LOW, close=CLOSE), window=3)
+    assert pos[:3] == [0, 0, 0]
 
 
 def test_touching_the_channel_is_not_a_breakout() -> None:
     # close[3] == alto(3) == 12 y close[4] == bajo(4) == 1: empates sin señal
-    entries, exits = builtin_signals(
+    pos = builtin_position(
         KIND,
         ohlc_frame(
             high=[10.0, 12.0, 11.0, 12.0, 5.0],
@@ -74,8 +72,7 @@ def test_touching_the_channel_is_not_a_breakout() -> None:
         ),
         window=3,
     )
-    assert entries == [F] * 5
-    assert exits == [F] * 5
+    assert pos == [0] * 5
 
 
 @pytest.mark.parametrize("window", [1, 10_001])

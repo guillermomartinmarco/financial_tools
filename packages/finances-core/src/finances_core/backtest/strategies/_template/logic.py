@@ -22,7 +22,12 @@ import polars as pl
 from pydantic import BaseModel, ConfigDict, Field
 
 from finances_core.backtest.strategies import BaseStrategy
-from finances_core.backtest.strategies._lib import cross_above, cross_below, sma, position_from_events
+from finances_core.backtest.strategies._lib import (
+    cross_above,
+    cross_below,
+    position_from_events,
+    sma,
+)
 
 
 class MiEstrategiaParams(BaseModel):

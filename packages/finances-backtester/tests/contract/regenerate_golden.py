@@ -36,6 +36,8 @@ from tests.contract.fixture import (
 from tests.contract.golden_io import GOLDEN_DIR
 from tests.contract.reference import (
     equity_frame,
+    position_edges,
+    reference_position,
     reference_signals,
     simulate,
     summarize,
@@ -100,6 +102,9 @@ def write_golden(out_dir: Path = GOLDEN_DIR) -> list[Path]:
     for kind in KINDS:
         params = GOLDEN_PARAMS[kind]
         entries, exits = reference_signals(kind, candles, params)
+        # Golden en posición-objetivo (L0-G2a): se guardan los flancos de la posición
+        # sostenida (enter/exit de +1), no los eventos crudos de RF-2.
+        enter_edges, exit_edges = position_edges(reference_position(entries, exits))
         margin, bar = threshold_margin(kind, candles, params)
         fixture["threshold_margin"][kind] = {"min": margin, "bar": bar}
         _write_json(
@@ -108,8 +113,8 @@ def write_golden(out_dir: Path = GOLDEN_DIR) -> list[Path]:
                 "kind": kind,
                 "params": params,
                 "n_bars": candles.n,
-                "entries": [t for t, value in enumerate(entries) if value],
-                "exits": [t for t, value in enumerate(exits) if value],
+                "entries": [t for t, value in enumerate(enter_edges) if value],
+                "exits": [t for t, value in enumerate(exit_edges) if value],
             },
         )
         sim = simulate(candles, entries, exits, GOLDEN_COSTS)

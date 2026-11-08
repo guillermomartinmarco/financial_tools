@@ -21,7 +21,7 @@ Caso de 10 barras calculado a mano con ``fast = 2`` y ``slow = 3``:
 from __future__ import annotations
 
 import pytest
-from backtest_helpers import builtin_signals, candles_frame
+from backtest_helpers import builtin_position, candles_frame
 
 from finances_core.backtest.catalog import BUILTIN_DIR, get_registry, parse_strategy_parameters
 from finances_core.backtest.errors import InvalidParamsError
@@ -31,33 +31,26 @@ from finances_core.config import FinancesSettings
 
 KIND = "sma_cross"
 CLOSES = [10.0, 10.0, 10.0, 11.0, 10.0, 8.0, 12.0, 5.0, 10.0, 9.0]
-F, T = False, True
 
 
 def test_hand_computed_ten_bars() -> None:
-    entries, exits = builtin_signals(KIND, candles_frame(CLOSES), fast=2, slow=3)
-    assert entries == [F, F, F, T, F, F, F, T, F, T]
-    assert exits == [F, F, F, F, F, T, F, F, T, F]
+    # entradas en t=3, 7, 9 y salidas en t=5, 8 -> posición sostenida (largo/plano):
+    pos = builtin_position(KIND, candles_frame(CLOSES), fast=2, slow=3)
+    assert pos == [0, 0, 0, 1, 1, 0, 0, 1, 0, 1]
 
 
 def test_warmup_is_slow_and_has_no_signal() -> None:
     strategy = get_registry(FinancesSettings()).get(KIND)
     assert strategy.warmup(strategy.Params(fast=2, slow=3)) == 3
     # cruce al alza en t=1 y t=2 con una SMA_3 aún no definida: sin señal
-    entries, exits = builtin_signals(
-        KIND, candles_frame([10.0, 20.0, 30.0, 30.0, 30.0]), fast=2, slow=3
-    )
-    assert entries[:3] == [F, F, F]
-    assert exits[:3] == [F, F, F]
+    pos = builtin_position(KIND, candles_frame([10.0, 20.0, 30.0, 30.0, 30.0]), fast=2, slow=3)
+    assert pos[:3] == [0, 0, 0]
 
 
 def test_tie_generates_no_signal() -> None:
-    # serie plana: SMA_2 == SMA_3 en toda t >= 2, ningún cruce estricto
-    entries, exits = builtin_signals(
-        KIND, candles_frame([1.0, 1.0, 1.0, 1.0, 1.0, 1.0]), fast=2, slow=3
-    )
-    assert entries == [F] * 6
-    assert exits == [F] * 6
+    # serie plana: SMA_2 == SMA_3 en toda t >= 2, ningún cruce estricto -> plano
+    pos = builtin_position(KIND, candles_frame([1.0, 1.0, 1.0, 1.0, 1.0, 1.0]), fast=2, slow=3)
+    assert pos == [0] * 6
 
 
 @pytest.mark.parametrize(("fast", "slow"), [(5, 5), (6, 5), (1, 3), (2, 10_001)])

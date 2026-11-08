@@ -371,11 +371,12 @@ def test_kinds_check_fails_on_lookahead(service_settings: FinancesSettings) -> N
     logic = folder / "logic.py"
     original = (
         "        t = pl.int_range(pl.len(), dtype=pl.Int64)\n"
-        "        frame = candles.select(\n"
-        "            entries=((t * 7) % params.entry_stride) == 0,\n"
-        "            exits=((t * 5 + 1) % params.exit_stride) == 0,\n"
-        "        )\n"
-        '        return Signals(entries=frame["entries"], exits=frame["exits"])\n'
+        "        return candles.select(\n"
+        "            position_from_events(\n"
+        "                ((t * 7) % params.entry_stride) == 0,\n"
+        "                ((t * 5 + 1) % params.exit_stride) == 0,\n"
+        "            )\n"
+        "        ).to_series()\n"
     )
     text = logic.read_text(encoding="utf-8")
     assert original in text
@@ -383,7 +384,7 @@ def test_kinds_check_fails_on_lookahead(service_settings: FinancesSettings) -> N
         '        future = candles["close"].shift(-1)\n'
         '        up = (future > candles["close"]).fill_null(False)\n'
         '        down = (future < candles["close"]).fill_null(False)\n'
-        "        return Signals(entries=up, exits=down)\n"
+        "        return pl.select(position_from_events(up, down)).to_series()\n"
     )
     logic.write_text(text.replace(original, lookahead), encoding="utf-8")
 

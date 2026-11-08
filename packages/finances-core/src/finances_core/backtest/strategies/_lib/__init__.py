@@ -98,9 +98,9 @@ def rolling_min_prev(x: pl.Expr, window: int) -> pl.Expr:
 def position_from_events(enter: pl.Expr, exit_: pl.Expr) -> pl.Expr:
     """Deriva una posición sostenida largo/plano a partir de eventos de entrada/salida.
 
-    ``enter` tiene prioridad sobre ``exit_`` en el mismo ``t``.
-    Sigue la semántica: ``when(enter).then(1).when(exit_).then(0).otherwise(None).forward_fill().fill_null(0)``.
-    Cast a ``Int8``.
+    ``enter`` tiene prioridad sobre ``exit_`` en el mismo ``t``. Sigue la semántica
+    ``when(enter).then(1).when(exit_).then(0).otherwise(None)``, luego ``forward_fill()``
+    y ``fill_null(0)``, con cast final a ``Int8``.
     """
     return (
         pl.when(enter)

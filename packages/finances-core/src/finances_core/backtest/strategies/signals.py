@@ -31,9 +31,9 @@ def finalize(pos: pl.Series, *, n: int, warmup: int) -> pl.Series:
 
     try:
         pos = pos.cast(pl.Int8)
-    except pl.ComputeError:
-        msg = f"invalid_signals: pos no es casteable a Int8 sin pérdida"
-        raise InvalidSignalsError(msg)
+    except (pl.exceptions.ComputeError, pl.exceptions.InvalidOperationError):
+        msg = "invalid_signals: pos no es casteable a Int8 sin pérdida"
+        raise InvalidSignalsError(msg) from None
 
     if pos.len() != n:
         msg = f"invalid_signals: pos tiene longitud {pos.len()}, se esperaba {n}"
@@ -43,7 +43,7 @@ def finalize(pos: pl.Series, *, n: int, warmup: int) -> pl.Series:
     frame = pl.DataFrame({"pos": pos}).with_columns(
         warm=pl.int_range(pl.len(), dtype=pl.Int64) < max(warmup, 0)
     )
-    
+
     # Nulos en t >= warmup son error
     nulls = frame.filter(~pl.col("warm")).select(pl.col("pos").null_count())
     if nulls.item() > 0:
@@ -55,13 +55,13 @@ def finalize(pos: pl.Series, *, n: int, warmup: int) -> pl.Series:
         ~pl.col("warm") & (~pl.col("pos").is_in([-1, 0, 1]))
     )
     if out_of_domain.height > 0:
-        msg = f"invalid_signals: pos contiene valores fuera de domain {{-1, 0, 1}}"
+        msg = "invalid_signals: pos contiene valores fuera de domain {-1, 0, 1}"
         raise InvalidSignalsError(msg)
 
     # Normalización: t < warmup -> 0 (plano)
     return frame.select(
-        pl.when(pl.col("warm")).then(0).otherwise(pl.col("pos")).cast(pl.Int8).alias("pos")
-    )["pos"]
+        pl.when(pl.col("warm")).then(0).otherwise(pl.col("pos")).cast(pl.Int8).alias("position")
+    )["position"]
 
 
 def position_to_signals(pos: pl.Series) -> Signals:
@@ -76,14 +76,13 @@ def position_to_signals(pos: pl.Series) -> Signals:
         StrategyRuntimeError: SI ``pos`` contiene -1 (corto no soportado hasta G2b).
     """
     if bool((pos == -1).any()):
-        from finances_core.backtest.errors import StrategyRuntimeError
-
-        raise StrategyRuntimeError("short no soportado hasta G2b")
+        msg = "invalid_signals: short (-1) no soportado hasta G2b (motor largo/plano)"
+        raise InvalidSignalsError(msg)
 
     # Shift para obtener pos[t-1], llenando el primer elemento con 0
     prev_pos = pos.shift(1).fill_null(0)
-    
+
     entries = (pos == 1) & (prev_pos != 1)
     exits = (pos != 1) & (prev_pos == 1)
-    
+
     return Signals(entries=entries, exits=exits)

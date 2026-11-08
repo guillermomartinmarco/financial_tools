@@ -12,7 +12,11 @@ import polars as pl
 from pydantic import BaseModel, ConfigDict, Field
 
 from finances_core.backtest.strategies import BaseStrategy, MetricsTarget
-from finances_core.backtest.strategies._lib import rolling_max_prev, rolling_min_prev, position_from_events
+from finances_core.backtest.strategies._lib import (
+    position_from_events,
+    rolling_max_prev,
+    rolling_min_prev,
+)
 
 
 class DonchianBreakoutParams(BaseModel):

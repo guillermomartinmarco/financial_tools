@@ -11,7 +11,7 @@ from __future__ import annotations
 import polars as pl
 import pytest
 from finances_core.backtest.catalog import BUILTIN_DIR, build_registry
-from finances_core.backtest.strategies.signals import finalize
+from finances_core.backtest.strategies.signals import finalize, position_to_signals
 
 from tests.contract.fixture import GOLDEN_PARAMS, KINDS, fixture_candles
 from tests.contract.golden_io import golden_signals, load_json
@@ -22,7 +22,8 @@ def _core_signals(kind: str, candles: pl.DataFrame) -> tuple[list[bool], list[bo
     strategy = build_registry(builtin_dir=BUILTIN_DIR, local_dir=None).get(kind)
     params = strategy.Params.model_validate(GOLDEN_PARAMS[kind])
     raw = strategy.signals(candles, params)
-    sig = finalize(raw, n=candles.height, warmup=strategy.warmup(params))
+    pos = finalize(raw, n=candles.height, warmup=strategy.warmup(params))
+    sig = position_to_signals(pos)
     assert sig.entries.dtype == pl.Boolean
     assert sig.exits.dtype == pl.Boolean
     return sig.entries.to_list(), sig.exits.to_list()

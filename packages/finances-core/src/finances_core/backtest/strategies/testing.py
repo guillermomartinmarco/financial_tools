@@ -27,7 +27,6 @@ from pydantic import BaseModel
 
 from finances_core.backtest.catalog import StrategyRegistry, get_registry
 from finances_core.backtest.errors import InvalidSignalsError, StrategyInitError
-from finances_core.backtest.strategies.base import Signals
 from finances_core.backtest.strategies.checks import StrategyCheckError, check_ast, check_structure
 from finances_core.backtest.strategies.discovery import StrategyClass
 from finances_core.backtest.strategies.signals import finalize
@@ -157,7 +156,9 @@ def _first_difference(left: pl.Series, right: pl.Series) -> int:
     return int(differs[0]) if differs.len() else -1
 
 
-def _check_lookahead(kind: str, strategy: StrategyClass, params: BaseModel, full: pl.Series) -> None:
+def _check_lookahead(
+    kind: str, strategy: StrategyClass, params: BaseModel, full: pl.Series
+) -> None:
     candles = synthetic_candles()
     for k in lookahead_cuts(strategy.warmup(params), candles.height):
         part = _run(kind, 4, strategy, candles.head(k), params)

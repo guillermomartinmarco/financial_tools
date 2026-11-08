@@ -24,8 +24,9 @@ def _pos(values: list[int | None]) -> pl.Series:
 
 
 # ------------------------------------------------------------------------ finalize
-def test_finalize_rejects_non_int8_dtype() -> None:
-    sig = pl.Series([1, 0, 1], dtype=pl.Int32)
+def test_finalize_rejects_value_not_castable_to_int8() -> None:
+    # Un dtype más ancho vale si cada valor cabe en Int8; 200 desborda y se rechaza.
+    sig = pl.Series([1, 0, 200], dtype=pl.Int32)
     with pytest.raises(InvalidSignalsError, match="Int8"):
         finalize(sig, n=3, warmup=0)
 
@@ -94,7 +95,7 @@ class Demo(BaseStrategy[DemoParams]):
         close = candles["close"]
         # Return a position series
         return pl.Series(
-            (close > close.shift(params.window)).cast(pl.Int8), 
+            (close > close.shift(params.window)).cast(pl.Int8),
             dtype=pl.Int8
         )
 

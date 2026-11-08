@@ -25,7 +25,7 @@ T0 = 1_704_067_200_000  # 2024-01-01T00:00:00Z
 
 #: Vectores fijos (calculados una vez y fijados).
 EXPECTED_DATA_HASH = "b1471a386623a2c9957e67c3548fb876bc7c93f0b80f1c511d86de1571ebc6b2"
-EXPECTED_RUN_ID = "945909da6f08c371229091c654c54a947e021010bc92f41a0cc09ea57e61061d"
+EXPECTED_RUN_ID = "e91f9714cbaf06f28e197ea375f1d59ab78aedd28eb08b4a3c25f9379baba80a"
 
 
 def _candles() -> pl.DataFrame:

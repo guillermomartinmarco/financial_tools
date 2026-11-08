@@ -13,7 +13,12 @@ import polars as pl
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from finances_core.backtest.strategies import BaseStrategy, MetricsTarget
-from finances_core.backtest.strategies._lib import cross_above, cross_below, rsi_wilder, position_from_events
+from finances_core.backtest.strategies._lib import (
+    cross_above,
+    cross_below,
+    position_from_events,
+    rsi_wilder,
+)
 
 
 class RsiReversionParams(BaseModel):
