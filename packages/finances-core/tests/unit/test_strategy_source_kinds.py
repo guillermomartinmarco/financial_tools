@@ -16,15 +16,18 @@ from finances_core.backtest import strategy_source
 from finances_core.backtest.errors import UnknownKindError
 
 BUILTIN_KINDS = [
+    "atr_channel_breakout",
     "bollinger_reversion",
     "donchian_breakout",
     "ema_cross",
     "high_breakout",
+    "keltner_breakout",
     "macd_trend",
     "momentum_roc",
     "rsi2_connors",
     "rsi_reversion",
     "sma_cross",
+    "trend_filtered_reversion",
     "zscore_reversion",
 ]
 
