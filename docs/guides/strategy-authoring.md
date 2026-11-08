@@ -55,8 +55,11 @@ print(estrategias)
    `candles.height`: +1 mantener largo, 0 plano, -1 corto (aún no ejecutable).
    `candles` trae `open_time_ms` (`Int64`) y `open`, `high`, `low`, `close`, `volume` (`Float32`).
    Usa solo barras `≤ t` y las ayudas de `finances_core.backtest.strategies._lib`
-   (`sma`, `rsi_wilder`, `rolling_max_prev`, `rolling_min_prev`, `cross_above`,
-   `cross_below`) o tus propias expresiones Polars.
+   (tendencia: `sma`, `ema`, `wma`; osciladores: `rsi_wilder`, `roc`, `zscore`; volatilidad:
+   `atr`, `rolling_std_stable`; canal: `rolling_max_prev`, `rolling_min_prev`; volumen: `obv`,
+   `vwap`; cruces: `cross_above`, `cross_below`; posición: `position_from_events`) o tus propias
+   expresiones Polars. Todas son prefijo-estables (sin anticipación) y devuelven `Float32`.
+   `warmup` debe cubrir el calentamiento de la ayuda más lenta que uses.
 5. **Documenta el `README.md`** con las secciones `## Lógica de negocio`,
    `## Matemática`, `## Diagrama` (un bloque `mermaid` `stateDiagram-v2` o `flowchart`) y
    `## Diccionario de parámetros` (tabla `Parámetro | Tipo | Rango | Defecto | Descripción`
