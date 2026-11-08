@@ -31,13 +31,16 @@ runner = CliRunner()
 
 FIXTURE_TRADES = 55  # sma_cross con los parámetros de los golden (B6.1)
 BUILTIN_KINDS = [
+    "bollinger_reversion",
     "donchian_breakout",
     "ema_cross",
     "high_breakout",
     "macd_trend",
     "momentum_roc",
+    "rsi2_connors",
     "rsi_reversion",
     "sma_cross",
+    "zscore_reversion",
 ]
 #: UUID v7 válido por forma pero inexistente en la base de estrategias.
 UNKNOWN_STRATEGY = "0192f000-0000-7000-8000-0000000000ff"

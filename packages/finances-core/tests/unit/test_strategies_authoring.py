@@ -33,13 +33,16 @@ PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 TEMPLATE = BUILTIN_DIR / "_template"
 TEMPLATE_KIND = "mi_estrategia"
 BUILTIN_KINDS = (
+    "bollinger_reversion",
     "donchian_breakout",
     "ema_cross",
     "high_breakout",
     "macd_trend",
     "momentum_roc",
+    "rsi2_connors",
     "rsi_reversion",
     "sma_cross",
+    "zscore_reversion",
 )
 
 _MARKER_RE = re.compile(r"^<!--\s*guia:(archivo|python|comando)\s*(.*?)\s*-->\s*$")
