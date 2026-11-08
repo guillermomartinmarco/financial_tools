@@ -505,6 +505,19 @@ def test_trades_paginate_with_after_ms(service_settings: FinancesSettings) -> No
     assert second_page["items"][0]["entry_time_ms"] > cursor
 
 
+def test_trades_table_formats_time_but_json_keeps_ms(service_settings: FinancesSettings) -> None:
+    # Robusto ante el *wrapping* de Rich (obs 9: no asertar el render exacto de la tabla).
+    # El formato exacto se cubre en los unit tests de ``format_time_ms``/``format_table_cell``.
+    run_id = _make_run(sma_request(), service_settings)
+    js = runner.invoke(cli.app, ["--format", "json", "trades", run_id, "--limit", "1"])
+    assert js.exit_code == 0, js.output
+    entry_ms = json.loads(js.stdout)["items"][0]["entry_time_ms"]
+    assert isinstance(entry_ms, int)  # JSON mantiene el ms crudo (contrato de máquina)
+    table = runner.invoke(cli.app, ["trades", run_id, "--limit", "1"])
+    assert table.exit_code == 0, table.output
+    assert str(entry_ms) not in table.stdout  # la tabla humana formatea: el ms crudo no aparece
+
+
 def test_trades_missing_run_exit_1(service_settings: FinancesSettings) -> None:
     result = _invoke("trades", UNKNOWN_RUN)
     assert result.exit_code == 1, result.output

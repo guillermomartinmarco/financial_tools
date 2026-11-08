@@ -36,7 +36,7 @@ from finances_core.schemas.indicators import (
     IndicatorComputeRequest,
     SeriesExportRequest,
 )
-from finances_core.timeutils import parse_time_input
+from finances_core.timeutils import format_time_ms, parse_time_input
 from pydantic import TypeAdapter
 from rich.console import Console
 from rich.progress import BarColumn, MofNCompleteColumn, Progress, TextColumn, TimeElapsedColumn
@@ -242,14 +242,14 @@ def _print_result(result: ComputeResult) -> None:
     out.print(table)
     if result.items:
         detail = Table(title="Series")
-        for column in ("Dataset", "indicator_id", "Filas", "stable_from_ms", "Avisos"):
+        for column in ("Dataset", "indicator_id", "Filas", "stable_from", "Avisos"):
             detail.add_column(column, overflow="fold")
         for item in result.items:
             detail.add_row(
                 item.dataset.path_segment(),
                 item.series_id,
                 str(item.rows),
-                str(item.stability.stable_from_ms),
+                format_time_ms(item.stability.stable_from_ms),
                 ", ".join(item.warnings) or "-",
             )
         out.print(detail)

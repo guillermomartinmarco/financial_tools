@@ -11,7 +11,6 @@ import sys
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from typing import Any, Literal, NoReturn
 
 import polars as pl
@@ -20,7 +19,12 @@ import typer
 from finances_core.export import ExportFormat
 from finances_core.logging import configure_logging, level_from_flags
 from finances_core.schemas.data_viewer import DatasetIdentifier, ExportRequest
-from finances_core.timeutils import parse_time_input
+from finances_core.timeutils import (
+    format_table_cell,
+    format_time_ms,
+    humanize_ms_header,
+    parse_time_input,
+)
 from rich.console import Console
 from rich.markup import escape
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
@@ -133,7 +137,7 @@ def _parse_time(value: str | None, flag: str) -> int | None:
 
 
 def _ms_to_utc(ms: int) -> str:
-    return datetime.fromtimestamp(ms / 1000, tz=UTC).strftime("%Y-%m-%d %H:%M:%S")
+    return format_time_ms(ms)
 
 
 def _print_json(data: Any) -> None:
@@ -148,9 +152,11 @@ def _print_csv(rows: Sequence[dict[str, Any]]) -> None:
 def _print_table(rows: Sequence[dict[str, Any]], title: str | None = None) -> None:
     table = Table(title=title)
     for col in rows[0]:
-        table.add_column(str(col), overflow="fold")
+        table.add_column(humanize_ms_header(str(col)), overflow="fold")
     for row in rows:
-        table.add_row(*["" if v is None else str(v) for v in row.values()])
+        table.add_row(
+            *["" if v is None else format_table_cell(str(col), v) for col, v in row.items()]
+        )
     console.print(table)
 
 
