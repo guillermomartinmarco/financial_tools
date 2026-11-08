@@ -26,6 +26,7 @@ from finances_core.schemas.market_data_manager import (
     PartitionResult,
     PruneRequest,
 )
+from finances_core.timeutils import format_time_ms
 from rich.console import Console
 from rich.markup import escape
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
@@ -139,7 +140,9 @@ def _plan_table(plan: ImportPlan, title: str) -> Table:
     table.add_column("valor", overflow="fold")
     divergence = plan.max_close_divergence
     table.add_row("destino", plan.destination)
-    table.add_row("rango (ms UTC)", f"{plan.range_ms[0]} .. {plan.range_ms[1]}")
+    table.add_row(
+        "rango (UTC)", f"{format_time_ms(plan.range_ms[0])} .. {format_time_ms(plan.range_ms[1])}"
+    )
     table.add_row("filas en el archivo", str(plan.rows_in_file))
     table.add_row("filas nuevas", str(plan.rows_new))
     table.add_row("conflictos", str(plan.rows_conflict))

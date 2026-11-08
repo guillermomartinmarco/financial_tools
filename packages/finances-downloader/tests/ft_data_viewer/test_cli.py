@@ -207,7 +207,13 @@ def test_head_csv_uses_write_csv(btc_dataset: Path) -> None:
 def test_head_table(btc_dataset: Path) -> None:
     res = runner.invoke(app, ["head", *DS, "-n", "2", "--cols", "open_time_ms"])
     assert res.exit_code == 0
-    assert str(START) in res.stdout
+    # La tabla humana formatea el timestamp y el header pierde el sufijo _ms.
+    assert "open_time" in res.stdout
+    assert "2024-01-31 00:00:00" in res.stdout
+    assert str(START) not in res.stdout
+    # El JSON mantiene el ms crudo (contrato de máquina).
+    js = runner.invoke(app, ["head", *DS, "-n", "2", "--cols", "open_time_ms", "-f", "json"])
+    assert str(START) in js.stdout
 
 
 def test_summary_table_and_json(btc_dataset: Path) -> None:

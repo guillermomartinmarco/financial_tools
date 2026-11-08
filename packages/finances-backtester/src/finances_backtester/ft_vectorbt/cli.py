@@ -39,7 +39,11 @@ from finances_core.schemas.backtest import (
     RunsPage,
     TradesPage,
 )
-from finances_core.timeutils import parse_time_input
+from finances_core.timeutils import (
+    format_table_cell,
+    humanize_ms_header,
+    parse_time_input,
+)
 from rich.console import Console
 from rich.progress import BarColumn, MofNCompleteColumn, Progress, TextColumn, TimeElapsedColumn
 from rich.table import Table
@@ -486,9 +490,9 @@ def _print_page(
     table = Table(title=f"{title} — {count}")
     columns = list(items[0].keys()) if items else []
     for column in columns:
-        table.add_column(column, overflow="fold")
+        table.add_column(humanize_ms_header(column), overflow="fold")
     for item in items:
-        table.add_row(*(str(item[column]) for column in columns))
+        table.add_row(*(format_table_cell(column, item[column]) for column in columns))
     _out().print(table)
     _err().print(f"next_after_ms: {next_after_ms if next_after_ms is not None else '-'}")
 
