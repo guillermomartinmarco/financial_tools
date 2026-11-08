@@ -256,6 +256,10 @@ Las ayudas `_lib` no entran en ese hash: se versionan con `CATALOG_VERSION`.
 | `keltner_breakout` | `strategies/keltner_breakout/` | `{"kind": "keltner_breakout", "params": {"n": 20, "k": 2.0}}` | ruptura del canal de Keltner (estado) |
 | `atr_channel_breakout` | `strategies/atr_channel_breakout/` | `{"kind": "atr_channel_breakout", "params": {"n": 14, "k": 1.0}}` | ruptura de volatilidad ATR (estado) |
 | `trend_filtered_reversion` | `strategies/trend_filtered_reversion/` | `{"kind": "trend_filtered_reversion", "params": {"trend_n": 200, "rsi_period": 2, "rsi_lower": 10.0, "rsi_upper": 70.0}}` | reversión RSI filtrada por tendencia (estado) |
+| `channel_breakout` | `strategies/channel_breakout/` | `{"kind": "channel_breakout", "params": {"entry_window": 20, "exit_window": 10}}` | ruptura de canal asimétrico |
+| `inside_bar_breakout` | `strategies/inside_bar_breakout/` | `{"kind": "inside_bar_breakout", "params": {}}` | ruptura de inside bar |
+| `obv_trend` | `strategies/obv_trend/` | `{"kind": "obv_trend", "params": {"n": 20}}` | tendencia confirmada por volumen |
+| `vwap_reversion` | `strategies/vwap_reversion/` | `{"kind": "vwap_reversion", "params": {"n": 20, "threshold": 0.02}}` | reversión al VWAP rodante |
 | `mi_momento` | ejemplo de esta guía | `{"kind": "mi_momento", "params": {"window": 10}}` | momento, autosuficiente |
 | `mi_estrategia` | `_template/` | `{"kind": "mi_estrategia", "params": {"window": 20}}` | cierre sobre su media |
 
