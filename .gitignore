@@ -45,6 +45,7 @@ logs/
 # Data (local only - not committed)
 data/
 !data/.gitkeep
+results/
 
 # Temporary files
 *.tmp

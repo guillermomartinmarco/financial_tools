@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Estado | **Propuesto** (pendiente de firma del Tech Lead) |
+| Estado | **Aprobado** (2026-11-07, Tech Lead) — aplicado en `docs/constitution.md` v1.3.0 |
 | Fecha | 2026-11-07 |
 | Tipo | **Enmienda** (Gobernanza: RFC + aprobación + *bump* de versión) |
 | Versión | 1.2.0 → **1.3.0** (MINOR: relaja y aclara el proceso; no invalida trabajo previo conforme) |
@@ -90,6 +90,6 @@ para lo pequeño.
 
 ## Aprobación
 
-- [ ] Aprobado por el Tech Lead — Firma: ______________________ Fecha: __/__/____
+- [x] Aprobado por el Tech Lead — Firma: Guillermo Martín Marco Fecha: 07/11/2026
 
 Al aprobarse, se aplica el texto en `docs/constitution.md` (v1.3.0) y queda sincronizado el resumen de `AGENTS.md`.
