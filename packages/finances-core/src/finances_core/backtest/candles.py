@@ -32,8 +32,8 @@ from finances_core.schemas.data_viewer import DatasetIdentifier
 logger = structlog.get_logger(__name__)
 
 PRICE_COLUMNS = ("open", "high", "low", "close")
-#: Columnas exactas que recibe ``Strategy.signals`` (RF-4, RF-16); sin volumen en v1.0.0.
-CANDLE_COLUMNS = (TIME_COLUMN, *PRICE_COLUMNS)
+#: Columnas exactas que recibe ``Strategy.signals`` (RF-4, RF-16); incluye volumen desde v1.1.0.
+CANDLE_COLUMNS = (TIME_COLUMN, *PRICE_COLUMNS, "volume")
 
 
 @dataclass(frozen=True)
@@ -96,6 +96,20 @@ def _check_prices(frame: pl.DataFrame, dataset: BacktestDataset) -> None:
             raise InvalidSourceError(msg)
 
 
+def _check_volume(frame: pl.DataFrame, dataset: BacktestDataset) -> None:
+    column = "volume"
+    nulls = frame[column].null_count()
+    if nulls:
+        msg = (
+            f"Columna {column!r} con {nulls} valores nulos o no finitos en {dataset.path_segment()}"
+        )
+        raise InvalidSourceError(msg)
+    negative = int((frame[column] < 0).sum())
+    if negative:
+        msg = f"Columna {column!r} con {negative} valores < 0 en {dataset.path_segment()}"
+        raise InvalidSourceError(msg)
+
+
 def read_candles(
     settings: FinancesSettings,
     dataset: DatasetIdentifier,
@@ -109,7 +123,7 @@ def read_candles(
         ValueError: SI ``start_ms > end_ms``.
         SourceNotFoundError: SI el dataset no existe bajo ``FT_PARQUET_DIR``.
         InvalidSourceError: SI la fuente no es canónica, sale de ``FT_PARQUET_DIR`` o tiene
-            precios nulos, no finitos o ``<= 0`` en el rango.
+            precios nulos, no finitos o ``<= 0``, o volumen nulo, no finito o ``< 0`` en el rango.
         EmptyRangeError: SI el rango no contiene velas.
     """
     if start_ms is not None and end_ms is not None and start_ms > end_ms:
@@ -117,9 +131,9 @@ def read_candles(
         raise ValueError(msg)
     ds = _checked_dataset(settings, dataset)
 
-    source = load_source(settings, ds, PRICE_COLUMNS)
+    source = load_source(settings, ds, (*PRICE_COLUMNS, "volume"))
     # Orden, unicidad y dtypes sobre la serie completa: filtrar antes ocultaría el desorden.
-    clean = validate_source(source.frame, PRICE_COLUMNS).frame.select(CANDLE_COLUMNS)
+    clean = validate_source(source.frame, (*PRICE_COLUMNS, "volume")).frame.select(CANDLE_COLUMNS)
 
     time = pl.col(TIME_COLUMN)
     if start_ms is not None:
@@ -130,6 +144,7 @@ def read_candles(
         msg = f"empty_range: {ds.path_segment()} no tiene velas en [{start_ms}, {end_ms}]"
         raise EmptyRangeError(msg)
     _check_prices(clean, ds)
+    _check_volume(clean, ds)
 
     gaps = count_data_gaps(clean[TIME_COLUMN], ds.timeframe)
     logger.debug("candles_loaded", dataset=ds.path_segment(), rows=clean.height, data_gaps=gaps)

@@ -1,4 +1,6 @@
-"""B2.1: ``backtest.candles.read_candles`` sobre ``indicators_store.source`` (RF-4, RF-14)."""
+"""B2.1: ``backtest.candles.read_candles`` sobre ``indicators_store.source`` (RF-4, RF-14).
+Enmienda L0-G1: Soporte para volumen.
+"""
 
 from __future__ import annotations
 
@@ -66,7 +68,7 @@ def test_default_range_returns_whole_dataset_with_canonical_dtypes(
     assert isinstance(candles, Candles)
     assert candles.frame.columns == list(CANDLE_COLUMNS)
     assert candles.frame.schema["open_time_ms"] == pl.Int64
-    for col in ("open", "high", "low", "close"):
+    for col in ("open", "high", "low", "close", "volume"):
         assert candles.frame.schema[col] == pl.Float32
     assert candles.frame["open_time_ms"].to_list() == times
     assert candles.n_bars == 100
@@ -142,6 +144,29 @@ def test_non_positive_null_or_non_finite_price_raises_invalid_source(
 
     with pytest.raises(InvalidSourceError, match=column):
         read_candles(settings, BINANCE)
+
+
+@pytest.mark.parametrize(
+    ("value"),
+    [
+        -1.0,
+        math.nan,
+        math.inf,
+    ],
+)
+def test_negative_null_or_non_finite_volume_raises_invalid_source(
+    settings: FinancesSettings, value: float | None
+) -> None:
+    _write_with_price(settings, "volume", 3, value)
+
+    with pytest.raises(InvalidSourceError, match="volume"):
+        read_candles(settings, BINANCE)
+
+
+def test_zero_volume_is_valid(settings: FinancesSettings) -> None:
+    _write_with_price(settings, "volume", 3, 0.0)
+    candles = read_candles(settings, BINANCE)
+    assert candles.frame["volume"][3] == 0.0
 
 
 def test_unordered_times_raise_invalid_source(settings: FinancesSettings) -> None:

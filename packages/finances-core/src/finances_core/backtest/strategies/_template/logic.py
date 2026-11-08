@@ -11,7 +11,7 @@ Reglas que comprueba el núcleo (RF-16…RF-20):
   ``finances_core.backtest.strategies`` (incluido ``_lib``) y módulos hermanos de esta
   carpeta. Nada de ``pandas``, NumPy, doble precisión, ``open``, ``eval``…
 - ``signals`` es pura y determinista: solo lee ``candles`` (``open_time_ms`` ``Int64``;
-  ``open``/``high``/``low``/``close`` ``Float32``), no guarda estado y nunca mira barras
+  ``open``/``high``/``low``/``close``/``volume`` ``Float32``), no guarda estado y nunca mira barras
   futuras (nada de ``shift`` negativo).
 """
 

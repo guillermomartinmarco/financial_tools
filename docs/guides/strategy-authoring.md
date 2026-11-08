@@ -52,7 +52,7 @@ print(estrategias)
    El núcleo fuerza `false` en `t < warmup` y lo usa para `insufficient_history`.
 4. **Escribe `signals(candles, params)`**: función pura que devuelve
    `Signals(entries, exits)`, dos `pl.Series` `Boolean` de longitud `candles.height`.
-   `candles` trae `open_time_ms` (`Int64`) y `open`, `high`, `low`, `close` (`Float32`).
+   `candles` trae `open_time_ms` (`Int64`) y `open`, `high`, `low`, `close`, `volume` (`Float32`).
    Usa solo barras `≤ t` y las ayudas de `finances_core.backtest.strategies._lib`
    (`sma`, `rsi_wilder`, `rolling_max_prev`, `rolling_min_prev`, `cross_above`,
    `cross_below`) o tus propias expresiones Polars.

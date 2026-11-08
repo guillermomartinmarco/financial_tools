@@ -64,8 +64,8 @@ Las señales se evalúan **al cierre** de la barra `t` y producen `entry[t]`/`ex
 
 ### RF-4 — Acceso a Datos (Ubícuo)
 **EL SISTEMA DEBE** cargar las velas con `finances_core.backtest.candles.read_candles(settings, dataset, start_ms, end_ms)`, que reutiliza el lector y la validación compartidos de `finances_core.indicators_store.source` (`load_source`, `validate_source`; `ft_data_viewer` no es importable, Art. 4) sobre `FT_PARQUET_DIR`, en **solo lectura**.
-- Columnas: `open_time_ms` (`Int64`), `open`, `high`, `low`, `close` (`Float32`); el volumen no se usa en v1.0.0. Son exactamente las columnas que recibe `Strategy.signals` (RF-16).
-- Validación (Art. 13): orden estrictamente creciente y único, precios finitos y `> 0`. **SI** hay nulos o no finitos en columnas de precio, **ENTONCES** `invalid_source` (exit 2 / HTTP 422); nunca se descartan filas en silencio.
+- Columnas: `open_time_ms` (`Int64`), `open`, `high`, `low`, `close` **y `volume`** (`Float32`). Son exactamente las columnas que recibe `Strategy.signals` (RF-16). (Enmienda **L0-G1**: el `volume` se carga desde v1.1.0 del contrato de señales; no interviene en la identidad/`run_id`, que hashea solo OHLC, ni cambia las corridas de estrategias que no lo usan.)
+- Validación (Art. 13): orden estrictamente creciente y único, precios finitos y `> 0`; **`volume` finito y `>= 0`** (puede ser 0). **SI** hay nulos o no finitos en columnas de precio o volumen, o `volume < 0`, **ENTONCES** `invalid_source` (exit 2 / HTTP 422); nunca se descartan filas en silencio.
 - **SI** el dataset no existe, **ENTONCES** exit 1 / HTTP 404; **SI** el rango no contiene velas, **ENTONCES** `empty_range` (exit 2 / HTTP 400).
 - Los huecos (gaps) de datos **no** son un error: las barras consecutivas se simulan tal cual existen en el dataset; la corrida informa `data_gaps` (cantidad de intervalos `> 1,5 × timeframe`) en el manifiesto.
 - **SI** hay menos barras que `warmup(params)` de la estrategia más 2, **ENTONCES** la corrida es válida con 0 operaciones y advertencia `insufficient_history`.
@@ -308,3 +308,19 @@ Todo lo siguiente es **propuesta del diseño** (marcada como supuesto) y está s
 | A25 *(nuevo)* | `kinds --check` (ejecuta código de estrategia y el test de anticipación) existe solo en la CLI, como herramienta de autor local; la API solo expone `GET /kinds`. Es una excepción acotada a la simetría CLI/API del Art. 1, que se justifica por RF-18. La abstracción que la cierra a futuro es `check_strategy(kind, policy)` con política `local`/`static`/`isolated` (ADR-B13, tarea P9): hoy solo se implementa `local` en la CLI. | Exponerlo ya por API en proceso (aumenta la superficie de ejecución de código). |
 | A26 *(nuevo)* | La guía de autor vive en `docs/guides/strategy-authoring.md` (nueva carpeta `docs/guides/`): `docs/` ya separa decisiones (`rfc/`), gobernanza (`constitution.md`) y referencias (`articles/`); una guía de procedimiento para autores es una categoría distinta, y el README de cada estrategia documenta solo esa estrategia. El boilerplate vive junto al código en `strategies/_template/` para que no se desincronice. | Poner la guía bajo `specs/` (mezcla requisitos con procedimiento) o en el README raíz (crece sin control). |
 | A27 *(nuevo)* | Se mantiene la numeración de RF-1…RF-15 y se añaden RF-16…RF-22 al final, aunque RF-16…RF-22 conceptualmente amplían RF-1/RF-2. | Renumerar y corregir todas las referencias de `specs/ft_vectorbt/`. |
+
+## Enmienda L0-G1 — Cargar `volume` al frame de señales
+
+Primer slice del Lote 0 de la biblioteca de estrategias (`docs/design/strategy-library.md`). El
+frame que recibe `Strategy.signals` incorpora la columna `volume` (`Float32`), habilitando la
+familia de estrategias volumétricas (OBV, VWAP, etc.). Es un cambio **aditivo**: ninguna estrategia
+existente lo usa, así que ni los resultados ni el `run_id` cambian. Por eso **`CATALOG_VERSION`
+*no* se bumpea en G1** (bumpearlo invalidaría toda la caché sin motivo, ya que `run_id` incluye
+`catalog_version`); el bump corresponde al cambio **breaking** de G2a (migración a posición-objetivo).
+
+- **Hecho cuando**: `read_candles` carga `open_time_ms, open, high, low, close, volume`
+  (`volume` `Float32`, validado finito y `>= 0`); `Strategy.signals` recibe `volume`; la
+  identidad/`run_id` y los goldens de `sma_cross`/`rsi_reversion`/`donchian_breakout` quedan
+  **byte-idénticos** (ninguna usa volumen, y `CATALOG_VERSION` no cambia);
+  `strategy-authoring.md` y `_template` documentan que `volume` está disponible. Tests: nuevo caso
+  que verifica la presencia y dtype de `volume` en el frame de señales + un `volume < 0` → `invalid_source`.
