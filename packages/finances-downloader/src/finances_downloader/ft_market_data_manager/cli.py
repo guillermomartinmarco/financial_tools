@@ -26,7 +26,7 @@ from finances_core.schemas.market_data_manager import (
     PartitionResult,
     PruneRequest,
 )
-from finances_core.timeutils import format_time_ms
+from finances_core.timeutils import format_time_ms, parse_time_input
 from rich.console import Console
 from rich.markup import escape
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
@@ -222,6 +222,17 @@ def _selector(
     }
 
 
+def _parse_time(value: str | None, flag: str) -> int | None:
+    """Parsea una entrada de tiempo flexible (ISO 8601 / ms epoch / 'now') a ms UTC."""
+    if value is None:
+        return None
+    try:
+        return parse_time_input(value)
+    except ValueError as exc:  # misma salida de validación que el resto (exit 2)
+        msg = f"{flag}: {exc}"
+        raise InvalidArgumentError(msg) from exc
+
+
 def _build(model: type[RequestT], data: dict[str, object]) -> RequestT:
     try:
         request = model.model_validate(data)
@@ -243,16 +254,18 @@ def compact_cmd(
     timeframe: list[str] | None = typer.Option(
         None, "--timeframe", "-t", help="Timeframe; repetible"
     ),
-    start_ms: int | None = typer.Option(None, "--start-ms", help="Inicio (ms UTC, inclusive)"),
-    end_ms: int | None = typer.Option(None, "--end-ms", help="Fin (ms UTC, inclusive)"),
+    start: str | None = typer.Option(None, "--start", help="Inicio (ISO 8601, ms epoch o 'now')"),
+    end: str | None = typer.Option(None, "--end", help="Fin (ISO 8601, ms epoch o 'now')"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Calcula el plan sin escribir"),
     output_format: OutputFormat | None = typer.Option(None, "--format", "-f"),
 ) -> None:
     """Unifica cada partición mensual en un único ``data.parquet`` ordenado."""
     fmt = _fmt(ctx, output_format)
     with _cli_errors():
-        data = _selector(exchange, market_type, symbol, timeframe, start_ms)
-        request = _build(ManagerRequest, {**data, "end_ms": end_ms, "dry_run": dry_run})
+        data = _selector(exchange, market_type, symbol, timeframe, _parse_time(start, "--start"))
+        request = _build(
+            ManagerRequest, {**data, "end_ms": _parse_time(end, "--end"), "dry_run": dry_run}
+        )
         _render(_execute(ctx, fmt, lambda cb: service.run_compact(request, cb)), fmt)
 
 
@@ -265,16 +278,18 @@ def dedupe_cmd(
     timeframe: list[str] | None = typer.Option(
         None, "--timeframe", "-t", help="Timeframe; repetible"
     ),
-    start_ms: int | None = typer.Option(None, "--start-ms", help="Inicio (ms UTC, inclusive)"),
-    end_ms: int | None = typer.Option(None, "--end-ms", help="Fin (ms UTC, inclusive)"),
+    start: str | None = typer.Option(None, "--start", help="Inicio (ISO 8601, ms epoch o 'now')"),
+    end: str | None = typer.Option(None, "--end", help="Fin (ISO 8601, ms epoch o 'now')"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Calcula el plan sin escribir"),
     output_format: OutputFormat | None = typer.Option(None, "--format", "-f"),
 ) -> None:
     """Elimina ``open_time_ms`` repetidos conservando la última fila en orden de lectura."""
     fmt = _fmt(ctx, output_format)
     with _cli_errors():
-        data = _selector(exchange, market_type, symbol, timeframe, start_ms)
-        request = _build(ManagerRequest, {**data, "end_ms": end_ms, "dry_run": dry_run})
+        data = _selector(exchange, market_type, symbol, timeframe, _parse_time(start, "--start"))
+        request = _build(
+            ManagerRequest, {**data, "end_ms": _parse_time(end, "--end"), "dry_run": dry_run}
+        )
         _render(_execute(ctx, fmt, lambda cb: service.run_dedupe(request, cb)), fmt)
 
 
@@ -301,10 +316,12 @@ def prune_cmd(
     timeframe: list[str] | None = typer.Option(
         None, "--timeframe", "-t", help="Timeframe; repetible"
     ),
-    start_ms: int | None = typer.Option(None, "--start-ms", help="Inicio (ms UTC, inclusive)"),
-    end_ms: int | None = typer.Option(None, "--end-ms", help="Fin (ms UTC, inclusive)"),
-    before_ms: int | None = typer.Option(
-        None, "--before-ms", help="Borra los meses completos que terminan en o antes de T (ms UTC)"
+    start: str | None = typer.Option(None, "--start", help="Inicio (ISO 8601, ms epoch o 'now')"),
+    end: str | None = typer.Option(None, "--end", help="Fin (ISO 8601, ms epoch o 'now')"),
+    before: str | None = typer.Option(
+        None,
+        "--before",
+        help="Borra los meses completos que terminan en o antes de T (ISO 8601, ms epoch o 'now')",
     ),
     all_partitions: bool = typer.Option(
         False, "--all", help="Borra todas las particiones seleccionadas (exige algún filtro)"
@@ -316,13 +333,13 @@ def prune_cmd(
     """Borra particiones mensuales completas (nunca recorta filas); pide confirmación."""
     fmt = _fmt(ctx, output_format)
     with _cli_errors():
-        data = _selector(exchange, market_type, symbol, timeframe, start_ms)
+        data = _selector(exchange, market_type, symbol, timeframe, _parse_time(start, "--start"))
         request = _build(
             PruneRequest,
             {
                 **data,
-                "end_ms": end_ms,
-                "before_ms": before_ms,
+                "end_ms": _parse_time(end, "--end"),
+                "before_ms": _parse_time(before, "--before"),
                 "all": all_partitions,
                 "dry_run": dry_run,
                 "confirm": force,

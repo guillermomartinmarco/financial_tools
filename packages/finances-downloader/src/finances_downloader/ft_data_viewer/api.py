@@ -31,6 +31,7 @@ from finances_core.schemas.data_viewer import (
     ExportRequest,
     GapInfo,
 )
+from finances_core.timeutils import parse_time_input
 from starlette.background import BackgroundTask
 from starlette.concurrency import run_in_threadpool
 
@@ -133,8 +134,8 @@ async def get_candles(
     market_type: str = MarketParam,
     symbol: str = SymbolParam,
     timeframe: str = TimeframeParam,
-    start_ms: int | None = Query(None, description="open_time_ms inicial (inclusivo)"),
-    end_ms: int | None = Query(None, description="open_time_ms final (inclusivo)"),
+    start: str | None = Query(None, description="ISO 8601, ms epoch o 'now'"),
+    end: str | None = Query(None, description="ISO 8601, ms epoch o 'now'"),
     columns: str | None = Query(None, description="Columnas separadas por coma"),
     limit: int = Query(service.CANDLES_DEFAULT_LIMIT, ge=1, le=service.CANDLES_MAX_LIMIT),
     after_ms: int | None = Query(
@@ -142,6 +143,11 @@ async def get_candles(
     ),
 ) -> CandlesPage:
     """Velas por rango con paginación por cursor (RF-10)."""
+    try:
+        start_ms = parse_time_input(start) if start is not None else None
+        end_ms = parse_time_input(end) if end is not None else None
+    except ValueError as exc:  # entrada de tiempo no parseable -> 400 (paridad con yfinance)
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return await _run(
         lambda: service.get_candles(
             _ident(exchange, market_type, symbol, timeframe),

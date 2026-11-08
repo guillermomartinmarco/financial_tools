@@ -127,7 +127,7 @@ def test_global_flags_before_command(store: Path) -> None:
 
 
 def test_dedupe_removes_duplicates(store: Path) -> None:
-    res = runner.invoke(app, ["dedupe", *DS, "-f", "json", "--start-ms", str(FEB_2024_MS)])
+    res = runner.invoke(app, ["dedupe", *DS, "-f", "json", "--start", str(FEB_2024_MS)])
     assert res.exit_code == 0, res.output
     parts = _json(res.stdout)["partitions"]
     assert [(p["month"], p["result"], p["rows_before"], p["rows_after"]) for p in parts] == [
@@ -154,9 +154,7 @@ def test_prune_dry_run_lists_plan(store: Path) -> None:
 
 
 def test_prune_force_deletes_only_complete_months_before_cutoff(store: Path) -> None:
-    res = runner.invoke(
-        app, ["prune", *DS, "--before-ms", str(FEB_2024_MS), "--force", "-f", "json"]
-    )
+    res = runner.invoke(app, ["prune", *DS, "--before", str(FEB_2024_MS), "--force", "-f", "json"])
     assert res.exit_code == 0, res.output
     assert [p["month"] for p in _json(res.stdout)["partitions"]] == [1]
     left = _files(store)
@@ -166,7 +164,7 @@ def test_prune_force_deletes_only_complete_months_before_cutoff(store: Path) -> 
 def test_prune_rejected_confirmation_exits_1_and_deletes_nothing(store: Path) -> None:
     before = _files(store)
     res = runner.invoke(
-        app, ["prune", *DS, "--before-ms", str(FEB_2024_MS), "-f", "json"], input="n\n"
+        app, ["prune", *DS, "--before", str(FEB_2024_MS), "-f", "json"], input="n\n"
     )
     assert res.exit_code == 1
     assert _files(store) == before
@@ -174,7 +172,7 @@ def test_prune_rejected_confirmation_exits_1_and_deletes_nothing(store: Path) ->
 
 def test_prune_accepted_confirmation_deletes(store: Path) -> None:
     res = runner.invoke(
-        app, ["prune", *DS, "--before-ms", str(FEB_2024_MS), "-f", "json"], input="y\n"
+        app, ["prune", *DS, "--before", str(FEB_2024_MS), "-f", "json"], input="y\n"
     )
     assert res.exit_code == 0, res.output
     assert _json(res.stdout)["partitions"][0]["result"] == "changed"
@@ -182,7 +180,7 @@ def test_prune_accepted_confirmation_deletes(store: Path) -> None:
 
 
 def test_prune_empty_plan_succeeds_without_prompt(store: Path) -> None:
-    res = runner.invoke(app, ["prune", *DS, "--before-ms", str(JAN_2024_MS), "-f", "json"])
+    res = runner.invoke(app, ["prune", *DS, "--before", str(JAN_2024_MS), "-f", "json"])
     assert res.exit_code == 0, res.output
     assert _json(res.stdout)["partitions"] == []
 
@@ -191,11 +189,11 @@ def test_prune_empty_plan_succeeds_without_prompt(store: Path) -> None:
     "args",
     [
         ["prune", "--force"],
-        ["prune", "--all", "--before-ms", "5", "--force"],
+        ["prune", "--all", "--before", "5", "--force"],
         ["prune", "--all", "--force"],
-        ["compact", "--start-ms", "10", "--end-ms", "5"],
-        ["dedupe", "--start-ms", "10", "--end-ms", "5"],
-        ["compact", "--start-ms", "abc"],
+        ["compact", "--start", str(FEB_2024_MS), "--end", str(JAN_2024_MS)],
+        ["dedupe", "--start", str(FEB_2024_MS), "--end", str(JAN_2024_MS)],
+        ["compact", "--start", "abc"],
     ],
 )
 def test_invalid_arguments_exit_2(store: Path, args: list[str]) -> None:

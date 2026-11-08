@@ -75,7 +75,7 @@ def _cli_args(action: str, payload: dict[str, Any]) -> list[str]:
     ):
         for value in payload.get(key, []):
             args += [flag, value]
-    for key, flag in (("start_ms", "--start-ms"), ("before_ms", "--before-ms")):
+    for key, flag in (("start_ms", "--start"), ("before_ms", "--before")):
         if key in payload:
             args += [flag, str(payload[key])]
     if payload.get("dry_run"):
@@ -166,21 +166,28 @@ CASES: list[tuple[str, list[str], str | None, dict[str, Any], tuple[int, ...]]] 
     ("prune", ["prune", "--all", "--force"], None, {"all": True, "confirm": True}, (400, 422)),
     (
         "prune",
-        ["prune", "--all", "--before-ms", "5", "--force"],
+        ["prune", "--all", "--before", "5", "--force"],
         None,
         {"all": True, "before_ms": 5, "confirm": True},
         (400, 422),
     ),
     (
         "compact",
-        ["compact", "--start-ms", "9", "--end-ms", "1"],
+        ["compact", "--start", "9", "--end", "1"],
         None,
         {"start_ms": 9, "end_ms": 1},
         (400, 422),
     ),
     (
         "dedupe",
-        ["dedupe", "--start-ms", "9", "--end-ms", "1"],
+        ["dedupe", "--start", "9", "--end", "1"],
+        None,
+        {"start_ms": 9, "end_ms": 1},
+        (400, 422),
+    ),
+    (
+        "compact",
+        ["compact", "--start", "not-a-date"],
         None,
         {"start_ms": 9, "end_ms": 1},
         (400, 422),
@@ -226,6 +233,6 @@ async def test_missing_confirmation_is_refused_by_both(
             transport=httpx.ASGITransport(app=api), base_url="http://t"
         ) as client:
             status = await _api_status(client, "prune", {"before_ms": FEB_2024_MS})
-        refused = _cli_exit(["prune", "--before-ms", str(FEB_2024_MS)], "n\n")
+        refused = _cli_exit(["prune", "--before", str(FEB_2024_MS)], "n\n")
         assert (refused, status) == (1, 400)
         assert _snapshot(store) == before

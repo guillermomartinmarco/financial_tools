@@ -77,9 +77,9 @@ def _cli(args: list[str]) -> object:
             [
                 "candles",
                 *DS,
-                "--start-ms",
+                "--start",
                 str(JAN_2024_MS + 3 * HOUR_MS),
-                "--end-ms",
+                "--end",
                 str(JAN_2024_MS + 60 * HOUR_MS),
                 "--cols",
                 "open_time_ms,close",
@@ -90,8 +90,8 @@ def _cli(args: list[str]) -> object:
                 "-f",
                 "json",
             ],
-            f"{BASE}/candles?start_ms={JAN_2024_MS + 3 * HOUR_MS}"
-            f"&end_ms={JAN_2024_MS + 60 * HOUR_MS}&columns=open_time_ms,close"
+            f"{BASE}/candles?start={JAN_2024_MS + 3 * HOUR_MS}"
+            f"&end={JAN_2024_MS + 60 * HOUR_MS}&columns=open_time_ms,close"
             f"&limit=9&after_ms={JAN_2024_MS + 10 * HOUR_MS}",
         ),
     ],
