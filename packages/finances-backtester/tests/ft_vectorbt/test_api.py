@@ -30,7 +30,15 @@ from tests.contract.fixture import GOLDEN_PARAMS
 from .conftest import create_strategy, make_request, sma_request
 
 #: Estrategias integradas en orden determinista (igual que la CLI).
-BUILTIN_KINDS = ["donchian_breakout", "rsi_reversion", "sma_cross"]
+BUILTIN_KINDS = [
+    "donchian_breakout",
+    "ema_cross",
+    "high_breakout",
+    "macd_trend",
+    "momentum_roc",
+    "rsi_reversion",
+    "sma_cross",
+]
 #: run_id SHA-256 válido por forma pero inexistente en el almacén.
 UNKNOWN_RUN = "0" * 64
 #: número de operaciones del *fixture* ``sma_cross`` con los parámetros de los golden (B6.1).

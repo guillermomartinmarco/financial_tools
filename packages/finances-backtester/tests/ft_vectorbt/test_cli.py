@@ -30,7 +30,15 @@ from tests.ft_vectorbt.conftest import DATASET, create_strategy, make_request, s
 runner = CliRunner()
 
 FIXTURE_TRADES = 55  # sma_cross con los parámetros de los golden (B6.1)
-BUILTIN_KINDS = ["donchian_breakout", "rsi_reversion", "sma_cross"]
+BUILTIN_KINDS = [
+    "donchian_breakout",
+    "ema_cross",
+    "high_breakout",
+    "macd_trend",
+    "momentum_roc",
+    "rsi_reversion",
+    "sma_cross",
+]
 #: UUID v7 válido por forma pero inexistente en la base de estrategias.
 UNKNOWN_STRATEGY = "0192f000-0000-7000-8000-0000000000ff"
 #: UUID v7 válido por forma pero inexistente en ``tasks.db``.
