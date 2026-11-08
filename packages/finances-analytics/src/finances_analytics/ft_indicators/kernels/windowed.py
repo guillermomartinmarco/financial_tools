@@ -62,7 +62,17 @@ def bb(program: Program, params: Params, dtype: type[pl.DataType] = COMPUTE_DTYP
     value = program.float_input(source_column(params), dtype)
     full = program.let(_full_window(value.is_not_null(), period))
     middle = program.let(scaled(_window_sum(value, period), period))
-    sigma = program.let(value.fill_null(0.0).rolling_std(period, ddof=0))
+    # σ poblacional (ddof=0). Dos requisitos en tensión:
+    #  1) **prefijo-estable bit a bit** (RF-3): ``rolling_std`` de Polars NO lo es (acumula por
+    #     chunks según el largo total del array); ``_window_sum`` (``rolling_sum``) sí lo es.
+    #  2) **precisión f32**: ``E[x²]−E[x]²`` sufre cancelación catastrófica en Float32. Como
+    #     ``period`` llega a ``MAX_PERIOD`` (10k), el two-pass centrado desenrollado es inviable.
+    # Solución: acumular la varianza en **Float64** (como ya hace la producción, COMPUTE_DTYPE) y
+    # bajar σ a ``dtype``. En f64 la identidad conserva ~10 dígitos → dentro de la tolerancia f32.
+    x64 = value.cast(pl.Float64)
+    mean64 = scaled(_window_sum(x64, period), period)
+    mean_sq64 = scaled(_window_sum(x64 * x64, period), period)
+    sigma = program.let((mean_sq64 - mean64 * mean64).clip(lower_bound=0.0).sqrt().cast(dtype))
     return {
         "middle": pl.when(full).then(middle),
         "upper": pl.when(full).then(middle + width * sigma),
