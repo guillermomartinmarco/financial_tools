@@ -260,3 +260,38 @@ def test_system_exit_inside_signals_fails_the_check(tmp_path: Path) -> None:
     with pytest.raises(StrategyContractError, match="SystemExit") as exc:
         assert_strategy_contract("exit_kind", _registry(tmp_path, exit_kind=_logic(body)))
     assert exc.value.check == 3
+
+
+# ------------------------------------------------------------- G2b: estrategias con corto
+def test_strategy_emitting_long_flat_and_short_passes_the_full_contract(tmp_path: Path) -> None:
+    # Posición determinista {-1,0,1} que pasa por 0 entre el largo y el corto (sin reversa
+    # directa, Enmienda G2b): prueba que el contrato (prefijo, anti-anticipación,
+    # determinismo, dominio) acepta -1, no solo {0,1}.
+    body = (
+        "        t = pl.int_range(pl.len(), dtype=pl.Int64)\n"
+        "        cycle = t % 6\n"
+        "        position = (\n"
+        "            pl.when(cycle < 2).then(1)\n"
+        "            .when(cycle < 3).then(0)\n"
+        "            .when(cycle < 5).then(-1)\n"
+        "            .otherwise(0)\n"
+        "            .cast(pl.Int8)\n"
+        "        )\n"
+        "        return candles.select(position).to_series()\n"
+    )
+    registry = _registry(tmp_path, short_kind=_logic(body))
+    assert_strategy_contract("short_kind", registry)
+
+
+def test_direct_reversal_without_flat_fails_as_invalid_signals(tmp_path: Path) -> None:
+    # +1 -> -1 en barras consecutivas, sin 0 intermedio: invalid_signals (decisión Enmienda
+    # G2b), no un StrategyRuntimeError genérico.
+    body = (
+        "        t = pl.int_range(pl.len(), dtype=pl.Int64)\n"
+        "        position = pl.when(t % 2 == 0).then(1).otherwise(-1).cast(pl.Int8)\n"
+        "        return candles.select(position).to_series()\n"
+    )
+    registry = _registry(tmp_path, reversal_kind=_logic(body))
+    with pytest.raises(StrategyContractError, match="invalid_signals") as exc:
+        assert_strategy_contract("reversal_kind", registry)
+    assert exc.value.check == 3

@@ -71,11 +71,24 @@ def make_candles(
     )
 
 
-def make_signals(n: int, entries: Sequence[int] = (), exits: Sequence[int] = ()) -> Signals:
-    """``Signals`` con ``True`` en las barras indicadas (señal al cierre de ``t``)."""
+def make_signals(
+    n: int,
+    entries: Sequence[int] = (),
+    exits: Sequence[int] = (),
+    entries_short: Sequence[int] = (),
+    exits_short: Sequence[int] = (),
+) -> Signals:
+    """``Signals`` con ``True`` en las barras indicadas (señal al cierre de ``t``; Enmienda
+    G2b: ``entries_short``/``exits_short`` por defecto vacíos, todo ``False``)."""
     return Signals(
         entries=pl.Series("entries", [i in entries for i in range(n)], dtype=pl.Boolean),
         exits=pl.Series("exits", [i in exits for i in range(n)], dtype=pl.Boolean),
+        entries_short=pl.Series(
+            "entries_short", [i in entries_short for i in range(n)], dtype=pl.Boolean
+        ),
+        exits_short=pl.Series(
+            "exits_short", [i in exits_short for i in range(n)], dtype=pl.Boolean
+        ),
     )
 
 

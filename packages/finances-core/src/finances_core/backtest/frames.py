@@ -3,7 +3,7 @@
 Los dtypes quedan fijados aquí: ``Int64`` (ms UTC) para tiempos, ``Float32`` para
 magnitudes e ``Int8`` para los dominios categóricos documentados (Art. 5.1 bis):
 
-- ``side``: ``{1}`` largo (``-1`` reservado para cortos, fuera del MVP);
+- ``side``: ``{1, -1}`` largo/corto (Enmienda G2b);
 - ``exit_reason``: ``{0}`` señal, ``{1}`` ``end_of_data`` (liquidación final, A5).
 
 :func:`validate_engine_output` rechaza con :class:`OutputOutOfRangeError` cualquier salida
@@ -28,6 +28,7 @@ from finances_core.metrics.frames import (
     EXIT_REASON_SIGNAL,
     SIDE_DOMAIN,
     SIDE_LONG,
+    SIDE_SHORT,
     TRADES_SCHEMA,
 )
 
@@ -38,6 +39,7 @@ __all__ = [
     "EXIT_REASON_SIGNAL",
     "SIDE_DOMAIN",
     "SIDE_LONG",
+    "SIDE_SHORT",
     "TRADES_SCHEMA",
     "EngineTables",
     "validate_engine_output",

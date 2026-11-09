@@ -114,6 +114,8 @@ def test_open_time_never_enters_the_framework() -> None:
         "close",
         "entries",
         "exits",
+        "short_entries",
+        "short_exits",
     }
     assert inp.n_bars == n
 
@@ -214,7 +216,15 @@ def test_value_overflowing_float32_is_rejected_not_truncated() -> None:
         )
 
 
-@pytest.mark.parametrize("side", [-1, 0, 2, 300])
+def test_side_short_is_accepted() -> None:
+    # Enmienda G2b: -1 (corto) ya no es out_of_domain.
+    output = from_framework_output(
+        _result(5, side=np.array([-1])), pl.Series(times(5), dtype=pl.Int64)
+    )
+    assert output.trades["side"].to_list() == [-1]
+
+
+@pytest.mark.parametrize("side", [0, 2, 300])
 def test_side_out_of_domain_is_rejected(side: int) -> None:
     with pytest.raises(OutputOutOfRangeError, match="side"):
         from_framework_output(

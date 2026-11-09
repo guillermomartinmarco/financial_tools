@@ -8,7 +8,8 @@ backtest) vive en :mod:`finances_core.backtest.frames`, que re-exporta estos sí
 Dtypes fijados (Art. 5.1 bis): ``Int64`` (ms UTC) para tiempos, ``Float32`` para magnitudes,
 ``Int8`` para los dominios categóricos documentados:
 
-- ``side``: ``{1}`` largo (``-1`` reservado para cortos, fuera del MVP);
+- ``side``: ``{1, -1}`` largo/corto (Enmienda G2b del backtester; motores previos a G2b solo
+  producían ``1``);
 - ``exit_reason``: ``{0}`` señal, ``{1}`` ``end_of_data`` (liquidación final).
 """
 
@@ -17,10 +18,11 @@ from __future__ import annotations
 import polars as pl
 
 SIDE_LONG = 1
+SIDE_SHORT = -1
 EXIT_REASON_SIGNAL = 0
 EXIT_REASON_END_OF_DATA = 1
 
-SIDE_DOMAIN = frozenset({SIDE_LONG})
+SIDE_DOMAIN = frozenset({SIDE_LONG, SIDE_SHORT})
 EXIT_REASON_DOMAIN = frozenset({EXIT_REASON_SIGNAL, EXIT_REASON_END_OF_DATA})
 
 #: Una fila por operación completa, ordenada por ``entry_time_ms``.
@@ -55,5 +57,6 @@ __all__ = [
     "EXIT_REASON_SIGNAL",
     "SIDE_DOMAIN",
     "SIDE_LONG",
+    "SIDE_SHORT",
     "TRADES_SCHEMA",
 ]
