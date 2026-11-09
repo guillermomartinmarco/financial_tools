@@ -470,3 +470,80 @@ siguen siendo largo/plano; emitir `-1` queda disponible para estrategias futuras
   firma; suites finances-core y finances-backtester verdes; ruff/mypy/ruff format verdes;
   verificación independiente del cálculo de P&L corto (signo de `pnl`/`return`, fees simétricas)
   contra una referencia Python pura (sin vectorbt) antes de mergear.
+
+## Enmienda G3 — Variantes largo/corto de las 17 estrategias integradas
+
+Usa la capacidad de cortos del motor (G2b) en las 17 estrategias existentes, sin romper su
+comportamiento por defecto. Cambio de **contrato por estrategia** (cada `logic.py` cambia,
+`code_hash`/`version` suben) pero **no** del contrato común (`_lib`/`Signals`/`CATALOG_VERSION`
+no cambian): alto riesgo por corrección de dominio financiero (AGENTS §3.1/§6), tridente SDD.
+
+**Mecanismo — máquina de estados de 3 estados (RF-2, nueva, `strategies/signals.py`):**
+
+```
+position_from_long_short(enter_long, exit_long, enter_short, exit_short) -> pl.Series
+```
+
+A diferencia de `_lib` (`pl.Expr -> pl.Expr`, perezoso y componible), esta ayuda recibe y
+devuelve `pl.Series` **materializadas**: el estado de la barra `t` depende del estado de `t-1`,
+no es expresable como una fórmula sin estado. Reglas (estado inicial `0`, plano):
+
+- **Largo** (`s=1`): si `enter_short[t]` → pasa a plano esta barra y **recuerda** entrar corto
+  en `t+1` (incondicional, sin depender de que `enter_short` siga activo — los eventos de
+  cruce son pulsos de una barra); si (sin lo anterior) `exit_long[t]` → pasa a plano sin
+  reversa pendiente. Si no, se sostiene.
+- **Corto** (`s=-1`): sim\u00e9trico con `enter_long`/`exit_short`.
+- **Plano** (`s=0`): si hay una reversa pendiente de la barra anterior, se aplica
+  incondicionalmente (ignora las se\u00f1ales frescas de esta barra, ya decidida); si no,
+  `enter_long` abre largo, si no `enter_short` abre corto (prioridad a largo en empate).
+
+**Por qué esta forma y no una fórmula sin estado:** una primera versión (zonas sin estado,
+ej. `close > middle` como "salida de largo") puede dispararse para una posición **corta**
+que entró por encima de la banda superior (también por encima de la media), cerrándola de
+inmediato por error — una señal de cierre ajena al lado abierto. La máquina de estados evalúa
+`exit_long`/`exit_short` **solo mientras se está en ese lado exacto**: toda posición tiene
+un cierre inequívoco ligado a su propio lado (el reflejo del otro lado, su propia salida, o
+la liquidación forzada de fin de datos que el motor ya aplica desde G2b). Garantiza "sin
+reversa directa" (Enmienda G2b) **por construcción** (la reversa siempre pasa por `pending`),
+sin necesitar el chequeo posterior de `position_to_signals` (que sigue existiendo como defensa
+para estrategias que no usen esta ayuda).
+
+**Por estrategia:** `Params` gana `allow_short: bool = Field(default=False, ...)`.
+`signals()`:
+```python
+if params.allow_short:
+    return position_from_long_short(enter_long, exit_long, enter_short, exit_short)
+return candles.select(position_from_events(enter_long, exit_long)).to_series()  # equivalente
+```
+Con `allow_short=False` el código sigue llamando `position_from_events` con las mismas
+expresiones que antes (nunca la primitiva nueva): equivalente por construcción, no por
+promesa (en la familia reversión la línea queda literalmente intacta; en la familia
+direccional las expresiones se nombran antes de llamar, mismo cálculo). Bytes
+idénticos — `trades`/`equity`/goldens de las 3
+estrategias originales y el resto siguen igual. `version` de cada estrategia sube (code_hash
+cambia al tocar el archivo); `CATALOG_VERSION` **no** cambia (la ayuda nueva es aditiva a
+`signals.py`, análogo a L1).
+
+**Mapeo por familia (sin parámetros nuevos salvo `allow_short`, por reflejo simétrico):**
+
+- **Direccional/cruce** (11: `sma_cross`, `ema_cross`, `macd_trend`, `donchian_breakout`,
+  `high_breakout`, `momentum_roc`, `obv_trend`, `channel_breakout`, `keltner_breakout`,
+  `atr_channel_breakout`, `inside_bar_breakout`): caso degenerado — `exit_long = enter_short`
+  y `exit_short = enter_long` (la condición bajista existente abre corto en vez de solo
+  aplanar; la alcista cierra el corto). `momentum_roc` cambia de un único umbral a
+  `roc > threshold` / `roc < -threshold` (simétrico alrededor de 0, momentum de series
+  temporales estándar).
+- **Reversión simétrica** (3: `bollinger_reversion`, `zscore_reversion`, `vwap_reversion`):
+  4 condiciones genuinamente distintas; el corto usa el mismo `k`/`threshold` reflejado al
+  otro lado de la banda/centro ya simétrico (sin parámetro nuevo).
+- **Reversión en escala acotada** (2: `rsi2_connors`, `trend_filtered_reversion`): reflejo
+  `100 - x` de `lower`/`upper` existentes (RSI simétrico alrededor de 50, convención estándar).
+
+- **Hecho cuando**: `position_from_long_short` tiene tests de máquina de estados (incluida la
+  reversa con evento de un solo pulso, el caso de 4 condiciones genuinamente distintas, y que
+  nunca produce una reversa directa) y de prefijo-estabilidad; las 17 estrategias ganan
+  `allow_short` con `False` por defecto byte-idéntico (verificado, no asumido) y `README.md`
+  actualizado (tabla de parámetros + sección sobre el espejo corto); `version` de cada una
+  sube; `CATALOG_VERSION` sin cambios; suites verdes; ruff/mypy/format verdes; verificación
+  independiente del mecanismo (ítem de riesgo: corrección financiera) antes de mergear cada
+  lote.

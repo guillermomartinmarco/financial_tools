@@ -64,3 +64,19 @@ def test_readme_sections_diagram_and_table() -> None:
 
 def test_assert_strategy_contract() -> None:
     assert_strategy_contract(KIND)
+
+
+# ------------------------------------------------- Enmienda G3: allow_short=True
+def test_allow_short_false_by_default_is_byte_identical_to_pre_g3() -> None:
+    strategy = get_registry(FinancesSettings()).get(KIND)
+    assert strategy.Params.model_validate({"n": 3, "k": 1.0}).allow_short is False
+
+
+def test_overbought_opens_short_and_returning_below_middle_closes_it() -> None:
+    # n=3, k=1.0: ruptura al alza abre corto en t=3 (una barra en plano antes, Enmienda
+    # G2b), se sostiene mientras no cruce la media, y cae a plano al cruzarla; el valor
+    # final re-entra largo con una caída fuerte (verificado ejecutando el código real).
+    pos = builtin_position(
+        KIND, candles_frame([10.0, 10.0, 10.0, 20.0, 15.0, 15.0, 6.0]), n=3, k=1.0, allow_short=True
+    )
+    assert pos == [0, 0, 0, -1, -1, 0, 1]
