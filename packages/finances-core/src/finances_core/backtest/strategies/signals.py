@@ -91,3 +91,56 @@ def position_to_signals(pos: pl.Series) -> Signals:
     return Signals(
         entries=entries, exits=exits, entries_short=entries_short, exits_short=exits_short
     )
+
+
+def position_from_long_short(
+    enter_long: pl.Series, exit_long: pl.Series, enter_short: pl.Series, exit_short: pl.Series
+) -> pl.Series:
+    """Máquina de estados de 3 estados (largo/plano/corto) a partir de 4 eventos
+    independientes (Enmienda G3). A diferencia de ``_lib`` (``pl.Expr -> pl.Expr``,
+    componible), recibe y devuelve ``pl.Series`` **materializadas**: el estado de la
+    barra ``t`` depende del estado de ``t-1``, no es expresable sin estado.
+
+    Reglas (estado inicial ``0``, plano; nulos de entrada se tratan como ``False``):
+
+    - **Largo** (``s=1``): SI ``enter_short[t]`` ENTONCES pasa a plano esta barra y
+      **recuerda** entrar corto en ``t+1`` (incondicional, sin depender de que
+      ``enter_short`` siga activo: los eventos de cruce son pulsos de una barra); SI NO
+      (``exit_long[t]``) pasa a plano sin reversa pendiente; si no, se sostiene.
+    - **Corto** (``s=-1``): simétrico con ``enter_long``/``exit_short``.
+    - **Plano** (``s=0``): si hay una reversa pendiente de la barra anterior, se aplica
+      incondicionalmente (ignora las señales frescas de esta barra, ya decidida); si no,
+      ``enter_long`` abre largo, si no ``enter_short`` abre corto (prioridad a largo en
+      empate).
+
+    ``exit_long``/``exit_short`` solo se eval\u00faan mientras se est\u00e1 en SU lado exacto:
+    una condici\u00f3n de salida pensada para un lado nunca cierra el otro por error (el bug
+    que motiva esta m\u00e1quina de estados en vez de una f\u00f3rmula sin estado). Garantiza
+    "sin reversa directa" (Enmienda G2b) **por construcci\u00f3n**: toda reversa pasa por
+    ``pending``, nunca aparecen ``+1``/``-1`` en barras consecutivas.
+    """
+    n = enter_long.len()
+    el = enter_long.fill_null(False).to_list()
+    xl = exit_long.fill_null(False).to_list()
+    es = enter_short.fill_null(False).to_list()
+    xs = exit_short.fill_null(False).to_list()
+    out: list[int] = [0] * n
+    state = 0
+    pending: int | None = None
+    for t in range(n):
+        if pending is not None:
+            state, pending = pending, None
+        elif state == 1:
+            if es[t]:
+                state, pending = 0, -1
+            elif xl[t]:
+                state = 0
+        elif state == -1:
+            if el[t]:
+                state, pending = 0, 1
+            elif xs[t]:
+                state = 0
+        else:
+            state = 1 if el[t] else (-1 if es[t] else 0)
+        out[t] = state
+    return pl.Series(out, dtype=pl.Int8)

@@ -319,3 +319,69 @@ calcula P&L de una posición corta — `pnl = (entry_price - exit_price)·size -
 `entry_price` con `sell_price` (deslizamiento en contra), `exit_price` con `buy_price`— para
 contrastar el motor real en al menos un caso con cortos antes de mergear (Verification rule,
 ítem de riesgo: corrección numérica/dominio).
+
+## Enmienda G3 — máquina de estados largo/corto (contrato de datos)
+
+```python
+def position_from_long_short(
+    enter_long: pl.Series, exit_long: pl.Series, enter_short: pl.Series, exit_short: pl.Series
+) -> pl.Series:
+    n = enter_long.len()
+    el, xl = enter_long.fill_null(False).to_list(), exit_long.fill_null(False).to_list()
+    es, xs = enter_short.fill_null(False).to_list(), exit_short.fill_null(False).to_list()
+    out: list[int] = [0] * n
+    state, pending = 0, None  # pending: int | None, reversa decidida a aplicar en t+1
+    for t in range(n):
+        if pending is not None:
+            state, pending = pending, None
+        elif state == 1:
+            if es[t]:
+                state, pending = 0, -1
+            elif xl[t]:
+                state = 0
+        elif state == -1:
+            if el[t]:
+                state, pending = 0, 1
+            elif xs[t]:
+                state = 0
+        else:
+            state = 1 if el[t] else (-1 if es[t] else 0)
+        out[t] = state
+    return pl.Series(out, dtype=pl.Int8)
+```
+
+Vive en `strategies/signals.py` (junto a `position_to_signals`), no en `_lib` (que es
+`Expr -> Expr`). Cada estrategia materializa sus 4 condiciones con `candles.select(...)` antes
+de llamarla. Complejidad `O(n)` en Python puro; a la escala de un backtest (cientos a decenas
+de miles de barras) es despreciable frente al resto del pipeline.
+
+**Patrón por estrategia** (ejemplo `sma_cross`, familia direccional):
+```python
+@staticmethod
+def signals(candles: pl.DataFrame, params: SmaCrossParams) -> pl.Series:
+    fast, slow = sma(pl.col("close"), params.fast), sma(pl.col("close"), params.slow)
+    bullish, bearish = cross_above(fast, slow), cross_below(fast, slow)
+    if params.allow_short:
+        frame = candles.select(bullish=bullish, bearish=bearish)
+        return position_from_long_short(
+            enter_long=frame["bullish"], exit_long=frame["bearish"],
+            enter_short=frame["bearish"], exit_short=frame["bullish"],
+        )
+    return candles.select(position_from_events(bullish, bearish)).to_series()
+```
+
+**Patrón reversión** (ejemplo `bollinger_reversion`, 4 condiciones distintas):
+```python
+if params.allow_short:
+    frame = candles.select(
+        enter_long=close < lower, exit_long=close > middle,
+        enter_short=close > upper, exit_short=close < middle,
+    )
+    return position_from_long_short(
+        frame["enter_long"], frame["exit_long"], frame["enter_short"], frame["exit_short"]
+    )
+return candles.select(position_from_events(close < lower, close > middle)).to_series()
+```
+
+**Reflejo `100-x`** (`rsi2_connors`/pierna RSI de `trend_filtered_reversion`): con
+`lower`/`upper` existentes, `enter_short = rsi > (100 - lower)`, `exit_short = rsi < (100 - upper)`.
