@@ -68,9 +68,12 @@ def _random_signals(n: int, seed: int) -> Signals:
         draw = rng.random()
         entries.append(draw < 0.15)
         exits.append(0.15 <= draw < 0.30)
+    empty = pl.Series([False] * n, dtype=pl.Boolean)
     return Signals(
         entries=pl.Series("entries", entries, dtype=pl.Boolean),
         exits=pl.Series("exits", exits, dtype=pl.Boolean),
+        entries_short=empty.rename("entries_short"),
+        exits_short=empty.rename("exits_short"),
     )
 
 

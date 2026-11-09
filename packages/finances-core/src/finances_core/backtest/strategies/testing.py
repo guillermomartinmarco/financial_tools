@@ -29,7 +29,7 @@ from finances_core.backtest.catalog import StrategyRegistry, get_registry
 from finances_core.backtest.errors import InvalidSignalsError, StrategyInitError
 from finances_core.backtest.strategies.checks import StrategyCheckError, check_ast, check_structure
 from finances_core.backtest.strategies.discovery import StrategyClass
-from finances_core.backtest.strategies.signals import finalize
+from finances_core.backtest.strategies.signals import finalize, position_to_signals
 from finances_core.config import FinancesSettings
 
 SYNTHETIC_BARS = 600
@@ -135,9 +135,11 @@ def _run(
         message = f"signals lanzó {type(exc).__name__}: {exc} ({where})"
         raise StrategyContractError(kind, check, message) from None
     try:
-        return finalize(raw, n=candles.height, warmup=warmup)
+        pos = finalize(raw, n=candles.height, warmup=warmup)
+        position_to_signals(pos)  # valida también la reversa directa +1<->-1 (Enmienda G2b)
     except InvalidSignalsError as exc:
         raise StrategyContractError(kind, check, f"{exc} ({where})") from None
+    return pos
 
 
 def _check_signals(kind: str, strategy: StrategyClass, params: BaseModel) -> pl.Series:

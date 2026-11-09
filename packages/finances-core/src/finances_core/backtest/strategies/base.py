@@ -33,10 +33,16 @@ P = TypeVar("P", bound=BaseModel)
 
 
 class Signals(NamedTuple):
-    """Señales al cierre de cada barra ``t`` (RF-2): dos ``pl.Series`` ``Boolean``."""
+    """Señales al cierre de cada barra ``t`` (RF-2, Enmienda G2b): cuatro ``pl.Series``
+    ``Boolean`` de la misma longitud. ``entries``/``exits`` son el lado largo;
+    ``entries_short``/``exits_short`` el lado corto. **Siempre poblados** (incluso con todo
+    ``False`` cuando no hay cortos): ningún motor necesita distinguir un campo ausente.
+    """
 
     entries: pl.Series
     exits: pl.Series
+    entries_short: pl.Series
+    exits_short: pl.Series
 
 
 class MetricsTarget(BaseModel):

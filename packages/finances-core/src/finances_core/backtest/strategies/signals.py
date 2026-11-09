@@ -63,24 +63,31 @@ def finalize(pos: pl.Series, *, n: int, warmup: int) -> pl.Series:
 
 
 def position_to_signals(pos: pl.Series) -> Signals:
-    """Deriva flancos (entries/exits) para el motor largo/plano a partir de la posición.
+    """Deriva los 4 flancos largo/corto para el motor a partir de la posición (Enmienda G2b).
 
-    Reglas:
-    - entries[t] = (pos[t]==1) & (pos[t-1]!=1)
-    - exits[t] = (pos[t]!=1) & (pos[t-1]==1)
-    - pos[-1] = 0 (la primera barra puede abrir)
+    Reglas (``prev = pos[t-1]``, con ``pos[-1] = 0``: la primera barra puede abrir):
+    - ``entries[t] = (pos[t]==1) ∧ (prev≠ 1)``; ``exits[t] = (pos[t]≠1) ∧ (prev==1)``.
+    - ``entries_short[t] = (pos[t]==-1) ∧ (prev≠-1)``;
+      ``exits_short[t] = (pos[t]≠-1) ∧ (prev==-1)``.
 
     Raises:
-        StrategyRuntimeError: SI ``pos`` contiene -1 (corto no soportado hasta G2b).
+        InvalidSignalsError: SI ``pos`` salta de ``+1`` a ``-1`` (o viceversa) sin pasar por
+            ``0`` en una barra intermedia (decisión de producto, Enmienda G2b: una estrategia
+            que quiera invertir debe emitir un ``0`` explícito antes del lado opuesto).
     """
-    if bool((pos == -1).any()):
-        msg = "invalid_signals: short (-1) no soportado hasta G2b (motor largo/plano)"
-        raise InvalidSignalsError(msg)
-
-    # Shift para obtener pos[t-1], llenando el primer elemento con 0
     prev_pos = pos.shift(1).fill_null(0)
+
+    direct_reversal = ((prev_pos == 1) & (pos == -1)) | ((prev_pos == -1) & (pos == 1))
+    if bool(direct_reversal.any()):
+        t = int(direct_reversal.arg_true()[0])
+        msg = f"invalid_signals: reversa directa +1<->-1 en t={t} (sin 0 intermedio)"
+        raise InvalidSignalsError(msg)
 
     entries = (pos == 1) & (prev_pos != 1)
     exits = (pos != 1) & (prev_pos == 1)
+    entries_short = (pos == -1) & (prev_pos != -1)
+    exits_short = (pos != -1) & (prev_pos == -1)
 
-    return Signals(entries=entries, exits=exits)
+    return Signals(
+        entries=entries, exits=exits, entries_short=entries_short, exits_short=exits_short
+    )

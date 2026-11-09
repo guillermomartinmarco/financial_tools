@@ -34,6 +34,7 @@ from finances_core.backtest.frames import (
     EXIT_REASON_SIGNAL,
     SIDE_DOMAIN,
     SIDE_LONG,
+    SIDE_SHORT,
     TRADES_SCHEMA,
     validate_engine_output,
 )
@@ -57,18 +58,22 @@ BoolArray = npt.NDArray[np.bool_]
 _VBT_LONG = 0
 #: ``status`` de una operación abierta en VectorBT (``TradeStatus.Open``).
 _VBT_OPEN = 0
-#: Valor de ``side`` para cualquier dirección distinta de largo (cortos, fuera del MVP).
-_SIDE_SHORT = -1
 
 
 @dataclass(frozen=True)
 class FrameworkInput:
-    """Entrada de VectorBT: precios en doble precisión y señales booleanas, por posición."""
+    """Entrada de VectorBT: precios en doble precisión y señales booleanas, por posición.
+
+    ``short_entries``/``short_exits`` (Enmienda G2b) van siempre poblados (todo ``False``
+    cuando la estrategia no opera en corto).
+    """
 
     open: FloatArray
     close: FloatArray
     entries: BoolArray
     exits: BoolArray
+    short_entries: BoolArray
+    short_exits: BoolArray
 
     @property
     def n_bars(self) -> int:
@@ -110,24 +115,29 @@ def to_framework_input(candles: pl.DataFrame, signals: Signals) -> FrameworkInpu
     Raises:
         TypeError: SI ``open``/``close`` no son ``Float32`` (la ampliación dejaría de ser
             exacta respecto al dato canónico).
-        ValueError: SI las señales no tienen la longitud de las velas.
+        ValueError: SI alguna de las 4 señales no tiene la longitud de las velas.
     """
     for column in ("open", "close"):
         if candles.schema[column] != pl.Float32:
             msg = f"to_framework_input: {column} es {candles.schema[column]}, se espera Float32"
             raise TypeError(msg)
     n = candles.height
-    if signals.entries.len() != n or signals.exits.len() != n:
-        msg = (
-            f"to_framework_input: longitud de señales {signals.entries.len()}/"
-            f"{signals.exits.len()} != {n} barras"
-        )
+    lengths = {
+        "entries": signals.entries.len(),
+        "exits": signals.exits.len(),
+        "entries_short": signals.entries_short.len(),
+        "exits_short": signals.exits_short.len(),
+    }
+    if any(length != n for length in lengths.values()):
+        msg = f"to_framework_input: longitud de señales {lengths} != {n} barras"
         raise ValueError(msg)
     return FrameworkInput(
         open=candles["open"].to_numpy().astype(np.float64),
         close=candles["close"].to_numpy().astype(np.float64),
         entries=signals.entries.to_numpy().astype(np.bool_),
         exits=signals.exits.to_numpy().astype(np.bool_),
+        short_entries=signals.entries_short.to_numpy().astype(np.bool_),
+        short_exits=signals.exits_short.to_numpy().astype(np.bool_),
     )
 
 
@@ -151,15 +161,20 @@ def _drawdown(equity: FloatArray, initial_cash: float) -> FloatArray:
 def simulate(
     inp: FrameworkInput, costs: CostModel, size_fraction: float, initial_cash: float
 ) -> FrameworkResult:
-    """Simula RF-5 con ``vectorbt.Portfolio.from_signals`` (plan §3.3).
+    """Simula RF-5 con ``vectorbt.Portfolio.from_signals`` (plan §3.3, Enmienda G2b).
 
-    - Desplaza las señales una barra y descarta las entradas que caerían en la última.
-    - Ejecuta a ``open`` con ``slippage``/``fees`` como fracciones (``bps / 10 000``), solo
-      largo, sin acumular, ``size_fraction`` de la caja (``SizeType.Percent``: VectorBT ya
-      dimensiona con ``f·caja / (precio·(1 + fee))``, igual que RF-5.5; ver §3.3).
-    - Liquidación final: si no hay salida por señal en la última barra, se fuerza una salida
-      a su ``close`` (con el mismo deslizamiento de venta); si hay posición, sus operaciones
-      llevan ``exit_reason = 1`` (``end_of_data``).
+    - Desplaza las 4 señales una barra y descarta las entradas (de cualquier lado) que
+      caerían en la última.
+    - Ejecuta a ``open`` con ``slippage``/``fees`` como fracciones (``bps / 10 000``), sin
+      acumular, ``size_fraction`` de la caja (``SizeType.Percent``). Ambos lados se pasan a
+      VectorBT vía ``short_entries``/``short_exits`` (soporte nativo; sin
+      ``direction="longonly"``). El núcleo ya garantiza (``position_to_signals``) que nunca
+      hay una reversa directa ``+1↔-1`` sin pasar por ``0``, así que no hay señales
+      simultáneas de ambos lados en la misma barra.
+    - Liquidación final: si no hay salida por señal en la última barra, se fuerza una
+      salida a su ``close`` en **ambos** lados (``exits[-1] = True`` y
+      ``short_exits[-1] = True``); el lado sin posición abierta es un no-op para VectorBT.
+      Si hay posición, su operación lleva ``exit_reason = 1`` (``end_of_data``).
     - ``return`` se recalcula como ``pnl / (entry_price·size + comisión de entrada)``
       (RF-6): el ``return`` de VectorBT divide solo por ``entry_price·size``.
 
@@ -169,12 +184,18 @@ def simulate(
     n = inp.n_bars
     entries = _shift(inp.entries)
     exits = _shift(inp.exits)
+    short_entries = _shift(inp.short_entries)
+    short_exits = _shift(inp.short_exits)
     price = inp.open.copy()
     forced_exit = False
     if n:
         entries[-1] = False  # RF-5.1: una entrada en la última barra se ignora
-        if not exits[-1]:
-            exits[-1] = True  # RF-5.6: liquidación final al cierre de la última barra
+        short_entries[-1] = False
+        if not exits[-1] and not short_exits[-1]:
+            # RF-5.6: liquidación final al cierre de la última barra, en ambos lados; el
+            # lado sin posición abierta no genera operación (VectorBT la ignora).
+            exits[-1] = True
+            short_exits[-1] = True
             price[-1] = inp.close[-1]
             forced_exit = True
 
@@ -182,13 +203,14 @@ def simulate(
         inp.close,
         entries,
         exits,
+        short_entries=short_entries,
+        short_exits=short_exits,
         price=price,
         fees=fee_rate(costs),
         slippage=slip(costs),
         size=size_fraction,
         size_type="percent",
         init_cash=initial_cash,
-        direction="longonly",
         accumulate=False,
     )
     records = portfolio.trades.values
@@ -204,7 +226,7 @@ def simulate(
     return FrameworkResult(
         entry_idx=records["entry_idx"],
         exit_idx=exit_idx,
-        side=np.where(records["direction"] == _VBT_LONG, SIDE_LONG, _SIDE_SHORT),
+        side=np.where(records["direction"] == _VBT_LONG, SIDE_LONG, SIDE_SHORT),
         entry_price=entry_price,
         exit_price=records["exit_price"],
         size=size,

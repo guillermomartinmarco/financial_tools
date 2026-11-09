@@ -50,7 +50,7 @@ def _registry(dirs: tuple[Path, Path]) -> StrategyRegistry:
 
 
 def test_constants() -> None:
-    assert CATALOG_VERSION == "1.1.0"
+    assert CATALOG_VERSION == "1.2.0"
     assert RESULT_SCHEMA_VERSION == "1"
 
 

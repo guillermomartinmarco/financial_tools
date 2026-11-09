@@ -418,3 +418,55 @@ final. Las demás primitivas son `Float32` puro.
   tres integradas quedan **byte-idénticos** y `CATALOG_VERSION` **no** cambia; `strategy-authoring.md`
   lista las nuevas ayudas; suite finances-core verde; ruff / mypy `--strict` / `ruff format --check`
   verdes.
+
+## Enmienda G2b — Motor de posiciones cortas
+
+Habilita `pos = -1` (corto) en el motor (`ft_vectorbt`), cerrando la biblioteca de estrategias
+long/flat → long/short sin reescribir ninguna de las 17 estrategias integradas (RF-2 no cambia:
+siguen siendo largo/plano; emitir `-1` queda disponible para estrategias futuras). Cambio de
+**contrato** (RF-6, RF-10) y de **motor**: alto riesgo (AGENTS §3.1), tridente SDD.
+
+**Decisiones de producto (usuario, 2026-11-08):**
+1. **Sin reversa directa en la misma barra**: `pos` no puede saltar de `+1` a `-1` (ni viceversa)
+   sin pasar por `0` en una barra intermedia. `position_to_signals` lo valida y lanza
+   `invalid_signals` si ocurre (nombra la barra). Una estrategia que quiera invertir debe emitir
+   un `0` explícito antes del lado opuesto.
+2. **Costo de préstamo (borrow/margin interest) NO se modela** en este MVP: `CostModel` no
+   cambia (`fees_bps`/`slippage_bps` simétricos para largo y corto, igual que el motor por
+   defecto). Es una simplificación documentada, como el apalancamiento/margen (fuera de alcance).
+
+**Contrato nuevo:**
+- `strategies.base.Signals` gana `entries_short: pl.Series` y `exits_short: pl.Series`
+  (`Boolean`, misma longitud que `entries`/`exits`; **siempre poblados**, incluso con todo
+  `False` cuando no hay cortos — ningún motor necesita distinguir `None`). Rompe cualquier
+  construcción posicional de `Signals` (no hay ninguna en el código: todo el código existente
+  usa *keywords*).
+- `signals.position_to_signals(pos) -> Signals`: deriva los 4 flancos.
+  `prev = pos.shift(1).fill_null(0)`. **SI** `(prev==1 ∧ pos==-1) ∨ (prev==-1 ∧ pos==1)`
+  **ENTONCES** `invalid_signals` (reversa directa, decisión 1). Si no:
+  `entries = (pos==1)∧(prev≠1)`; `exits = (pos≠1)∧(prev==1)`;
+  `entries_short = (pos==-1)∧(prev≠-1)`; `exits_short = (pos≠-1)∧(prev==-1)`.
+- `engine_api.BacktestEngine.run` **no cambia de firma**; `Signals` ahora trae los 4 campos.
+  El motor (`ft_vectorbt`) pasa `short_entries`/`short_exits` a
+  `vbt.Portfolio.from_signals` (soporte nativo de la biblioteca, sin `direction="longonly"`).
+  La liquidación final (RF-5.6) fuerza cierre en **ambos** lados (`exits[-1] = True` y
+  `short_exits[-1] = True`): el lado sin posición abierta es un no-op para VectorBT.
+- `frames.SIDE_DOMAIN` pasa de `{1}` a `{1, -1}`; se promueve `SIDE_SHORT = -1` a constante
+  compartida de `finances_core.metrics.frames` (hoy vive privada y sin usar dentro de
+  `ft_vectorbt/engine.py`, con `direction="longonly"` que nunca la produce).
+- `metrics.compute` no cambia: `win_rate`/`exposure`/`sharpe`/etc. ya son agnósticos del lado
+  (operan sobre `pnl`/tiempo en posición, no sobre `side`).
+
+- **Hecho cuando**: las 17 estrategias integradas quedan **byte-idénticas** en `trades`/`equity` (nunca emiten `-1`, los goldens
+  intactos); **`CATALOG_VERSION` sube de `1.1.0` a `1.2.0`** (cambia la normalización de
+  señales compartida —forma de `Signals`, `position_to_signals`—, mismo criterio que G2a: el
+  `run_id` incluye `catalog_version` y por tanto cambia, aunque el output de las 17
+  estrategias sea idéntico); el vector fijo de `run_id` se recomputa; una estrategia
+  sintética de contrato nueva (en `tests/`, no
+  integrada) ejercita largo, corto y la secuencia `+1→0→-1` through evitando la reversa directa;
+  un test prueba que `+1→-1` sin `0` intermedio lanza `invalid_signals`; el motor cierra
+  correctamente una posición corta abierta al final de los datos (`exit_reason=end_of_data`);
+  `SIDE_DOMAIN` acepta `{1,-1}`; `validate_engine_output`/`assert_tables_match` sin cambios de
+  firma; suites finances-core y finances-backtester verdes; ruff/mypy/ruff format verdes;
+  verificación independiente del cálculo de P&L corto (signo de `pnl`/`return`, fees simétricas)
+  contra una referencia Python pura (sin vectorbt) antes de mergear.

@@ -29,6 +29,7 @@ from finances_core.backtest.frames import (
     EXIT_REASON_END_OF_DATA,
     EXIT_REASON_SIGNAL,
     SIDE_LONG,
+    SIDE_SHORT,
     TRADES_SCHEMA,
 )
 
@@ -468,3 +469,53 @@ def summarize(
         "end_ms": candles.open_time_ms[-1],
         "warnings": [],
     }
+
+
+# --------------------------------------------------------------------- corto (Enmienda G2b)
+
+
+@dataclass(frozen=True)
+class ShortRoundTrip:
+    """Resultado de una operación corta aislada (``simulate_short_round_trip``)."""
+
+    side: int
+    entry_price: float
+    exit_price: float
+    size: float
+    fees: float
+    pnl: float
+    return_: float
+
+
+def simulate_short_round_trip(entry_open: float, exit_open: float, costs: Costs) -> ShortRoundTrip:
+    """Economía de UNA operación corta aislada, en Python puro (sin VectorBT/NumPy).
+
+    Vender para abrir el corto sufre el mismo deslizamiento que una venta de cierre largo
+    (``entry_price = entry_open·(1 - s)``, recibe menos); comprar para cerrarlo sufre el
+    mismo deslizamiento que una compra de apertura larga (``exit_price = exit_open·(1 + s)``,
+    paga más): el deslizamiento siempre perjudica al operador, en ambos lados (RF-5, Enmienda
+    G2b). ``size`` dimensiona con toda la caja inicial (``size_fraction = 1``) igual que
+    VectorBT (``SizeType.Percent``): ``size = initial_cash / (entry_price·(1 + fee))``.
+    ``pnl = (entry_price - exit_price)·size - fees``; ``fees`` cobra la tasa sobre el nocional
+    de cada pata (entrada y salida). Sirve como oráculo independiente para un caso de
+    contrato con cortos (Verification rule, ítem de riesgo numérico/dominio).
+    """
+    s = costs.slippage_bps / BPS
+    fee = costs.fees_bps / BPS
+    entry_price = entry_open * (1.0 - s)
+    exit_price = exit_open * (1.0 + s)
+    size = costs.initial_cash / (entry_price * (1.0 + fee))
+    entry_fees = entry_price * size * fee
+    exit_fees = exit_price * size * fee
+    fees = entry_fees + exit_fees
+    pnl = (entry_price - exit_price) * size - fees
+    return_ = pnl / (entry_price * size + entry_fees)
+    return ShortRoundTrip(
+        side=SIDE_SHORT,
+        entry_price=entry_price,
+        exit_price=exit_price,
+        size=size,
+        fees=fees,
+        pnl=pnl,
+        return_=return_,
+    )

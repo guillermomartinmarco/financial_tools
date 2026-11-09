@@ -272,3 +272,50 @@ Espejo de `finances-analytics`: layout `src/`, `setuptools`, `py.typed`, ruff (`
 - **Precisión `Float32` de las señales**: umbrales cercanos pueden dar señales distintas a una referencia en doble precisión; el *fixture* evita empates y los *golden* detectan la divergencia (A6).
 - **Rendimiento de señales**: el cálculo ocurre en el núcleo, fuera del cronómetro del benchmark del motor (`ft_vectorbt` RF-12); un benchmark propio de señales queda pendiente (no bloquea).
 - Importar estrategias locales ejecuta su nivel superior en cada arranque del proceso (A23); un error de import se aísla como `invalid`, no detiene el servicio.
+
+## Enmienda G2b — contrato de datos (motor de cortos)
+
+```python
+class Signals(NamedTuple):            # strategies/base.py
+    entries: pl.Series                # Boolean, largo (sin cambios)
+    exits: pl.Series                  # Boolean, largo (sin cambios)
+    entries_short: pl.Series          # Boolean, corto (nuevo; siempre poblado)
+    exits_short: pl.Series            # Boolean, corto (nuevo; siempre poblado)
+
+def position_to_signals(pos: pl.Series) -> Signals:
+    prev = pos.shift(1).fill_null(0)
+    direct_reversal = (prev == 1) & (pos == -1) | (prev == -1) & (pos == 1)
+    if bool(direct_reversal.any()):
+        t = int(direct_reversal.arg_true()[0])
+        raise InvalidSignalsError(f"invalid_signals: reversa directa +1<->-1 en t={t} (sin 0 intermedio)")
+    return Signals(
+        entries=(pos == 1) & (prev != 1),
+        exits=(pos != 1) & (prev == 1),
+        entries_short=(pos == -1) & (prev != -1),
+        exits_short=(pos != -1) & (prev == -1),
+    )
+```
+
+`ft_vectorbt/engine.py` (`to_framework_input`/`simulate`): agrega `short_entries`/`short_exits`
+(`BoolArray`) a `FrameworkInput`; `simulate` los desplaza igual que `entries`/`exits` (RF-5.1) y
+los pasa a `vbt.Portfolio.from_signals(..., short_entries=..., short_exits=...)` (sin
+`direction="longonly"`: VectorBT soporta ambos lados nativamente vía estos parámetros). La
+liquidación final (RF-5.6) fuerza **ambos** `exits[-1] = True` y `short_exits[-1] = True`; solo
+el lado con posición abierta genera una operación (VectorBT ignora una señal de salida sin
+posición). `_SIDE_SHORT = -1` se promueve a `SIDE_SHORT` en `finances_core.metrics.frames`
+(`SIDE_DOMAIN = frozenset({SIDE_LONG, SIDE_SHORT})`); `side` de cada operación ya se deriva de
+`records["direction"]` (sin cambios en esa línea, solo dejan de ser alcanzables como "dead code"
+porque `direction="longonly"` desaparece).
+
+`CostModel` **no cambia**: `fees_bps`/`slippage_bps` se aplican igual para ambos lados (entrada
+corta = "vender para abrir", `sell_price`; salida corta = "comprar para cerrar", `buy_price`;
+`costs.py` ya es simétrico, VectorBT aplica su único parámetro `slippage` contra el trader en
+ambas direcciones). Sin campo de costo de préstamo (decisión de producto, documentada en
+`spec.md`).
+
+**Referencia de verificación independiente** (`tests/contract/reference.py`,
+finances-backtester): nueva función Python pura `simulate_short` (sin NumPy/VectorBT) que
+calcula P&L de una posición corta — `pnl = (entry_price - exit_price)·size - fees`,
+`entry_price` con `sell_price` (deslizamiento en contra), `exit_price` con `buy_price`— para
+contrastar el motor real en al menos un caso con cortos antes de mergear (Verification rule,
+ítem de riesgo: corrección numérica/dominio).
