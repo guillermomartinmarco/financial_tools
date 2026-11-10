@@ -70,3 +70,25 @@ def test_readme_sections_diagram_and_table() -> None:
 
 def test_assert_strategy_contract() -> None:
     assert_strategy_contract(KIND)
+
+
+# ------------------------------------------------- Enmienda G3: allow_short=True
+def test_allow_short_false_by_default_is_byte_identical_to_pre_g3() -> None:
+    strategy = get_registry(FinancesSettings()).get(KIND)
+    assert strategy.Params.model_validate(PARAMS).allow_short is False
+
+
+def test_downtrend_bounce_opens_short_when_allow_short() -> None:
+    # Ca\u00edda sostenida (trend_n=5) seguida de un rebote que RSI(2) marca fuerte pero
+    # que sigue por debajo de la media (a\u00fan descendiente) -> abre corto.
+    closes = [200.0, 200.0, 200.0, 200.0, 100.0, 100.0, 130.0, 150.0]
+    pos = builtin_position(
+        KIND,
+        candles_frame(closes),
+        trend_n=5,
+        rsi_period=2,
+        rsi_lower=46.0,
+        rsi_upper=90.0,
+        allow_short=True,
+    )
+    assert pos == [0, 0, 0, 0, 0, 0, -1, 0]

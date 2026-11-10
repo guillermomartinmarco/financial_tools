@@ -1,6 +1,7 @@
 # `trend_filtered_reversion` — Reversión Filtrada por Tendencia
 
-Estrategia integrada (`origin = builtin`), solo largo/plano.
+Estrategia integrada (`origin = builtin`); largo/plano por defecto, largo/corto con
+`allow_short=True` (Enmienda G3).
 
 ## Lógica de negocio
 
@@ -13,6 +14,13 @@ Esta estrategia combina un filtro de tendencia a largo plazo con un disparador d
 - **Señales**:
     - $\text{entry}[t] = (\text{close}[t] > \text{trend}[t]) \text{ AND } (\text{rsi}[t] < \text{rsi\_lower})$
     - $\text{exit}[t] = (\text{rsi}[t] > \text{rsi\_upper}) \text{ OR } (\text{close}[t] < \text{trend}[t])$
+- **Con `allow_short=True`**: espejo bajista completo (combinador invertido, no el
+  reflejo literal de las condiciones de largo), con reflejo $100-x$ del lado RSI:
+  $\text{enter\_short}[t] = (\text{close}[t] < \text{trend}[t]) \text{ AND } (\text{rsi}[t] > (100-\text{rsi\_lower}))$
+  (rebote en tendencia bajista) y
+  $\text{exit\_short}[t] = (\text{rsi}[t] < (100-\text{rsi\_upper})) \text{ OR } (\text{close}[t] > \text{trend}[t])$.
+  Cada salida se evalúa solo mientras se está en su propio lado
+  (`strategies.signals.position_from_long_short`).
 
 ## Diagrama
 
@@ -21,7 +29,10 @@ stateDiagram-v2
     [*] --> Plano
     Plano --> Largo: entry (tendencia alcista Y sobreventa RSI)
     Largo --> Plano: exit (sobrecompra RSI O ruptura de tendencia)
+    Plano --> Corto: enter_short, con allow_short=True (tendencia bajista Y rebote RSI)
+    Corto --> Plano: exit_short, con allow_short=True
     Largo --> Plano: fin de datos (liquidación final)
+    Corto --> Plano: fin de datos (liquidación final)
 ```
 
 ## Diccionario de parámetros
@@ -32,6 +43,7 @@ stateDiagram-v2
 | `rsi_period` | entero | 1..1000 | 2 | Periodo del RSI de Wilder |
 | `rsi_lower` | flotante | 0.0..100.0 | 10.0 | Umbral de sobreventa para entrar en largo |
 | `rsi_upper` | flotante | 0.0..100.0 | 70.0 | Umbral de salida por momentum |
+| `allow_short` | booleano | — | `false` | Espejo bajista (tendencia + reflejo RSI) abre corto |
 
 ## Limitaciones
 
