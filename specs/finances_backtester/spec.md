@@ -547,3 +547,55 @@ cambia al tocar el archivo); `CATALOG_VERSION` **no** cambia (la ayuda nueva es 
   sube; `CATALOG_VERSION` sin cambios; suites verdes; ruff/mypy/format verdes; verificación
   independiente del mecanismo (ítem de riesgo: corrección financiera) antes de mergear cada
   lote.
+
+## Enmienda G4 — Stops de riesgo (SL/TP/trailing) a nivel de corrida
+
+Origen: investigación paralela del usuario (`tmp/research/`, fuera del repo) sobre validación
+honesta de estrategias, que expuso un gap real del contrato — ninguna operación puede expresar
+stop-loss/take-profit, lo que bloquea evaluar la esperanza en R-múltiplos (estándar de la
+industria para comparar estrategias con distinto tamaño de posición/volatilidad). Cambio de
+**contrato** (RF-5, RF-6, RF-10) y de **motor**: alto riesgo (AGENTS §3.1/§6), tridente SDD.
+
+**Decisiones de producto (usuario, 2026-11-10):**
+1. **Nivel de corrida, no por estrategia**: `sl_frac`/`tp_frac` son uniformes para todas las
+   operaciones de una corrida (vía `BacktestRequest`), no una serie por barra que la estrategia
+   module dinámicamente. Más simple; sin riesgo adaptativo (p. ej. basado en ATR) en esta versión.
+2. **Trailing stop incluido desde v1**: `sl_trail: bool` (VectorBT ya lo soporta nativo,
+   `sl_trail=True` sobre el mismo `sl_stop`).
+
+**Contrato nuevo:**
+- `schemas/backtest.py`: nuevo `RiskModel` (paralelo a `CostModel`):
+  `sl_frac: float | None = None` (fracción de pérdida máxima, `None` = sin stop),
+  `tp_frac: float | None = None` (fracción de ganancia objetivo, `None` = sin take-profit),
+  `sl_trail: bool = False` (si `sl_stop` seguimiento al alza). `BacktestRequest` gana
+  `risk: RiskModel | None = None` (por defecto `None`: **sin cambio de comportamiento**,
+  aditivo).
+- `engine_api.BacktestEngine.run` gana un par\u00e1metro **opcional** `risk: RiskModel | None = None``
+  al final de la firma (default `None`): los 7 call sites existentes (`runner.py`, `evaluate.py`,
+  tests) no cambian si no lo pasan. VectorBT (`ft_vectorbt/engine.py`) traduce
+  `risk.sl_frac`/`risk.tp_frac`/`risk.sl_trail` a `sl_stop`/`tp_stop`/`sl_trail` de
+  `vbt.Portfolio.from_signals` (soporte nativo, largo/corto-aware vía el mismo `direction`
+  por operaci\u00f3n ya resuelto en G2b: "A percentage below/above the acquisition price for
+  long/short position", verificado contra la firma real de la biblioteca).
+- `metrics/frames.py`: `EXIT_REASON_DOMAIN` gana `EXIT_REASON_STOP_LOSS = 2` y
+  `EXIT_REASON_TAKE_PROFIT = 3` (además de `SIGNAL=0`, `END_OF_DATA=1`). VectorBT **no** expone
+  el motivo de salida en sus registros (verificado: `trades.records_readable`/`orders` no
+  distinguen stop de señal); el motor clasifica comparando `exit_price` contra el nivel te\u00f3rico
+  (`entry_price \u00b7 (1 \u00b1 sl_frac)` / `entry_price \u00b7 (1 \u00b1 tp_frac)`, signo seg\u00fan `side`) dentro de
+  una tolerancia de punto flotante; si no coincide con ning\u00fan nivel, es `SIGNAL` o
+  `END_OF_DATA` seg\u00fan la l\u00f3gica ya existente.
+- **R-m\u00faltiplo sin campo nuevo**: como `sl_frac` es constante por corrida,
+  `R[trade] = pnl[trade] / (entry_price[trade] \u00b7 size[trade] \u00b7 sl_frac)` se deriva de columnas
+  que `trades` ya tiene + el `sl_frac` de la corrida (manifiesto); **sin** `sl_frac` definido
+  (`risk=None`), no hay R-m\u00faltiplo (el feature de expectancy-en-R queda fuera de alcance de esta
+  enmienda; es la fase siguiente, sobre `finances_core.metrics`, sin tocar el motor).
+
+- **Hecho cuando**: `RiskModel` validado (`sl_frac`/`tp_frac` en `(0, 1]` si se dan);
+  `risk=None` reproduce bytes id\u00e9nticos en las 17 estrategias (goldens intactos,
+  `CATALOG_VERSION` sin cambios); con `risk` definido, una operaci\u00f3n que toca el nivel de stop
+  (o take-profit, o ambos extremos con `sl_trail`) cierra con el `exit_reason` correcto,
+  verificado contra una referencia independiente en Python puro (sin VectorBT) que calcula el
+  mismo resultado a mano para al menos un caso largo y uno corto; `sl_trail=True` sigue el
+  precio al alza en un largo (o a la baja en un corto) sin re-exponer p\u00e9rdida ya asegurada;
+  suites finances-core y finances-backtester verdes; ruff/mypy/format verdes; verificaci\u00f3n
+  independiente del motor de stops (\u00edtem de riesgo: corrección financiera) antes de mergear.

@@ -385,3 +385,38 @@ return candles.select(position_from_events(close < lower, close > middle)).to_se
 
 **Reflejo `100-x`** (`rsi2_connors`/pierna RSI de `trend_filtered_reversion`): con
 `lower`/`upper` existentes, `enter_short = rsi > (100 - lower)`, `exit_short = rsi < (100 - upper)`.
+
+## Enmienda G4 — contrato de datos (stops de riesgo)
+
+```python
+class RiskModel(BaseModel):          # finances_core/schemas/backtest.py, junto a CostModel
+    model_config = ConfigDict(extra="forbid")
+    sl_frac: float | None = Field(default=None, gt=0.0, le=1.0, allow_inf_nan=False)
+    tp_frac: float | None = Field(default=None, gt=0.0, le=1.0, allow_inf_nan=False)
+    sl_trail: bool = Field(default=False)  # requiere sl_frac; validar con model_validator
+
+# BacktestRequest gana:
+    risk: RiskModel | None = Field(default=None)
+
+# engine_api.BacktestEngine.run (último parámetro, con default -> aditivo):
+def run(self, candles, signals, costs, size_fraction, initial_cash,
+        risk: RiskModel | None = None) -> EngineOutput: ...
+```
+
+`ft_vectorbt/engine.py::simulate`: si `risk` no es `None`, pasa a
+`vbt.Portfolio.from_signals(..., sl_stop=risk.sl_frac, tp_stop=risk.tp_frac,
+sl_trail=risk.sl_trail)` (``None`` en `sl_frac`/`tp_frac` se traduce a `np.nan`/ausente, el
+default de VectorBT = sin ese stop). Clasificación de `exit_reason` en
+`from_framework_output`: para cada operación cerrada por `exit_reason` candidato (no
+forzada por fin de datos), comparar `exit_price` contra `entry_price·(1 - sign·sl_frac)` y
+`entry_price·(1 + sign·tp_frac)` (`sign = +1` largo, `-1` corto) con tolerancia relativa
+`1e-4` (RFC-0004); el primer nivel que matchea fija `EXIT_REASON_STOP_LOSS`/
+`EXIT_REASON_TAKE_PROFIT`; si ninguno matchea, mantiene la clasificación `SIGNAL`/
+`END_OF_DATA` ya existente.
+
+**Referencia de verificación independiente** (`tests/contract/reference.py`,
+finances-backtester): nueva función Python pura `simulate_with_stops` (sin
+VectorBT/NumPy) que, dada una secuencia de precios y un `RiskModel`, determina a mano
+si el stop o el take-profit se toca primero (comparación barra a barra contra
+`high`/`low` de la vela, no solo `close`) y calcula el PnL resultante, para contrastar el
+motor real en casos largos y cortos con stop, con take-profit, y con `sl_trail`.
