@@ -8,6 +8,8 @@ stop — hueco). ``risk=None`` no cambia nada (cubierto en los goldens de contra
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 from finances_core.backtest.frames import (
     EXIT_REASON_SIGNAL,
@@ -25,7 +27,7 @@ REL = 1e-6
 FLAT = [100.0, 100.0, 100.0, 100.0, 100.0]
 
 
-def _only_trade(out: object) -> dict:
+def _only_trade(out: object) -> dict[str, Any]:
     rows = out.trades.to_dicts()  # type: ignore[attr-defined]
     assert len(rows) == 1, rows
     return rows[0]
