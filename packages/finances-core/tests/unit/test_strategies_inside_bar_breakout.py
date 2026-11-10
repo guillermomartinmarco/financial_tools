@@ -67,3 +67,21 @@ def test_readme_sections_diagram_and_table() -> None:
 
 def test_assert_strategy_contract() -> None:
     assert_strategy_contract(KIND)
+
+
+# ------------------------------------------------- Enmienda G3: allow_short=True
+def test_allow_short_false_by_default_is_byte_identical_to_pre_g3() -> None:
+    strategy = get_registry(FinancesSettings()).get(KIND)
+    assert strategy.Params.model_validate({}).allow_short is False
+
+
+def test_downside_breakout_of_an_inside_bar_opens_short_when_allow_short() -> None:
+    # t=2 es inside bar; t=3 rompe su m\u00ednimo a la baja -> abre corto en vez de aplanar.
+    pos = builtin_position(
+        KIND,
+        ohlc_frame(
+            high=[10.0, 11.0, 10.5, 9.0], low=[9.0, 10.0, 10.2, 8.5], close=[10.0, 11.0, 10.5, 8.8]
+        ),
+        allow_short=True,
+    )
+    assert pos == [0, 0, 0, -1]

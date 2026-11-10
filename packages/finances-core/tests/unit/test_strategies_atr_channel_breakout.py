@@ -69,3 +69,20 @@ def test_readme_sections_diagram_and_table() -> None:
 
 def test_assert_strategy_contract() -> None:
     assert_strategy_contract(KIND)
+
+
+# ------------------------------------------------- Enmienda G3: allow_short=True
+def test_allow_short_false_by_default_is_byte_identical_to_pre_g3() -> None:
+    strategy = get_registry(FinancesSettings()).get(KIND)
+    assert strategy.Params.model_validate({"n": 5, "k": 0.5}).allow_short is False
+
+
+def test_downside_breakout_opens_short_when_allow_short() -> None:
+    candles = ohlc_frame(
+        high=[10.0] * 5 + [12.0, 12.0, 10.0],
+        low=[10.0] * 5 + [11.0, 10.0, 8.0],
+        close=[10.0] * 5 + [12.0, 10.0, 8.0],
+    )
+    candles = candles.with_columns(pl.Series("open", [10.0] * 5 + [11.0, 11.0, 9.0]))
+    pos = builtin_position(KIND, candles, n=5, k=0.5, allow_short=True)
+    assert pos == [0, 0, 0, 0, 0, 1, 0, -1]

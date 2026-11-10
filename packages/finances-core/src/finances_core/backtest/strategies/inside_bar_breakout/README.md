@@ -1,6 +1,7 @@
 # `inside_bar_breakout` — Ruptura de barra interior (Inside Bar)
 
-Estrategia integrada (`origin = builtin`), solo largo/plano.
+Estrategia integrada (`origin = builtin`); largo/plano por defecto, largo/corto con
+`allow_short=True` (Enmienda G3).
 
 ## Lógica de negocio
 
@@ -15,6 +16,9 @@ La estrategia confirma un movimiento cuando la barra inmediatamente posterior a 
 - **Inside Bar**: $Inside_t = (High_t < High_{t-1}) \land (Low_t > Low_{t-1})$
 - **Entrada**: $Inside_{t-1} \land (Close_t > High_{t-1})$
 - **Salida**: $Inside_{t-1} \land (Close_t < Low_{t-1})$
+- **Con `allow_short=True`**: la ruptura a la baja abre corto en vez de solo aplanar;
+  la ruptura al alza cierra el corto, con una barra en plano al revertir (Enmienda
+  G2b/`position_from_long_short`).
 
 ## Diagrama
 
@@ -23,15 +27,20 @@ stateDiagram-v2
     [*] --> Plano
     Plano --> Largo: Breakout Alza Inside Bar
     Largo --> Plano: Breakout Baja Inside Bar
+    Plano --> Corto: Breakout Baja Inside Bar, con allow_short=True
+    Corto --> Plano: Breakout Alza Inside Bar, con allow_short=True
     Largo --> Plano: fin de datos (liquidación final)
+    Corto --> Plano: fin de datos (liquidación final)
 ```
 
 ## Diccionario de parámetros
 
 | Parámetro | Tipo | Rango | Defecto | Descripción |
 |---|---|---|---|---|
+| `allow_short` | booleano | — | `false` | La ruptura a la baja abre corto en vez de aplanar |
 
-Esta estrategia no tiene parámetros ajustables (patrón fijo de acción de precio).
+Sin `allow_short`, esta estrategia no tiene parámetros ajustables (patrón fijo de
+accion de precio).
 
 ## Limitaciones
 

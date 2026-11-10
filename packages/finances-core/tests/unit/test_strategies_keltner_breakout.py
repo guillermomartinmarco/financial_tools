@@ -67,3 +67,24 @@ def test_readme_sections_diagram_and_table() -> None:
 
 def test_assert_strategy_contract() -> None:
     assert_strategy_contract(KIND)
+
+
+# ------------------------------------------------- Enmienda G3: allow_short=True
+def test_allow_short_false_by_default_is_byte_identical_to_pre_g3() -> None:
+    strategy = get_registry(FinancesSettings()).get(KIND)
+    assert strategy.Params.model_validate({"n": 5, "k": 1.0}).allow_short is False
+
+
+def test_breakdown_of_lower_band_opens_short_when_allow_short() -> None:
+    pos = builtin_position(
+        KIND,
+        ohlc_frame(
+            high=[10.0] * 5 + [15.0, 10.0, 2.0, 2.0],
+            low=[10.0] * 5 + [10.0, 10.0, 1.0, 1.0],
+            close=[10.0] * 5 + [15.0, 10.0, 1.5, 1.5],
+        ),
+        n=5,
+        k=1.0,
+        allow_short=True,
+    )
+    assert pos == [0, 0, 0, 0, 0, 1, 1, 0, -1]
