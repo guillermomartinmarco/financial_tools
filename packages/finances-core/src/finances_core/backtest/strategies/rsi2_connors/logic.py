@@ -2,7 +2,8 @@
 
 ``entry[t]`` = ``rsi_wilder(close, period)[t] < lower`` (sobreventa profunda);
 ``exit[t]`` = ``rsi_wilder(close, period)[t] > upper`` (zona neutral/sobrecompra).
-Largo/plano.
+Largo/plano por defecto; con ``allow_short=True`` (Enmienda G3) el reflejo
+``100 - x`` de ``lower``/``upper`` abre corto en sobrecompra profunda.
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ from finances_core.backtest.strategies._lib import (
     position_from_events,
     rsi_wilder,
 )
+from finances_core.backtest.strategies.signals import position_from_long_short
 
 
 class Rsi2ConnorsParams(BaseModel):
@@ -29,6 +31,10 @@ class Rsi2ConnorsParams(BaseModel):
         default=10.0, ge=0.0, lt=100.0, description="Umbral de sobreventa profunda"
     )
     upper: float = Field(default=70.0, gt=0.0, le=100.0, description="Umbral de salida")
+    allow_short: bool = Field(
+        default=False,
+        description="Reflejo 100-x de lower/upper abre corto en sobrecompra (Enmienda G3)",
+    )
 
     @model_validator(mode="after")
     def _lower_below_upper(self) -> Self:
@@ -40,12 +46,15 @@ class Rsi2ConnorsParams(BaseModel):
 
 class Rsi2Connors(BaseStrategy[Rsi2ConnorsParams]):
     kind = "rsi2_connors"
-    version = "1.0.0"
+    version = "1.1.0"
     description = "Compra sobreventa profunda con RSI(2) y vende al cruzar el umbral superior."
     Params = Rsi2ConnorsParams
     default_params = {"period": 2, "lower": 10.0, "upper": 70.0}
     metrics_target = MetricsTarget(metric="sharpe", direction="max")
-    check_params = ({"period": 2, "lower": 20.0, "upper": 50.0},)
+    check_params = (
+        {"period": 2, "lower": 20.0, "upper": 50.0},
+        {"period": 2, "lower": 20.0, "upper": 50.0, "allow_short": True},
+    )
 
     @staticmethod
     def warmup(params: Rsi2ConnorsParams) -> int:
@@ -55,6 +64,15 @@ class Rsi2Connors(BaseStrategy[Rsi2ConnorsParams]):
     @staticmethod
     def signals(candles: pl.DataFrame, params: Rsi2ConnorsParams) -> pl.Series:
         rsi = rsi_wilder(pl.col("close"), params.period)
-        return candles.select(
-            position_from_events(rsi < params.lower, rsi > params.upper)
-        ).to_series()
+        bullish, bearish = rsi < params.lower, rsi > params.upper
+        if params.allow_short:
+            frame = candles.select(
+                enter_long=bullish,
+                exit_long=bearish,
+                enter_short=rsi > (100.0 - params.lower),
+                exit_short=rsi < (100.0 - params.upper),
+            )
+            return position_from_long_short(
+                frame["enter_long"], frame["exit_long"], frame["enter_short"], frame["exit_short"]
+            )
+        return candles.select(position_from_events(bullish, bearish)).to_series()
