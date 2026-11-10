@@ -1,6 +1,7 @@
 # `momentum_roc` — Momentum por tasa de cambio
 
-Estrategia integrada (`origin = builtin`), solo largo/plano.
+Estrategia integrada (`origin = builtin`); largo/plano por defecto, largo/corto con
+`allow_short=True` (Enmienda G3).
 
 ## Lógica de negocio
 
@@ -23,6 +24,12 @@ umbral).
 - Calentamiento: `warmup = n`; para `t < n` no hay señal.
 - Comparaciones estrictas: `roc = threshold` no cambia la posición.
 - Cálculo en Polars `Float32` con `strategies/_lib` (`roc`).
+- **Con `allow_short=True`**: a diferencia de las demás estrategias direccionales, el
+  espejo corto **no** reutiliza la condición de salida existente, porque esa salida es
+  asimétrica (mismo `threshold` para entrar y salir). En su lugar usa el umbral
+  **negado** (`-threshold`), simétrico alrededor de 0: `entry_short = roc < -threshold`,
+  `exit_short = roc > threshold` (momentum negativo de la misma magnitud que el de
+  entrada largo). Es el diseño clásico de momentum de series temporales bidireccional.
 
 ## Diagrama
 
@@ -31,7 +38,10 @@ stateDiagram-v2
     [*] --> Plano
     Plano --> Largo: roc(close, n) > threshold
     Largo --> Plano: roc(close, n) < threshold
+    Plano --> Corto: roc(close, n) < -threshold, con allow_short=True
+    Corto --> Plano: roc(close, n) > threshold, con allow_short=True
     Largo --> Plano: fin de datos (liquidación final)
+    Corto --> Plano: fin de datos (liquidación final)
 ```
 
 ## Diccionario de parámetros
@@ -40,6 +50,7 @@ stateDiagram-v2
 |---|---|---|---|---|
 | `n` | entero | 1..10000 | 20 | Barras de la tasa de cambio |
 | `threshold` | real | -1.0..10.0 | 0.0 | Umbral de momentum (fracción; `0.05` = 5 %) |
+| `allow_short` | booleano | — | `false` | Momentum negativo simétrico (`< -threshold`) abre corto |
 
 ## Limitaciones
 

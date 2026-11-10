@@ -1,6 +1,7 @@
 # `ema_cross` — Cruce de medias móviles exponenciales
 
-Estrategia integrada (`origin = builtin`), solo largo/plano.
+Estrategia integrada (`origin = builtin`); largo/plano por defecto, largo/corto con
+`allow_short=True` (Enmienda G3).
 
 ## Lógica de negocio
 
@@ -22,6 +23,10 @@ empates.
 - Comparaciones estrictas: un empate `EMA_fast(t) = EMA_slow(t)` no genera señal; un
   empate en `t-1` seguido de un cruce estricto en `t` sí.
 - Cálculo en Polars `Float32` con `strategies/_lib` (`ema`, `cross_above`, `cross_below`).
+- **Con `allow_short=True`**: el cruce bajista (`exit`) abre corto en vez de solo
+  aplanar; el cruce alcista (`entry`) cierra el corto. La reversa siempre pasa una
+  barra en plano (Enmienda G2b); el corto se abre en la barra siguiente aunque el
+  cruce sea un evento de una sola barra (`strategies.signals.position_from_long_short`).
 
 ## Diagrama
 
@@ -30,7 +35,10 @@ stateDiagram-v2
     [*] --> Plano
     Plano --> Largo: entry (EMA_fast cruza por encima de EMA_slow)
     Largo --> Plano: exit (EMA_fast cruza por debajo de EMA_slow)
+    Plano --> Corto: exit, con allow_short=True
+    Corto --> Plano: entry, con allow_short=True
     Largo --> Plano: fin de datos (liquidación final)
+    Corto --> Plano: fin de datos (liquidación final)
 ```
 
 ## Diccionario de parámetros
@@ -39,6 +47,7 @@ stateDiagram-v2
 |---|---|---|---|---|
 | `fast` | entero | 2..10000, `fast < slow` | 12 | Barras de la EMA rápida |
 | `slow` | entero | 3..10000, `slow > fast` | 26 | Barras de la EMA lenta |
+| `allow_short` | booleano | — | `false` | El cruce bajista abre corto en vez de aplanar |
 
 ## Limitaciones
 

@@ -1,6 +1,7 @@
 # `high_breakout` — Ruptura del máximo de cierre
 
-Estrategia integrada (`origin = builtin`), solo largo/plano.
+Estrategia integrada (`origin = builtin`); largo/plano por defecto, largo/corto con
+`allow_short=True` (Enmienda G3).
 
 ## Lógica de negocio
 
@@ -25,6 +26,9 @@ laterales entra tarde y sale tarde.
 - Calentamiento: `warmup = window`; para `t < window` no hay señal.
 - Cálculo en Polars `Float32` con `strategies/_lib` (`rolling_max_prev`,
   `rolling_min_prev`).
+- **Con `allow_short=True`**: la ruptura a la baja (`exit`) abre corto en vez de solo
+  aplanar; la ruptura al alza (`entry`) cierra el corto, con una barra en plano al
+  revertir (Enmienda G2b/`position_from_long_short`).
 
 ## Diagrama
 
@@ -33,7 +37,10 @@ stateDiagram-v2
     [*] --> Plano
     Plano --> Largo: close > máximo de los window cierres previos
     Largo --> Plano: close < mínimo de los window cierres previos
+    Plano --> Corto: close < mínimo, con allow_short=True
+    Corto --> Plano: close > máximo, con allow_short=True
     Largo --> Plano: fin de datos (liquidación final)
+    Corto --> Plano: fin de datos (liquidación final)
 ```
 
 ## Diccionario de parámetros
@@ -41,6 +48,7 @@ stateDiagram-v2
 | Parámetro | Tipo | Rango | Defecto | Descripción |
 |---|---|---|---|---|
 | `window` | entero | 2..10000 | 20 | Barras del canal de cierre (excluye la actual) |
+| `allow_short` | booleano | — | `false` | La ruptura a la baja abre corto en vez de aplanar |
 
 ## Limitaciones
 

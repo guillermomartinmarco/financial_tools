@@ -1,6 +1,7 @@
 # `donchian_breakout` — Ruptura del canal de Donchian
 
-Estrategia integrada (`origin = builtin`), solo largo/plano.
+Estrategia integrada (`origin = builtin`); largo/plano por defecto, largo/corto con
+`allow_short=True` (Enmienda G3).
 
 ## Lógica de negocio
 
@@ -22,6 +23,9 @@ el borde del canal.
 - Comparaciones estrictas: `close[t] = alto(t)` o `close[t] = bajo(t)` no genera señal.
 - Cálculo en Polars `Float32` con `strategies/_lib` (`rolling_max_prev`,
   `rolling_min_prev`).
+- **Con `allow_short=True`**: la ruptura a la baja (`exit`) abre corto en vez de solo
+  aplanar; la ruptura al alza (`entry`) cierra el corto, con una barra en plano al
+  revertir (Enmienda G2b/`position_from_long_short`).
 
 ## Diagrama
 
@@ -30,7 +34,10 @@ stateDiagram-v2
     [*] --> Plano
     Plano --> Largo: entry (close > máximo previo del canal)
     Largo --> Plano: exit (close < mínimo previo del canal)
+    Plano --> Corto: exit, con allow_short=True
+    Corto --> Plano: entry, con allow_short=True
     Largo --> Plano: fin de datos (liquidación final)
+    Corto --> Plano: fin de datos (liquidación final)
 ```
 
 ## Diccionario de parámetros
@@ -38,6 +45,7 @@ stateDiagram-v2
 | Parámetro | Tipo | Rango | Defecto | Descripción |
 |---|---|---|---|---|
 | `window` | entero | 2..10000 | 20 | Barras del canal (entrada y salida) |
+| `allow_short` | booleano | — | `false` | La ruptura a la baja abre corto en vez de aplanar |
 
 ## Limitaciones
 
