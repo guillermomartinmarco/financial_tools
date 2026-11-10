@@ -93,3 +93,18 @@ def test_readme_sections_diagram_and_table() -> None:
 
 def test_assert_strategy_contract() -> None:
     assert_strategy_contract(KIND)
+
+
+# ------------------------------------------------- Enmienda G3: allow_short=True
+def test_allow_short_false_by_default_is_byte_identical_to_pre_g3() -> None:
+    strategy = get_registry(FinancesSettings()).get(KIND)
+    assert strategy.Params.model_validate({"window": 3}).allow_short is False
+
+
+def test_breakdown_opens_short_when_allow_short() -> None:
+    # Misma serie que test_hand_computed_ten_bars, con allow_short=True: la ruptura a
+    # la baja abre corto en vez de solo aplanar (verificado ejecutando el c\u00f3digo real).
+    pos = builtin_position(
+        KIND, ohlc_frame(high=HIGH, low=LOW, close=CLOSE), window=3, allow_short=True
+    )
+    assert pos == [0, 0, 0, 0, 1, 1, 1, 0, -1, 0]

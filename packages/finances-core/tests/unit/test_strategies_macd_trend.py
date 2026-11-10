@@ -70,3 +70,19 @@ def test_readme_sections_diagram_and_table() -> None:
 
 def test_assert_strategy_contract() -> None:
     assert_strategy_contract(KIND)
+
+
+# ------------------------------------------------- Enmienda G3: allow_short=True
+def test_allow_short_false_by_default_is_byte_identical_to_pre_g3() -> None:
+    strategy = get_registry(FinancesSettings()).get(KIND)
+    assert strategy.Params.model_validate(PARAMS).allow_short is False
+
+
+def test_enters_short_on_sustained_downtrend_when_allow_short() -> None:
+    pos = builtin_position(KIND, candles_frame(TREND), **PARAMS, allow_short=True)
+    strategy = get_registry(FinancesSettings()).get(KIND)
+    warmup = strategy.warmup(strategy.Params(**PARAMS, allow_short=True))
+    assert pos[:warmup] == [0] * warmup  # sin se\u00f1al en el calentamiento
+    shorts = [t for t, p in enumerate(pos) if p == -1]
+    assert shorts and all(t >= warmup for t in shorts)  # el corto ocurre tras el calentamiento
+    assert pos[-1] == -1  # se sostiene corto en la baja sostenida (verificado por ejecuci\u00f3n)

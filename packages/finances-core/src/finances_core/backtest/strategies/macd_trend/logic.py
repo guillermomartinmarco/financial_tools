@@ -2,7 +2,8 @@
 
 ``MACD = EMA_fast(close) - EMA_slow(close)``; ``señal = EMA_signal(MACD)``.
 ``entry[t]`` = la MACD cruza **por encima** de su señal; ``exit[t]`` = la cruza por debajo.
-Momentum de tendencia clásico (Appel). Largo/plano.
+Momentum de tendencia clásico (Appel). Largo/plano por defecto; con ``allow_short=True``
+(Enmienda G3) el cruce bajista abre corto.
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ from finances_core.backtest.strategies._lib import (
     ema,
     position_from_events,
 )
+from finances_core.backtest.strategies.signals import position_from_long_short
 
 
 class MacdTrendParams(BaseModel):
@@ -29,6 +31,9 @@ class MacdTrendParams(BaseModel):
     fast: int = Field(default=12, ge=2, le=10_000, description="Barras de la EMA rápida")
     slow: int = Field(default=26, ge=3, le=10_000, description="Barras de la EMA lenta")
     signal: int = Field(default=9, ge=2, le=10_000, description="Barras de la EMA de la señal")
+    allow_short: bool = Field(
+        default=False, description="El cruce bajista abre corto en vez de aplanar (Enmienda G3)"
+    )
 
     @model_validator(mode="after")
     def _fast_below_slow(self) -> Self:
@@ -40,12 +45,16 @@ class MacdTrendParams(BaseModel):
 
 class MacdTrend(BaseStrategy[MacdTrendParams]):
     kind = "macd_trend"
-    version = "1.0.0"
+    version = "1.1.0"
     description = "Cruce de la línea MACD sobre su señal EMA (momentum de tendencia, largo/plano)."
     Params = MacdTrendParams
     default_params = {"fast": 12, "slow": 26, "signal": 9}
     metrics_target = MetricsTarget(metric="sharpe", direction="max")
-    check_params = ({"fast": 3, "slow": 6, "signal": 3},)
+    #: El segundo set ejercita allow_short=True (contrato + anti-anticipación, Enmienda G3).
+    check_params = (
+        {"fast": 3, "slow": 6, "signal": 3},
+        {"fast": 3, "slow": 6, "signal": 3, "allow_short": True},
+    )
 
     @staticmethod
     def warmup(params: MacdTrendParams) -> int:
@@ -57,6 +66,13 @@ class MacdTrend(BaseStrategy[MacdTrendParams]):
     def signals(candles: pl.DataFrame, params: MacdTrendParams) -> pl.Series:
         macd = ema(pl.col("close"), params.fast) - ema(pl.col("close"), params.slow)
         signal = ema(macd, params.signal)
-        return candles.select(
-            position_from_events(cross_above(macd, signal), cross_below(macd, signal))
-        ).to_series()
+        bullish, bearish = cross_above(macd, signal), cross_below(macd, signal)
+        if params.allow_short:
+            frame = candles.select(bullish=bullish, bearish=bearish)
+            return position_from_long_short(
+                enter_long=frame["bullish"],
+                exit_long=frame["bearish"],
+                enter_short=frame["bearish"],
+                exit_short=frame["bullish"],
+            )
+        return candles.select(position_from_events(bullish, bearish)).to_series()

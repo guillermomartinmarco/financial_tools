@@ -59,3 +59,17 @@ def test_readme_sections_diagram_and_table() -> None:
 
 def test_assert_strategy_contract() -> None:
     assert_strategy_contract(KIND)
+
+
+# ------------------------------------------------- Enmienda G3: allow_short=True
+def test_allow_short_false_by_default_is_byte_identical_to_pre_g3() -> None:
+    strategy = get_registry(FinancesSettings()).get(KIND)
+    assert strategy.Params.model_validate(PARAMS).allow_short is False
+
+
+def test_negative_momentum_opens_short_with_symmetric_threshold() -> None:
+    # n=3, threshold=0: momentum positivo fuerte -> largo; al caer por debajo de
+    # -threshold (aqu\u00ed 0) abre corto sim\u00e9trico en vez de solo aplanar.
+    closes = [10.0, 10.0, 10.0, 10.0, 11.0, 12.0, 13.0, 9.0, 8.0, 7.0]
+    pos = builtin_position(KIND, candles_frame(closes), **PARAMS, allow_short=True)
+    assert pos == [0, 0, 0, 0, 1, 1, 1, 0, -1, -1]

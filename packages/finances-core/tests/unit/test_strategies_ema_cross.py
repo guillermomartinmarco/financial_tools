@@ -59,3 +59,22 @@ def test_readme_sections_diagram_and_table() -> None:
 
 def test_assert_strategy_contract() -> None:
     assert_strategy_contract(KIND)
+
+
+# ------------------------------------------------- Enmienda G3: allow_short=True
+def test_allow_short_false_by_default_is_byte_identical_to_pre_g3() -> None:
+    strategy = get_registry(FinancesSettings()).get(KIND)
+    assert strategy.Params.model_validate({"fast": 2, "slow": 3}).allow_short is False
+
+
+def test_bearish_cross_opens_short_through_one_flat_bar_when_allow_short() -> None:
+    # fast=2, slow=3: cruce bajista en t=6 (20->8) abre corto en t=7 (una barra en plano
+    # en t=6, Enmienda G2b); cruce alcista en t=9 (8->20) vuelve a plano.
+    pos = builtin_position(
+        KIND,
+        candles_frame([10.0, 10.0, 10.0, 20.0, 20.0, 20.0, 8.0, 8.0, 8.0, 20.0]),
+        fast=2,
+        slow=3,
+        allow_short=True,
+    )
+    assert pos == [0, 0, 0, 1, 1, 1, 0, -1, -1, 0]
