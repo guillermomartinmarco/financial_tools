@@ -1,6 +1,7 @@
 # `obv_trend` — Cruce del OBV sobre su media móvil
 
-Estrategia integrada (`origin = builtin`), solo largo/plano.
+Estrategia integrada (`origin = builtin`); largo/plano por defecto, largo/corto con
+`allow_short=True` (Enmienda G3).
 
 ## Lógica de negocio
 
@@ -12,6 +13,9 @@ Utiliza el On-Balance Volume (OBV) para confirmar la fuerza de la tendencia medi
 - **OBV Media**: $OBV\_Avg_t = \text{SMA}(OBV, n)_t$
 - **Entrada**: $\text{cross\_above}(OBV, OBV\_Avg)$
 - **Salida**: $\text{cross\_below}(OBV, OBV\_Avg)$
+- **Con `allow_short=True`**: el cruce a la baja abre corto en vez de solo aplanar; el
+  cruce al alza cierra el corto, con una barra en plano al revertir (Enmienda
+  G2b/`position_from_long_short`).
 
 ## Diagrama
 
@@ -20,7 +24,10 @@ stateDiagram-v2
     [*] --> Plano
     Plano --> Largo: OBV cruza al alza SMA(OBV)
     Largo --> Plano: OBV cruza a la baja SMA(OBV)
+    Plano --> Corto: OBV cruza a la baja, con allow_short=True
+    Corto --> Plano: OBV cruza al alza, con allow_short=True
     Largo --> Plano: fin de datos (liquidación final)
+    Corto --> Plano: fin de datos (liquidación final)
 ```
 
 ## Diccionario de parámetros
@@ -28,6 +35,7 @@ stateDiagram-v2
 | Parámetro | Tipo | Rango | Defecto | Descripción |
 | :--- | :--- | :--- | :--- | :--- |
 | `n` | `int` | [2, 10,000] | 20 | Periodo de la media móvil simple aplicada al OBV. |
+| `allow_short` | `bool` | — | `false` | El cruce a la baja abre corto en vez de aplanar. |
 
 ## Limitaciones
 

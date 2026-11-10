@@ -1,6 +1,7 @@
 # `atr_channel_breakout` — Ruptura de Canal ATR
 
-Estrategia integrada (`origin = builtin`), solo largo/plano.
+Estrategia integrada (`origin = builtin`); largo/plano por defecto, largo/corto con
+`allow_short=True` (Enmienda G3).
 
 ## Lógica de negocio
 
@@ -12,6 +13,9 @@ Esta estrategia implementa una ruptura de volatilidad basada en el Average True 
 - **Señales**:
     - $\text{entry}[t] = \text{close}[t] > \text{open}[t] + \text{vol}[t]$
     - $\text{exit}[t] = \text{close}[t] < \text{open}[t] - \text{vol}[t]$
+- **Con `allow_short=True`**: la ruptura bajista abre corto en vez de solo aplanar;
+  la ruptura alcista cierra el corto, con una barra en plano al revertir (Enmienda
+  G2b/`position_from_long_short`).
 
 ## Diagrama
 
@@ -20,7 +24,10 @@ stateDiagram-v2
     [*] --> Plano
     Plano --> Largo: entry (close supera open + k*ATR)
     Largo --> Plano: exit (close cae por debajo de open - k*ATR)
+    Plano --> Corto: exit, con allow_short=True
+    Corto --> Plano: entry, con allow_short=True
     Largo --> Plano: fin de datos (liquidación final)
+    Corto --> Plano: fin de datos (liquidación final)
 ```
 
 ## Diccionario de parámetros
@@ -29,6 +36,7 @@ stateDiagram-v2
 |---|---|---|---|---|
 | `n` | entero | 2..10000 | 14 | Periodo del ATR para medir la volatilidad |
 | `k` | flotante | 0.1..10.0 | 1.0 | Multiplicador del ATR para el umbral de ruptura |
+| `allow_short` | booleano | — | `false` | La ruptura bajista abre corto en vez de aplanar |
 
 ## Limitaciones
 
