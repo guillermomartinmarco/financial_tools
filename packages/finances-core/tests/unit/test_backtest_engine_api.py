@@ -18,9 +18,22 @@ from finances_core.backtest.frames import EQUITY_SCHEMA, TRADES_SCHEMA
 
 
 def test_engine_run_has_no_strategy_parameters() -> None:
-    """RF-21: ``BacktestEngine.run`` no recibe ``kind``, ``params`` ni la estrategia."""
-    params = list(inspect.signature(BacktestEngine.run).parameters)
-    assert params == ["self", "candles", "signals", "costs", "size_fraction", "initial_cash"]
+    """RF-21: ``BacktestEngine.run`` no recibe ``kind``, ``params`` ni la estrategia.
+
+    Enmienda G4: ``risk`` es el último parámetro, opcional (default ``None``) y aditivo.
+    """
+    signature = inspect.signature(BacktestEngine.run)
+    params = list(signature.parameters)
+    assert params == [
+        "self",
+        "candles",
+        "signals",
+        "costs",
+        "size_fraction",
+        "initial_cash",
+        "risk",
+    ]
+    assert signature.parameters["risk"].default is None
     forbidden = {"kind", "params", "strategy", "resolved", "resolved_strategy"}
     assert forbidden.isdisjoint(params)
     assert not any("strategy" in name or "kind" in name for name in params)

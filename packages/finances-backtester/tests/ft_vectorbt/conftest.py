@@ -23,7 +23,7 @@ import pytest
 from finances_core.backtest.engine_api import CostModel, EngineOutput, Signals
 from finances_core.config import FinancesSettings
 from finances_core.marketdata.hive_writer import write_parquet_partitioned
-from finances_core.schemas.backtest import BacktestRequest
+from finances_core.schemas.backtest import BacktestRequest, RiskModel
 from finances_core.schemas.data_viewer import DatasetIdentifier
 from finances_core.schemas.market_data import OHLCV_SCHEMA
 from finances_core.schemas.strategy import StrategyCreate
@@ -52,20 +52,26 @@ def make_candles(
     open_: Sequence[float],
     close: Sequence[float],
     open_time_ms: Sequence[int] | None = None,
+    high: Sequence[float] | None = None,
+    low: Sequence[float] | None = None,
 ) -> pl.DataFrame:
-    """Velas RF-4 canónicas; ``high``/``low`` envuelven ``open``/``close``."""
+    """Velas RF-4 canónicas; ``high``/``low`` envuelven ``open``/``close`` salvo que se den.
+
+    ``high``/``low`` explícitos permiten construir mechas intrabar (necesarias para probar
+    los stops de la Enmienda G4, que se evalúan contra la mecha, no solo el cierre).
+    """
     n = len(open_)
     stamps = list(open_time_ms) if open_time_ms is not None else times(n)
+    highs = (
+        list(high) if high is not None else [max(o, c) for o, c in zip(open_, close, strict=True)]
+    )
+    lows = list(low) if low is not None else [min(o, c) for o, c in zip(open_, close, strict=True)]
     return pl.DataFrame(
         {
             "open_time_ms": pl.Series(stamps, dtype=pl.Int64),
             "open": pl.Series(list(open_), dtype=pl.Float32),
-            "high": pl.Series([max(o, c) for o, c in zip(open_, close, strict=True)]).cast(
-                pl.Float32
-            ),
-            "low": pl.Series([min(o, c) for o, c in zip(open_, close, strict=True)]).cast(
-                pl.Float32
-            ),
+            "high": pl.Series(highs, dtype=pl.Float32),
+            "low": pl.Series(lows, dtype=pl.Float32),
             "close": pl.Series(list(close), dtype=pl.Float32),
         }
     )
@@ -98,10 +104,11 @@ def run_pipeline(
     costs: CostModel = NO_COSTS,
     size_fraction: float = 1.0,
     initial_cash: float = 1000.0,
+    risk: RiskModel | None = None,
 ) -> EngineOutput:
     """Los tres puntos públicos de ``engine.py`` encadenados (igual que ``run``)."""
     inp = to_framework_input(candles, signals)
-    res = simulate(inp, costs, size_fraction, initial_cash)
+    res = simulate(inp, costs, size_fraction, initial_cash, risk)
     return from_framework_output(res, candles["open_time_ms"])
 
 

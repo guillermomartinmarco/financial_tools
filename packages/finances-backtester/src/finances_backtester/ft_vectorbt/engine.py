@@ -25,13 +25,15 @@ import numpy.typing as npt
 import polars as pl
 import vectorbt as vbt  # type: ignore[import-untyped]  # sin py.typed ni stubs
 from finances_core.backtest.costs import fee_rate, slip
-from finances_core.backtest.engine_api import CostModel, EngineOutput, Signals
+from finances_core.backtest.engine_api import CostModel, EngineOutput, RiskModel, Signals
 from finances_core.backtest.errors import OutputOutOfRangeError
 from finances_core.backtest.frames import (
     EQUITY_SCHEMA,
     EXIT_REASON_DOMAIN,
     EXIT_REASON_END_OF_DATA,
     EXIT_REASON_SIGNAL,
+    EXIT_REASON_STOP_LOSS,
+    EXIT_REASON_TAKE_PROFIT,
     SIDE_DOMAIN,
     SIDE_LONG,
     SIDE_SHORT,
@@ -65,10 +67,13 @@ class FrameworkInput:
     """Entrada de VectorBT: precios en doble precisión y señales booleanas, por posición.
 
     ``short_entries``/``short_exits`` (Enmienda G2b) van siempre poblados (todo ``False``
-    cuando la estrategia no opera en corto).
+    cuando la estrategia no opera en corto). ``high``/``low`` (Enmienda G4) alimentan la
+    detección intrabar de stops de ``vbt.Portfolio.from_signals``.
     """
 
     open: FloatArray
+    high: FloatArray
+    low: FloatArray
     close: FloatArray
     entries: BoolArray
     exits: BoolArray
@@ -117,7 +122,7 @@ def to_framework_input(candles: pl.DataFrame, signals: Signals) -> FrameworkInpu
             exacta respecto al dato canónico).
         ValueError: SI alguna de las 4 señales no tiene la longitud de las velas.
     """
-    for column in ("open", "close"):
+    for column in ("open", "high", "low", "close"):
         if candles.schema[column] != pl.Float32:
             msg = f"to_framework_input: {column} es {candles.schema[column]}, se espera Float32"
             raise TypeError(msg)
@@ -133,6 +138,8 @@ def to_framework_input(candles: pl.DataFrame, signals: Signals) -> FrameworkInpu
         raise ValueError(msg)
     return FrameworkInput(
         open=candles["open"].to_numpy().astype(np.float64),
+        high=candles["high"].to_numpy().astype(np.float64),
+        low=candles["low"].to_numpy().astype(np.float64),
         close=candles["close"].to_numpy().astype(np.float64),
         entries=signals.entries.to_numpy().astype(np.bool_),
         exits=signals.exits.to_numpy().astype(np.bool_),
@@ -158,8 +165,88 @@ def _drawdown(equity: FloatArray, initial_cash: float) -> FloatArray:
     return drawdown
 
 
+def _classify_stop_reason(  # noqa: PLR0913 - parámetros de una operación cerrada (Enmienda G4)
+    *,
+    side: int,
+    entry_idx: int,
+    exit_idx: int,
+    raw_entry: float,
+    high: FloatArray,
+    low: FloatArray,
+    open_: FloatArray,
+    risk: RiskModel,
+    default_reason: int,
+) -> int:
+    """Clasifica el motivo de salida de una operación cerrada bajo stops (Enmienda G4).
+
+    Re-deriva, barra a barra sobre ``[entry_idx+1, exit_idx]`` (la barra de entrada se
+    excluye, como hace VectorBT), el primer stop que dispara contra las mechas de la vela;
+    el precio y el índice de salida ya los fijó VectorBT, esto solo decide la etiqueta. El
+    nivel se calcula contra ``raw_entry`` (``open`` de la barra de entrada, pre-slippage: la
+    base que usa VectorBT). El stop trailing sigue el pico de ``high``/``low`` **previo** a
+    la barra evaluada (la entrada no cuenta). En empate en la misma barra gana el stop-loss.
+    Si ningún stop dispara hasta ``exit_idx``, la salida conserva ``default_reason`` (señal
+    o fin de datos).
+    """
+    sign = 1.0 if side == SIDE_LONG else -1.0
+    sl_frac = risk.sl_frac
+    tp_frac = risk.tp_frac
+    tp_level = raw_entry * (1.0 + sign * tp_frac) if tp_frac is not None else None
+    extreme = raw_entry  # pico (largo) / valle (corto) del trailing, sin la barra de entrada
+    for j in range(entry_idx + 1, exit_idx + 1):
+        sl_level: float | None = None
+        if sl_frac is not None:
+            basis = extreme if risk.sl_trail else raw_entry
+            sl_level = basis * (1.0 - sign * sl_frac)
+        if side == SIDE_LONG:
+            sl_hit = sl_level is not None and (low[j] <= sl_level or open_[j] <= sl_level)
+            tp_hit = tp_level is not None and (high[j] >= tp_level or open_[j] >= tp_level)
+        else:
+            sl_hit = sl_level is not None and (high[j] >= sl_level or open_[j] >= sl_level)
+            tp_hit = tp_level is not None and (low[j] <= tp_level or open_[j] <= tp_level)
+        if sl_hit or tp_hit:
+            return EXIT_REASON_STOP_LOSS if sl_hit else EXIT_REASON_TAKE_PROFIT
+        if risk.sl_trail and sl_frac is not None:
+            extreme = max(extreme, high[j]) if side == SIDE_LONG else min(extreme, low[j])
+    return default_reason
+
+
+def _stop_exit_reasons(  # noqa: PLR0913, PLR0917 - registros de operaciones + stops (Enmienda G4)
+    inp: FrameworkInput,
+    entry_idx: IntArray,
+    exit_idx: IntArray,
+    side: IntArray,
+    base_reason: IntArray,
+    risk: RiskModel,
+) -> IntArray:
+    """``exit_reason`` de cada operación reclasificando las salidas por stop (Enmienda G4).
+
+    Parte de ``base_reason`` (señal / fin de datos) y reemplaza por ``stop_loss`` /
+    ``take_profit`` las operaciones cuyo cierre disparó un stop. Una salida forzada de fin
+    de datos solo se reclasifica si un stop dispara en esa misma barra o antes.
+    """
+    reasons = base_reason.copy()
+    for i in range(entry_idx.shape[0]):
+        reasons[i] = _classify_stop_reason(
+            side=int(side[i]),
+            entry_idx=int(entry_idx[i]),
+            exit_idx=int(exit_idx[i]),
+            raw_entry=float(inp.open[int(entry_idx[i])]),
+            high=inp.high,
+            low=inp.low,
+            open_=inp.open,
+            risk=risk,
+            default_reason=int(base_reason[i]),
+        )
+    return reasons
+
+
 def simulate(
-    inp: FrameworkInput, costs: CostModel, size_fraction: float, initial_cash: float
+    inp: FrameworkInput,
+    costs: CostModel,
+    size_fraction: float,
+    initial_cash: float,
+    risk: RiskModel | None = None,
 ) -> FrameworkResult:
     """Simula RF-5 con ``vectorbt.Portfolio.from_signals`` (plan §3.3, Enmienda G2b).
 
@@ -177,6 +264,10 @@ def simulate(
       Si hay posición, su operación lleva ``exit_reason = 1`` (``end_of_data``).
     - ``return`` se recalcula como ``pnl / (entry_price·size + comisión de entrada)``
       (RF-6): el ``return`` de VectorBT divide solo por ``entry_price·size``.
+    - ``risk`` (Enmienda G4): si no es ``None``, pasa ``open``/``high``/``low`` y
+      ``sl_stop``/``tp_stop``/``sl_trail`` a VectorBT (detección intrabar nativa) y
+      reclasifica cada salida por stop en ``stop_loss``/``take_profit`` (:func:`
+      _stop_exit_reasons`). Con ``risk=None`` la llamada es idéntica a la previa.
 
     Raises:
         OutputOutOfRangeError: SI VectorBT deja alguna operación abierta al final.
@@ -199,6 +290,19 @@ def simulate(
             price[-1] = inp.close[-1]
             forced_exit = True
 
+    stop_kwargs: dict[str, Any] = {}
+    if risk is not None:
+        # Enmienda G4: las mechas intrabar (``open``/``high``/``low``) solo alimentan la
+        # detección de stops; la ejecución de señales sigue a ``price``. Sin ``risk`` no se
+        # pasan, para preservar byte a byte la salida previa (goldens de las 17 estrategias).
+        stop_kwargs = {
+            "open": inp.open,
+            "high": inp.high,
+            "low": inp.low,
+            "sl_stop": risk.sl_frac,
+            "tp_stop": risk.tp_frac,
+            "sl_trail": risk.sl_trail,
+        }
     portfolio = vbt.Portfolio.from_signals(
         inp.close,
         entries,
@@ -212,6 +316,7 @@ def simulate(
         size_type="percent",
         init_cash=initial_cash,
         accumulate=False,
+        **stop_kwargs,
     )
     records = portfolio.trades.values
     if (records["status"] == _VBT_OPEN).any():
@@ -220,20 +325,28 @@ def simulate(
     records = records[np.argsort(records["entry_idx"], kind="stable")]
 
     exit_idx = records["exit_idx"]
+    entry_idx = records["entry_idx"]
     entry_price, size, entry_fees = records["entry_price"], records["size"], records["entry_fees"]
     end_of_data = (exit_idx == n - 1) & forced_exit
+    side = np.where(records["direction"] == _VBT_LONG, SIDE_LONG, SIDE_SHORT)
+    base_reason = np.where(end_of_data, EXIT_REASON_END_OF_DATA, EXIT_REASON_SIGNAL)
+    exit_reason = (
+        _stop_exit_reasons(inp, entry_idx, exit_idx, side, base_reason, risk)
+        if risk is not None
+        else base_reason
+    )
     equity = np.asarray(portfolio.value()).reshape(n)
     return FrameworkResult(
-        entry_idx=records["entry_idx"],
+        entry_idx=entry_idx,
         exit_idx=exit_idx,
-        side=np.where(records["direction"] == _VBT_LONG, SIDE_LONG, SIDE_SHORT),
+        side=side,
         entry_price=entry_price,
         exit_price=records["exit_price"],
         size=size,
         fees=entry_fees + records["exit_fees"],
         pnl=records["pnl"],
         return_=records["pnl"] / (entry_price * size + entry_fees),
-        exit_reason=np.where(end_of_data, EXIT_REASON_END_OF_DATA, EXIT_REASON_SIGNAL),
+        exit_reason=exit_reason,
         equity=equity,
         drawdown=_drawdown(equity, initial_cash),
     )
@@ -319,15 +432,20 @@ class VectorbtEngine:
         """``vectorbt <versión instalada>`` (``engine_version``, RF-4)."""
         return f"vectorbt {vbt.__version__}"
 
-    def run(
+    def run(  # noqa: PLR0913, PLR0917 - contrato de motor (RF-10); `risk` aditivo (Enmienda G4)
         self,
         candles: pl.DataFrame,
         signals: Signals,
         costs: CostModel,
         size_fraction: float,
         initial_cash: float,
+        risk: RiskModel | None = None,
     ) -> EngineOutput:
-        """Conversión de entrada → simulación → conversión de salida (plan §3.1)."""
+        """Conversión de entrada → simulación → conversión de salida (plan §3.1).
+
+        ``risk`` (Enmienda G4) aplica stops SL/TP/trailing a la corrida; ``None`` preserva
+        el comportamiento previo sin stops.
+        """
         inp = to_framework_input(candles, signals)
-        res = simulate(inp, costs, size_fraction, initial_cash)
+        res = simulate(inp, costs, size_fraction, initial_cash, risk)
         return from_framework_output(res, candles["open_time_ms"])

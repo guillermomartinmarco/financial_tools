@@ -13,6 +13,8 @@ from finances_core.backtest.frames import (
     EQUITY_SCHEMA,
     EXIT_REASON_END_OF_DATA,
     EXIT_REASON_SIGNAL,
+    EXIT_REASON_STOP_LOSS,
+    EXIT_REASON_TAKE_PROFIT,
     SIDE_LONG,
     TRADES_SCHEMA,
     validate_engine_output,
@@ -75,6 +77,7 @@ def test_schemas_use_canonical_dtypes() -> None:
         "drawdown": pl.Float32,
     }
     assert (SIDE_LONG, EXIT_REASON_SIGNAL, EXIT_REASON_END_OF_DATA) == (1, 0, 1)
+    assert (EXIT_REASON_STOP_LOSS, EXIT_REASON_TAKE_PROFIT) == (2, 3)
 
 
 def test_accepts_valid_output() -> None:
@@ -112,8 +115,13 @@ def test_rejects_side_zero() -> None:
     _rejects(_Output(_trades(side=[1, 0]), _equity()), "side")
 
 
-def test_rejects_exit_reason_two() -> None:
-    _rejects(_Output(_trades(exit_reason=[0, 2]), _equity()), "exit_reason")
+def test_accepts_stop_and_take_profit_exit_reasons() -> None:
+    # Enmienda G4: 2 (stop-loss) y 3 (take-profit) son ahora dominio válido.
+    validate_engine_output(_Output(_trades(exit_reason=[2, 3]), _equity()), N_BARS)
+
+
+def test_rejects_exit_reason_outside_extended_domain() -> None:
+    _rejects(_Output(_trades(exit_reason=[0, 4]), _equity()), "exit_reason")
 
 
 def test_rejects_nan_in_equity() -> None:

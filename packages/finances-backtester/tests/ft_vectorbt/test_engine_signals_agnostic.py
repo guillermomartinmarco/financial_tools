@@ -127,7 +127,16 @@ def test_seeded_random_signals_match_the_independent_reference(
 
 def test_run_signature_has_no_kind_params_or_strategy() -> None:
     params = list(inspect.signature(VectorbtEngine.run).parameters)
-    assert params == ["self", "candles", "signals", "costs", "size_fraction", "initial_cash"]
+    # Enmienda G4: ``risk`` es el último parámetro, opcional y aditivo.
+    assert params == [
+        "self",
+        "candles",
+        "signals",
+        "costs",
+        "size_fraction",
+        "initial_cash",
+        "risk",
+    ]
 
 
 def test_engine_has_no_kind_registry_nor_indicator_math() -> None:

@@ -46,7 +46,7 @@ from finances_core.backtest.strategies import Signals
 from finances_core.backtest.strategies.signals import finalize, position_to_signals
 from finances_core.config import FinancesSettings
 from finances_core.marketdata.tasks_lifecycle import json_field
-from finances_core.schemas.backtest import BacktestRequest, CostModel
+from finances_core.schemas.backtest import BacktestRequest, CostModel, RiskModel
 from finances_core.schemas.strategy import StrategyCreate
 from finances_core.tasks import SQLTaskManager
 from ft_strategy_manager import service
@@ -94,13 +94,14 @@ class FakeEngine:
     def version(self) -> str:
         return "fake 1.0.0"
 
-    def run(
+    def run(  # noqa: PLR0913, PLR0917 - refleja el contrato de motor (Enmienda G4)
         self,
         candles: pl.DataFrame,
         signals: Signals,
         costs: CostModel,
         size_fraction: float,
         initial_cash: float,
+        risk: RiskModel | None = None,
     ) -> EngineOutput:
         self.calls.append(
             {
@@ -109,6 +110,7 @@ class FakeEngine:
                 "costs": costs,
                 "size_fraction": size_fraction,
                 "initial_cash": initial_cash,
+                "risk": risk,
             }
         )
         out = _simulate(candles, signals, costs, size_fraction, initial_cash)
@@ -259,6 +261,27 @@ def _files(root: Path) -> dict[str, str]:
 def _phases() -> tuple[list[str], Callable[[str], None]]:
     seen: list[str] = []
     return seen, seen.append
+
+
+def test_runner_forwards_request_risk_to_engine(
+    settings: FinancesSettings, registry: StrategyRegistry, signal_calls: list[int]
+) -> None:
+    """Enmienda G4: ``request.risk`` llega al motor; ``None`` por defecto."""
+    engine = FakeEngine()
+    risk = RiskModel(sl_frac=0.05, tp_frac=0.1, sl_trail=True)
+    _, on_phase = _phases()
+
+    runner.run_backtest(
+        _sma_request(risk=risk),
+        engine,
+        settings,
+        on_phase,
+        task_id=TASK_ID,
+        registry=registry,
+    )
+
+    (call,) = engine.calls
+    assert call["risk"] == risk
 
 
 def _local_registry(local: Path) -> StrategyRegistry:

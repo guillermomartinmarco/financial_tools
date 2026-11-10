@@ -4,7 +4,8 @@ Los dtypes quedan fijados aquí: ``Int64`` (ms UTC) para tiempos, ``Float32`` pa
 magnitudes e ``Int8`` para los dominios categóricos documentados (Art. 5.1 bis):
 
 - ``side``: ``{1, -1}`` largo/corto (Enmienda G2b);
-- ``exit_reason``: ``{0}`` señal, ``{1}`` ``end_of_data`` (liquidación final, A5).
+- ``exit_reason``: ``{0}`` señal, ``{1}`` ``end_of_data`` (liquidación final, A5), ``{2}``
+  ``stop_loss`` y ``{3}`` ``take_profit`` (stops de riesgo, Enmienda G4).
 
 :func:`validate_engine_output` rechaza con :class:`OutputOutOfRangeError` cualquier salida
 fuera de contrato; nunca trunca ni corrige valores.
@@ -26,6 +27,8 @@ from finances_core.metrics.frames import (
     EXIT_REASON_DOMAIN,
     EXIT_REASON_END_OF_DATA,
     EXIT_REASON_SIGNAL,
+    EXIT_REASON_STOP_LOSS,
+    EXIT_REASON_TAKE_PROFIT,
     SIDE_DOMAIN,
     SIDE_LONG,
     SIDE_SHORT,
@@ -37,6 +40,8 @@ __all__ = [
     "EXIT_REASON_DOMAIN",
     "EXIT_REASON_END_OF_DATA",
     "EXIT_REASON_SIGNAL",
+    "EXIT_REASON_STOP_LOSS",
+    "EXIT_REASON_TAKE_PROFIT",
     "SIDE_DOMAIN",
     "SIDE_LONG",
     "SIDE_SHORT",
@@ -95,7 +100,7 @@ def validate_engine_output(output: EngineTables, n_bars: int) -> None:
     """Comprueba que ``trades``/``equity`` cumplen RF-6 (plan §1.3).
 
     Columnas exactas y en orden, dtypes canónicos, sin nulos, magnitudes finitas,
-    ``side ∈ {1}``, ``exit_reason ∈ {0, 1}``, ``exit_time_ms ≥ entry_time_ms``,
+    ``side ∈ {1, -1}``, ``exit_reason ∈ {0, 1, 2, 3}``, ``exit_time_ms ≥ entry_time_ms``,
     ``drawdown ≤ 0``, ``trades`` ordenada por ``entry_time_ms``, ``equity`` estrictamente
     creciente en ``open_time_ms`` y ``equity.height == n_bars``.
 
