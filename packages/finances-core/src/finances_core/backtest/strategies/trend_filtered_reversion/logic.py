@@ -57,10 +57,14 @@ class TrendFilteredReversion(BaseStrategy[TrendFilteredReversionParams]):
     Params = TrendFilteredReversionParams
     default_params = {"trend_n": 200, "rsi_period": 2, "rsi_lower": 10.0, "rsi_upper": 70.0}
     metrics_target = MetricsTarget(metric="sharpe", direction="max")
-    #: Parámetros cortos para que la verificación de autor genere señales en 600 barras.
+    #: Parámetros para que la verificación de autor genere señales en 600 barras; con
+    #: trend_n=5 el combinador queda sin ninguna señal (ni larga) en la serie sintética, por
+    #: eso el segundo set (allow_short=True) usa trend_n/umbrales que sí producen largos Y
+    #: cortos reales (verificado por ejecución), para que el contrato ejercite de verdad el
+    #: combinador corto, no solo que no falle.
     check_params = (
         {"trend_n": 5, "rsi_period": 2, "rsi_lower": 20.0, "rsi_upper": 50.0},
-        {"trend_n": 5, "rsi_period": 2, "rsi_lower": 20.0, "rsi_upper": 50.0, "allow_short": True},
+        {"trend_n": 50, "rsi_period": 2, "rsi_lower": 30.0, "rsi_upper": 60.0, "allow_short": True},
     )
 
     @staticmethod
