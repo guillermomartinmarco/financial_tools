@@ -623,7 +623,9 @@ con **bootstrap**. Cambio de contrato (RF-3 métricas; nueva lectura CLI/API) y 
    (`manifest.json` + `trades.parquet`) y devuelve el reporte; **no** recomputa la simulación.
 3. **Bootstrap**: IID (remuestreo con reemplazo de las operaciones), `n_resamples = 10000`,
    `ci_level = 0.95` (percentiles 2.5 / 97.5), **semilla fija** (determinismo, Art. 8). Criterio
-   de "edge demostrado": `r_ci_low > 0`.
+   de "edge demostrado": `r_ci_low > 0` **y** muestra suficiente (`n_trades >= min_trades`,
+   `min_trades = 30` por defecto): con muy pocas operaciones el IC es degenerado y afirmar edge
+   sería un falso positivo (anti-p-hacking).
 
 **Contrato nuevo:**
 - **R-múltiplo** (sin campo nuevo en `trades`): `R[t] = pnl[t] / (entry_price[t] · size[t] ·
@@ -633,9 +635,10 @@ con **bootstrap**. Cambio de contrato (RF-3 métricas; nueva lectura CLI/API) y 
   corrida tuvo `sl_frac`**; sin stop no hay R-múltiplo y el reporte no afirma edge.
 - **`EvaluationReport`** (nuevo modelo Pydantic en `finances_core.metrics`): `n_trades`,
   `sl_frac`, `expectancy_cash` (referencia, el existente), `expectancy_r` (media de R),
-  `r_ci_low` / `r_ci_high` (IC bootstrap), `ci_level`, `n_resamples`, `seed`, `has_edge`
-  (`r_ci_low` definido y `> 0`). Si `sl_frac` es `None` o no hay operaciones, las métricas en R
-  son `None` y `has_edge = False`.
+  `r_ci_low` / `r_ci_high` (IC bootstrap), `ci_level`, `n_resamples`, `seed`, `min_trades`,
+  `sufficient_sample` (`n_trades >= min_trades`) y `has_edge` (`sufficient_sample` **y**
+  `r_ci_low > 0`). Si `sl_frac` es `None` o no hay operaciones, las métricas en R son `None` y
+  `has_edge = False`.
 - **`finances_core.metrics`** gana una función pura `compute_evaluation(trades, *, sl_frac,
   ci_level, n_resamples, seed)` que deriva R y el IC bootstrap. Determinista: misma entrada y
   semilla ⇒ mismo reporte.
@@ -654,7 +657,9 @@ vectorización con NumPy aquí requeriría su propio RFC que enmiende el Art. 8 
 
 - **Hecho cuando**: `EvaluationReport` validado; `R` y `expectancy_r` correctos contra un caso
   calculado a mano (un largo y un corto); el bootstrap es **determinista** (misma semilla ⇒
-  mismo IC) y `has_edge` ⇔ `r_ci_low > 0`; `sl_frac = None` / sin operaciones ⇒ métricas en R
+  mismo IC) y `has_edge` ⇔ (`sufficient_sample` y `r_ci_low > 0`); una muestra chica
+  (`n_trades < min_trades`, p. ej. 1–2 operaciones) **no** afirma edge aunque el IC sea `> 0`;
+  `sl_frac = None` / sin operaciones ⇒ métricas en R
   `None` y `has_edge = False`; el comando CLI y la ruta API devuelven el **mismo** reporte para
   la misma corrida (contrato dualidad); el reporte se obtiene **leyendo** la corrida guardada
   sin recomputar la simulación; suites finances-core y finances-backtester verdes;

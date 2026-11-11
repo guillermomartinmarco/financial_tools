@@ -31,11 +31,19 @@ from typing import Any
 
 import structlog
 from finances_core.backtest import results_store, strategy_source
+from finances_core.backtest.evaluation import evaluate_run as _evaluate_run_core
 from finances_core.backtest.results_store import StoredRun
 from finances_core.backtest.runner import PhaseCallback, run_backtest
 from finances_core.config import FinancesSettings
 from finances_core.marketdata import tasks_lifecycle
 from finances_core.marketdata.plans import new_task_id
+from finances_core.metrics.evaluation import (
+    DEFAULT_CI_LEVEL,
+    DEFAULT_MIN_TRADES,
+    DEFAULT_N_RESAMPLES,
+    DEFAULT_SEED,
+    EvaluationReport,
+)
 from finances_core.schemas.backtest import (
     BacktestRequest,
     BacktestTaskResult,
@@ -304,6 +312,30 @@ def read_equity(
     if stored is None:
         return None
     return results_store.read_equity_page(stored.path, after_ms=after_ms, limit=limit)
+
+
+def evaluate_run(  # noqa: PLR0913 - parámetros de configuración del reporte (keyword-only)
+    run_id: str,
+    *,
+    ci_level: float = DEFAULT_CI_LEVEL,
+    n_resamples: int = DEFAULT_N_RESAMPLES,
+    seed: int = DEFAULT_SEED,
+    min_trades: int = DEFAULT_MIN_TRADES,
+    settings: FinancesSettings | None = None,
+) -> EvaluationReport | None:
+    """Reporte de evaluación honesta de ``run_id`` (Enmienda G5); ``None`` si no existe (RF-9).
+
+    Read-only: delega en :func:`finances_core.backtest.evaluation.evaluate_run`, que lee el
+    manifiesto (``sl_frac``) y ``trades.parquet`` y calcula expectancy-en-R + bootstrap CI.
+    """
+    return _evaluate_run_core(
+        _settings(settings).RESULTS_DIR,
+        run_id,
+        ci_level=ci_level,
+        n_resamples=n_resamples,
+        seed=seed,
+        min_trades=min_trades,
+    )
 
 
 # ------------------------------------------------ lectura de tareas de la API (RF-7, RF-9)
