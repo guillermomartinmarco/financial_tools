@@ -506,3 +506,58 @@ Superficie (dualidad CLI/API, plan §1.4 y §3):
 **Fase posterior (fuera de G5)**: consistencia por símbolo — correr la estrategia en N símbolos
 y agregar la fracción con `expectancy_r > 0` (o `has_edge`); requiere una capa de orquestación
 multi-símbolo que hoy no existe. Se especifica en su propia enmienda.
+
+## Enmienda L2 — contrato de datos (expansión de `_lib`)
+
+Todo en `finances_core/backtest/strategies/_lib/`. Aditivo: no cambia `signals(candles, params)`.
+
+```python
+# _lib/__init__.py (vectorizables, pl.Expr -> Float32, prefijo-estable, null en calentamiento)
+def plus_di(high: pl.Expr, low: pl.Expr, close: pl.Expr, n: int) -> pl.Expr: ...
+def minus_di(high: pl.Expr, low: pl.Expr, close: pl.Expr, n: int) -> pl.Expr: ...
+def adx(high: pl.Expr, low: pl.Expr, close: pl.Expr, n: int) -> pl.Expr: ...
+def stoch_k(high: pl.Expr, low: pl.Expr, close: pl.Expr, k: int) -> pl.Expr: ...
+def stoch_d(high: pl.Expr, low: pl.Expr, close: pl.Expr, k: int, d: int) -> pl.Expr: ...
+def cci(high: pl.Expr, low: pl.Expr, close: pl.Expr, n: int) -> pl.Expr: ...
+def williams_r(high: pl.Expr, low: pl.Expr, close: pl.Expr, n: int) -> pl.Expr: ...
+def mfi(high: pl.Expr, low: pl.Expr, close: pl.Expr, volume: pl.Expr, n: int) -> pl.Expr: ...
+def bbands_pctb(close: pl.Expr, n: int, k: float) -> pl.Expr: ...        # %b = (c-low)/(up-low)
+def bbands_bandwidth(close: pl.Expr, n: int, k: float) -> pl.Expr: ...   # (up-low)/mid
+def ichimoku(high: pl.Expr, low: pl.Expr, tenkan: int, kijun: int, senkou_b: int,
+             ) -> dict[str, pl.Expr]: ...  # {tenkan, kijun, senkou_a, senkou_b}, causal
+
+# _lib/stateful.py (recursión condicional; scan causal puro, pl.Series -> pl.Series Float32)
+def supertrend(high: pl.Series, low: pl.Series, close: pl.Series, period: int,
+               multiplier: float) -> tuple[pl.Series, pl.Series]: ...   # (supertrend, trend{-1,+1})
+def sar(high: pl.Series, low: pl.Series, acceleration: float, maximum: float) -> pl.Series: ...
+
+# _lib/patterns.py (booleanos pl.Expr; True = patrón en t; validados vs CDL* de TA-Lib)
+def doji(...): ...; def hammer(...): ...; def shooting_star(...): ...
+def bullish_engulfing(...): ...; def bearish_engulfing(...): ...; def harami(...): ...
+def marubozu(...): ...; def piercing(...): ...; def dark_cloud_cover(...): ...
+def morning_star(...): ...; def evening_star(...): ...
+```
+
+Fórmulas clave (vs TA-Lib):
+- `+DM = max(high-high[t-1], 0)` si `> (low[t-1]-low)` si no 0; `-DM` simétrico. `TR` como `atr`.
+  `+DI = 100·Wilder(+DM,n)/Wilder(TR,n)`; `-DI` idem. `DX = 100·|+DI - -DI|/(+DI + -DI)`;
+  `ADX = Wilder(DX, n)` (doble suavizado Wilder). Float64 interno (cociente/cancelación).
+- `stoch_k = 100·(close - min(low,k)) / (max(high,k) - min(low,k))`; `stoch_d = SMA(stoch_k, d)`.
+- `cci = (tp - SMA(tp,n)) / (0.015 · desviación media de tp)`, `tp=(h+l+c)/3`; Float64 interno.
+- `williams_r = -100·(max(high,n) - close)/(max(high,n) - min(low,n))`.
+- `mfi`: *money flow* tipico ±, ratio sobre ventana n; Float64 interno.
+- `bbands`: `mid=SMA(close,n)`, `sd=rolling_std_stable(close,n)`, `up/low = mid ± k·sd`.
+- `ichimoku`: `tenkan=(rollmax(high,t)+rollmin(low,t))/2`, `kijun` idem kijun,
+  `senkou_a=((tenkan+kijun)/2)` desplazado causalmente, `senkou_b=(rollmax(high,sb)+rollmin(low,sb))/2`
+  desplazado. El *forward shift* se modela como `.shift(kijun)` (el valor de hace `kijun` barras),
+  nunca mirando el futuro (RF-20).
+
+Validación (dual, por indicador):
+- **finances-core** `tests/unit/test_strategies_lib*.py`: *golden* hand-computed (fórmula en el
+  comentario), `pl.Float32`, `null` en calentamiento, test de causalidad para los con estado.
+- **cross-validación viva vs TA-Lib**: test en `finances-analytics`/`finances-api` (tienen `talib`)
+  que importa `finances_core...._lib`, corre contra una serie OHLCV determinista y compara con
+  `talib` dentro de tolerancia (RFC-0004). Caza *drift* de versión de TA-Lib.
+
+**Tandas** (cada una test-first, aditiva): (L2a) direccional ADX/+DI/−DI; (L2b) osciladores
+stoch/cci/willr/mfi; (L2c) bandas + ichimoku; (L2d) con estado supertrend/sar; (L2e) patrones.
