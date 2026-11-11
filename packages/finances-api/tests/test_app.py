@@ -507,8 +507,11 @@ def test_strategies_route_names_are_prefixed() -> None:
     assert all(name.startswith("strategies_") for name in names)
 
 
-async def test_openapi_includes_the_eight_vectorbt_routes() -> None:
-    """``ft_vectorbt`` (plan §2.2) queda montado con sus 8 rutas bajo ``/backtest/vectorbt``."""
+async def test_openapi_includes_the_nine_vectorbt_routes() -> None:
+    """``ft_vectorbt`` (plan §2.2) queda montado con sus 9 rutas bajo ``/backtest/vectorbt``.
+
+    La novena ruta, ``runs/{run_id}/eval``, es la evaluación honesta de la Enmienda G5.
+    """
     transport = httpx.ASGITransport(app=create_app())
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         paths = (await client.get("/openapi.json")).json()["paths"]
@@ -524,6 +527,7 @@ async def test_openapi_includes_the_eight_vectorbt_routes() -> None:
         "/backtest/vectorbt/runs/{run_id}": {"get"},
         "/backtest/vectorbt/runs/{run_id}/trades": {"get"},
         "/backtest/vectorbt/runs/{run_id}/equity": {"get"},
+        "/backtest/vectorbt/runs/{run_id}/eval": {"get"},
     }
 
 

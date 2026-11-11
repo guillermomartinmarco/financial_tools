@@ -30,6 +30,13 @@ from finances_core.indicators_store.source import SourceNotFoundError
 from finances_core.logging import LogFormat, configure_logging, level_from_flags
 from finances_core.marketdata.tasks_lifecycle import TaskNotFinishedError
 from finances_core.metrics import OBJECTIVES
+from finances_core.metrics.evaluation import (
+    DEFAULT_CI_LEVEL,
+    DEFAULT_MIN_TRADES,
+    DEFAULT_N_RESAMPLES,
+    DEFAULT_SEED,
+    EvaluationReport,
+)
 from finances_core.schemas.backtest import (
     BacktestDataset,
     BacktestRequest,
@@ -549,6 +556,71 @@ def equity(
     _print_page(
         page.items, page.count, page.next_after_ms, "Curva de capital (equity)", _format(ctx)
     )
+
+
+# ---------------------------------------------------------------- eval (Enmienda G5)
+
+
+def _print_eval(report: EvaluationReport, fmt: str) -> None:
+    if fmt == OutputFormat.JSON.value:
+        typer.echo(report.model_dump_json(indent=2))
+        return
+
+    def _num(value: float | None) -> str:
+        return "-" if value is None else f"{value:.6f}"
+
+    table = Table(title="Evaluación honesta de ft_vectorbt (eval)")
+    table.add_column("Campo", style="cyan")
+    table.add_column("Valor", style="green", overflow="fold")
+    table.add_row("n_trades", str(report.n_trades))
+    table.add_row("sl_frac", _num(report.sl_frac))
+    table.add_row("expectancy_cash", _num(report.expectancy_cash))
+    table.add_row("expectancy_r", _num(report.expectancy_r))
+    table.add_row(
+        f"IC {report.ci_level:.0%}", f"[{_num(report.r_ci_low)}, {_num(report.r_ci_high)}]"
+    )
+    table.add_row("n_resamples", str(report.n_resamples))
+    table.add_row("seed", str(report.seed))
+    table.add_row("min_trades", str(report.min_trades))
+    table.add_row("sufficient_sample", "sí" if report.sufficient_sample else "no")
+    table.add_row("has_edge", "sí" if report.has_edge else "no")
+    _out().print(table)
+
+
+@app.command(name="eval")
+def evaluate(
+    ctx: typer.Context,
+    run_id: str = typer.Argument(..., help="run_id de la corrida"),
+    ci_level: float = typer.Option(DEFAULT_CI_LEVEL, "--ci-level", help="Nivel del IC (0..1)"),
+    n_resamples: int = typer.Option(
+        DEFAULT_N_RESAMPLES, "--n-resamples", help="Remuestreos del bootstrap"
+    ),
+    seed: int = typer.Option(DEFAULT_SEED, "--seed", help="Semilla (determinismo)"),
+    min_trades: int = typer.Option(
+        DEFAULT_MIN_TRADES, "--min-trades", help="Mínimo de operaciones para declarar edge"
+    ),
+) -> None:
+    """Expectancy en R-múltiplos + bootstrap CI de una corrida (``GET /runs/{run_id}/eval``).
+
+    Enmienda G5; read-only. Sin ``sl_frac`` en la corrida, las métricas en R van vacías.
+    """
+    settings = FinancesSettings()
+    try:
+        report: EvaluationReport | None = service.evaluate_run(
+            run_id,
+            ci_level=ci_level,
+            n_resamples=n_resamples,
+            seed=seed,
+            min_trades=min_trades,
+            settings=settings,
+        )
+    except typer.Exit:
+        raise
+    except Exception as exc:
+        _handle(exc)
+    if report is None:
+        _fail(f"Error: corrida no encontrada: {run_id}", EXIT_GENERIC)
+    _print_eval(report, _format(ctx))
 
 
 # ---------------------------------------------------------------- status / result (RF-6)

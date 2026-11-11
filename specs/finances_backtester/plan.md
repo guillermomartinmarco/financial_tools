@@ -454,3 +454,55 @@ VectorBT/NumPy) que, dada una secuencia de precios y un `RiskModel`, determina a
 si el stop o el take-profit se toca primero (comparación barra a barra contra
 `high`/`low` de la vela, no solo `close`) y calcula el PnL resultante, para contrastar el
 motor real en casos largos y cortos con stop, con take-profit, y con `sl_trail`.
+
+## Enmienda G5 — contrato de datos (evaluación honesta: expectancy-R + bootstrap)
+
+```python
+class EvaluationReport(BaseModel):          # finances_core/metrics/evaluation.py
+    model_config = ConfigDict(extra="forbid")
+    n_trades: int
+    sl_frac: float | None                    # de manifest.request.risk.sl_frac
+    expectancy_cash: float | None            # referencia (= LedgerMetrics.expectancy)
+    expectancy_r: float | None               # media de R; None si sl_frac None o sin trades
+    r_ci_low: float | None                   # IC bootstrap (percentil inferior)
+    r_ci_high: float | None                  # IC bootstrap (percentil superior)
+    ci_level: float                          # p. ej. 0.95
+    n_resamples: int                         # p. ej. 10000
+    seed: int                                # semilla usada (determinismo)
+    min_trades: int                          # mínimo de operaciones para declarar edge
+    sufficient_sample: bool                  # n_trades >= min_trades
+    has_edge: bool                           # sufficient_sample and r_ci_low > 0
+
+DEFAULT_CI_LEVEL = 0.95
+DEFAULT_N_RESAMPLES = 10_000
+DEFAULT_SEED = 1234
+DEFAULT_MIN_TRADES = 30
+
+def compute_evaluation(
+    trades: pl.DataFrame, *, sl_frac: float | None,
+    ci_level: float = DEFAULT_CI_LEVEL, n_resamples: int = DEFAULT_N_RESAMPLES,
+    seed: int = DEFAULT_SEED, min_trades: int = DEFAULT_MIN_TRADES,
+) -> EvaluationReport: ...
+#   R = pnl / (entry_price * size * sl_frac)         (por operación; Float32 -> escalar)
+#   expectancy_r = mean(R)
+#   bootstrap IID: para k en 1..n_resamples, remuestrear n operaciones con reemplazo (RNG
+#   sembrado), tomar la media de R; r_ci_low/high = percentiles (1-ci)/2 y (1+ci)/2 de esas
+#   n_resamples medias.
+#   sufficient_sample = n_trades >= min_trades; has_edge = sufficient_sample and r_ci_low > 0.
+#   (Con muy pocas operaciones el IC es degenerado -> no se afirma edge; anti-p-hacking.)
+```
+
+Superficie (dualidad CLI/API, plan §1.4 y §3):
+- **CLI**: `ft_vectorbt eval <run_id> [--ci-level 0.95] [--n-resamples 10000] [--seed 1234]
+  [--min-trades 30]` → imprime `EvaluationReport`; usa el flag **global** `--format json|table`
+  (como el resto de los comandos) para elegir el formato.
+- **API**: `GET /backtest/vectorbt/runs/{run_id}/eval?ci_level=&n_resamples=&seed=&min_trades=`
+  → `EvaluationReport`.
+- Ambos resuelven la corrida con `results_store.find_run(run_id)`, leen `manifest.json` (de ahí
+  `sl_frac = request.risk.sl_frac`) y `trades.parquet`, y llaman `compute_evaluation`. Read-only;
+  nunca recomputan la simulación. Corrida inexistente → error "run not found" (contrato idéntico
+  en CLI y API).
+
+**Fase posterior (fuera de G5)**: consistencia por símbolo — correr la estrategia en N símbolos
+y agregar la fracción con `expectancy_r > 0` (o `has_edge`); requiere una capa de orquestación
+multi-símbolo que hoy no existe. Se especifica en su propia enmienda.

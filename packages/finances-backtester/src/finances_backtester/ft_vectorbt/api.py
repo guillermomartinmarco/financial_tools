@@ -37,6 +37,13 @@ from finances_core.backtest.errors import (
 from finances_core.config import FinancesSettings
 from finances_core.marketdata import tasks_lifecycle
 from finances_core.marketdata.tasks_lifecycle import TaskNotFinishedError
+from finances_core.metrics.evaluation import (
+    DEFAULT_CI_LEVEL,
+    DEFAULT_MIN_TRADES,
+    DEFAULT_N_RESAMPLES,
+    DEFAULT_SEED,
+    EvaluationReport,
+)
 from finances_core.schemas.backtest import (
     BacktestDispatchResponse,
     BacktestRequest,
@@ -65,6 +72,7 @@ RUNS_ROUTE = "vectorbt_runs"
 RUN_DETAIL_ROUTE = "vectorbt_run_detail"
 TRADES_ROUTE = "vectorbt_trades"
 EQUITY_ROUTE = "vectorbt_equity"
+EVAL_ROUTE = "vectorbt_eval"
 
 router = APIRouter(prefix="/backtest/vectorbt", tags=["ft_vectorbt"])
 
@@ -282,6 +290,35 @@ async def equity_endpoint(
     if page is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found")
     return page
+
+
+@router.get("/runs/{run_id}/eval", response_model=EvaluationReport, name=EVAL_ROUTE)
+async def eval_endpoint(
+    run_id: str,
+    ci_level: float = Query(DEFAULT_CI_LEVEL, gt=0.0, lt=1.0),
+    n_resamples: int = Query(DEFAULT_N_RESAMPLES, ge=1, le=100_000),
+    seed: int = Query(DEFAULT_SEED, ge=0),
+    min_trades: int = Query(DEFAULT_MIN_TRADES, ge=0),
+) -> EvaluationReport:
+    """Evaluación honesta (expectancy-R + bootstrap CI) de ``run_id`` (``404`` si no existe).
+
+    Enmienda G5; read-only. Misma forma que el comando CLI ``eval``; el cálculo corre en el
+    *threadpool* (Art. 3). Sin ``sl_frac`` en la corrida, las métricas en R van ``None``.
+    """
+    settings = FinancesSettings()
+    report = await run_in_threadpool(
+        lambda: service.evaluate_run(
+            run_id,
+            ci_level=ci_level,
+            n_resamples=n_resamples,
+            seed=seed,
+            min_trades=min_trades,
+            settings=settings,
+        )
+    )
+    if report is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found")
+    return report
 
 
 __all__ = ["TASK_ID_PATTERN", "BacktestTaskStatus", "RunDetail", "router"]
