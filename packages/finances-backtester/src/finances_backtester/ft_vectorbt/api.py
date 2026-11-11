@@ -37,7 +37,13 @@ from finances_core.backtest.errors import (
 from finances_core.config import FinancesSettings
 from finances_core.marketdata import tasks_lifecycle
 from finances_core.marketdata.tasks_lifecycle import TaskNotFinishedError
-from finances_core.metrics.evaluation import EvaluationReport
+from finances_core.metrics.evaluation import (
+    DEFAULT_CI_LEVEL,
+    DEFAULT_MIN_TRADES,
+    DEFAULT_N_RESAMPLES,
+    DEFAULT_SEED,
+    EvaluationReport,
+)
 from finances_core.schemas.backtest import (
     BacktestDispatchResponse,
     BacktestRequest,
@@ -289,10 +295,10 @@ async def equity_endpoint(
 @router.get("/runs/{run_id}/eval", response_model=EvaluationReport, name=EVAL_ROUTE)
 async def eval_endpoint(
     run_id: str,
-    ci_level: float = Query(0.95, gt=0.0, lt=1.0),
-    n_resamples: int = Query(10_000, ge=1, le=100_000),
-    seed: int = Query(1234, ge=0),
-    min_trades: int = Query(30, ge=0),
+    ci_level: float = Query(DEFAULT_CI_LEVEL, gt=0.0, lt=1.0),
+    n_resamples: int = Query(DEFAULT_N_RESAMPLES, ge=1, le=100_000),
+    seed: int = Query(DEFAULT_SEED, ge=0),
+    min_trades: int = Query(DEFAULT_MIN_TRADES, ge=0),
 ) -> EvaluationReport:
     """Evaluación honesta (expectancy-R + bootstrap CI) de ``run_id`` (``404`` si no existe).
 

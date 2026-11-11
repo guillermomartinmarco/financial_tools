@@ -494,7 +494,8 @@ def compute_evaluation(
 
 Superficie (dualidad CLI/API, plan §1.4 y §3):
 - **CLI**: `ft_vectorbt eval <run_id> [--ci-level 0.95] [--n-resamples 10000] [--seed 1234]
-  [--min-trades 30] [--json]` → imprime `EvaluationReport` (humano + `--json`).
+  [--min-trades 30]` → imprime `EvaluationReport`; usa el flag **global** `--format json|table`
+  (como el resto de los comandos) para elegir el formato.
 - **API**: `GET /backtest/vectorbt/runs/{run_id}/eval?ci_level=&n_resamples=&seed=&min_trades=`
   → `EvaluationReport`.
 - Ambos resuelven la corrida con `results_store.find_run(run_id)`, leen `manifest.json` (de ahí
