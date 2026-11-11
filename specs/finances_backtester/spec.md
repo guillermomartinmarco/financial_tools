@@ -463,7 +463,7 @@ siguen siendo largo/plano; emitir `-1` queda disponible para estrategias futuras
   `run_id` incluye `catalog_version` y por tanto cambia, aunque el output de las 17
   estrategias sea idéntico); el vector fijo de `run_id` se recomputa; una estrategia
   sintética de contrato nueva (en `tests/`, no
-  integrada) ejercita largo, corto y la secuencia `+1→0→-1` through evitando la reversa directa;
+  integrada) ejercita largo, corto y la secuencia `+1→0→-1` evitando la reversa directa;
   un test prueba que `+1→-1` sin `0` intermedio lanza `invalid_signals`; el motor cierra
   correctamente una posición corta abierta al final de los datos (`exit_reason=end_of_data`);
   `SIDE_DOMAIN` acepta `{1,-1}`; `validate_engine_output`/`assert_tables_match` sin cambios de
@@ -492,9 +492,9 @@ no es expresable como una fórmula sin estado. Reglas (estado inicial `0`, plano
   en `t+1` (incondicional, sin depender de que `enter_short` siga activo — los eventos de
   cruce son pulsos de una barra); si (sin lo anterior) `exit_long[t]` → pasa a plano sin
   reversa pendiente. Si no, se sostiene.
-- **Corto** (`s=-1`): sim\u00e9trico con `enter_long`/`exit_short`.
+- **Corto** (`s=-1`): simétrico con `enter_long`/`exit_short`.
 - **Plano** (`s=0`): si hay una reversa pendiente de la barra anterior, se aplica
-  incondicionalmente (ignora las se\u00f1ales frescas de esta barra, ya decidida); si no,
+  incondicionalmente (ignora las señales frescas de esta barra, ya decidida); si no,
   `enter_long` abre largo, si no `enter_short` abre corto (prioridad a largo en empate).
 
 **Por qué esta forma y no una fórmula sin estado:** una primera versión (zonas sin estado,
@@ -572,12 +572,12 @@ industria para comparar estrategias con distinto tamaño de posición/volatilida
   `sl_trail: bool = False` (si `sl_stop` seguimiento al alza). `BacktestRequest` gana
   `risk: RiskModel | None = None` (por defecto `None`: **sin cambio de comportamiento**,
   aditivo).
-- `engine_api.BacktestEngine.run` gana un par\u00e1metro **opcional** `risk: RiskModel | None = None``
+- `engine_api.BacktestEngine.run` gana un parámetro **opcional** `risk: RiskModel | None = None`
   al final de la firma (default `None`): los 7 call sites existentes (`runner.py`, `evaluate.py`,
   tests) no cambian si no lo pasan. VectorBT (`ft_vectorbt/engine.py`) traduce
   `risk.sl_frac`/`risk.tp_frac`/`risk.sl_trail` a `sl_stop`/`tp_stop`/`sl_trail` de
   `vbt.Portfolio.from_signals` (soporte nativo, largo/corto-aware vía el mismo `direction`
-  por operaci\u00f3n ya resuelto en G2b: "A percentage below/above the acquisition price for
+  por operación ya resuelto en G2b: "A percentage below/above the acquisition price for
   long/short position", verificado contra la firma real de la biblioteca).
 - `metrics/frames.py`: `EXIT_REASON_DOMAIN` gana `EXIT_REASON_STOP_LOSS = 2` y
   `EXIT_REASON_TAKE_PROFIT = 3` (además de `SIGNAL=0`, `END_OF_DATA=1`). VectorBT **no** expone
@@ -586,21 +586,77 @@ industria para comparar estrategias con distinto tamaño de posición/volatilida
   barra a barra sobre `high`/`low` de la vela (no solo `close`), desde el precio de entrada
   crudo `open[entry_idx]` (pre-deslizamiento, la base real de VectorBT): nivel fijo para el
   stop/take-profit y pico/valle previo para `sl_trail`, con hueco al `open` y prioridad del
-  stop-loss en empate. Si ning\u00fan stop dispara, es `SIGNAL` o `END_OF_DATA` seg\u00fan la
-  l\u00f3gica ya existente. (La comparaci\u00f3n directa `exit_price` vs `entry_price\u00b7(1 \u00b1
+  stop-loss en empate. Si ningún stop dispara, es `SIGNAL` o `END_OF_DATA` según la
+  lógica ya existente. (La comparación directa `exit_price` vs `entry_price·(1 ±
   frac)` del boceto inicial no cubre huecos, trailing ni deslizamiento; ver `plan.md`.)
-- **R-m\u00faltiplo sin campo nuevo**: como `sl_frac` es constante por corrida,
-  `R[trade] = pnl[trade] / (entry_price[trade] \u00b7 size[trade] \u00b7 sl_frac)` se deriva de columnas
+- **R-múltiplo sin campo nuevo**: como `sl_frac` es constante por corrida,
+  `R[trade] = pnl[trade] / (entry_price[trade] · size[trade] · sl_frac)` se deriva de columnas
   que `trades` ya tiene + el `sl_frac` de la corrida (manifiesto); **sin** `sl_frac` definido
-  (`risk=None`), no hay R-m\u00faltiplo (el feature de expectancy-en-R queda fuera de alcance de esta
+  (`risk=None`), no hay R-múltiplo (el feature de expectancy-en-R queda fuera de alcance de esta
   enmienda; es la fase siguiente, sobre `finances_core.metrics`, sin tocar el motor).
 
 - **Hecho cuando**: `RiskModel` validado (`sl_frac`/`tp_frac` en `(0, 1]` si se dan);
-  `risk=None` reproduce bytes id\u00e9nticos en las 17 estrategias (goldens intactos,
-  `CATALOG_VERSION` sin cambios); con `risk` definido, una operaci\u00f3n que toca el nivel de stop
+  `risk=None` reproduce bytes idénticos en las 17 estrategias (goldens intactos,
+  `CATALOG_VERSION` sin cambios); con `risk` definido, una operación que toca el nivel de stop
   (o take-profit, o ambos extremos con `sl_trail`) cierra con el `exit_reason` correcto,
   verificado contra una referencia independiente en Python puro (sin VectorBT) que calcula el
   mismo resultado a mano para al menos un caso largo y uno corto; `sl_trail=True` sigue el
-  precio al alza en un largo (o a la baja en un corto) sin re-exponer p\u00e9rdida ya asegurada;
-  suites finances-core y finances-backtester verdes; ruff/mypy/format verdes; verificaci\u00f3n
-  independiente del motor de stops (\u00edtem de riesgo: corrección financiera) antes de mergear.
+  precio al alza en un largo (o a la baja en un corto) sin re-exponer pérdida ya asegurada;
+  suites finances-core y finances-backtester verdes; ruff/mypy/format verdes; verificación
+  independiente del motor de stops (ítem de riesgo: corrección financiera) antes de mergear.
+
+## Enmienda G5 — Evaluación honesta: expectancy en R-múltiplos + bootstrap CI
+
+Origen: la misma investigación de validación honesta (`tmp/research/`) que motivó G4. Una vez
+que G4 habilitó stops por corrida (`sl_frac` queda en el manifiesto vía `request.risk`) y la
+clasificación de salidas, se puede medir la **esperanza en R-múltiplos** (estándar de la
+industria para comparar estrategias con distinto tamaño/volatilidad) y acotar su incertidumbre
+con **bootstrap**. Cambio de contrato (RF-3 métricas; nueva lectura CLI/API) y de dominio
+(estadística): alto riesgo (AGENTS §3.1/§6), tridente SDD.
+
+**Decisiones de producto (usuario, 2026-11-10):**
+1. **Alcance Nivel-1**: esta enmienda cubre expectancy-en-R y su intervalo bootstrap **sobre
+   una corrida** (su secuencia de operaciones). La **consistencia por símbolo** (agregación
+   entre varias corridas/símbolos) es una fase SEPARADA posterior: hoy no hay capa multi-símbolo
+   (el optimizer corre un (símbolo, timeframe) por vez).
+2. **Reporte de evaluación read-only**: un comando/ruta nueva lee una corrida ya guardada
+   (`manifest.json` + `trades.parquet`) y devuelve el reporte; **no** recomputa la simulación.
+3. **Bootstrap**: IID (remuestreo con reemplazo de las operaciones), `n_resamples = 10000`,
+   `ci_level = 0.95` (percentiles 2.5 / 97.5), **semilla fija** (determinismo, Art. 8). Criterio
+   de "edge demostrado": `r_ci_low > 0`.
+
+**Contrato nuevo:**
+- **R-múltiplo** (sin campo nuevo en `trades`): `R[t] = pnl[t] / (entry_price[t] · size[t] ·
+  sl_frac)`, con `sl_frac` de la corrida (`manifest.request.risk.sl_frac`). Es el retorno de la
+  operación en unidades de "riesgo inicial" (R; convención risk-at-entry, válida también con
+  `sl_trail`). Como `pnl` ya es **neto de costos** (RF-6), R es neto. **Solo definido si la
+  corrida tuvo `sl_frac`**; sin stop no hay R-múltiplo y el reporte no afirma edge.
+- **`EvaluationReport`** (nuevo modelo Pydantic en `finances_core.metrics`): `n_trades`,
+  `sl_frac`, `expectancy_cash` (referencia, el existente), `expectancy_r` (media de R),
+  `r_ci_low` / `r_ci_high` (IC bootstrap), `ci_level`, `n_resamples`, `seed`, `has_edge`
+  (`r_ci_low` definido y `> 0`). Si `sl_frac` es `None` o no hay operaciones, las métricas en R
+  son `None` y `has_edge = False`.
+- **`finances_core.metrics`** gana una función pura `compute_evaluation(trades, *, sl_frac,
+  ci_level, n_resamples, seed)` que deriva R y el IC bootstrap. Determinista: misma entrada y
+  semilla ⇒ mismo reporte.
+- **Superficie (dualidad CLI/API, RF-3 / Art. 1)**: `ft_vectorbt eval <run_id>` y una ruta
+  asíncrona de FastAPI (`/backtest/vectorbt/.../eval`) leen la corrida guardada (vía
+  `results_store.find_run`) y devuelven `EvaluationReport`. Read-only, sin recomputar la
+  simulación; si la corrida no existe, error claro ("run not found").
+
+**Precisión numérica**: R se deriva de columnas `Float32` del ledger y tanto `expectancy_r` como
+el bootstrap se calculan como **reducciones escalares en doble precisión** (floats de Python,
+igual que `trading.py` con `expectancy`/`sqn`), **sin** columnas `float64` ni arreglos NumPy en
+`finances_core.metrics` (RF-11: las métricas se mantienen `Float32`/`Int64`). La excepción de
+RFC-0004 es **exclusiva** de `ft_vectorbt/engine.py` y no alcanza a `finances_core`; una eventual
+vectorización con NumPy aquí requeriría su propio RFC que enmiende el Art. 8 para
+`finances_core.metrics`, no la excepción del motor.
+
+- **Hecho cuando**: `EvaluationReport` validado; `R` y `expectancy_r` correctos contra un caso
+  calculado a mano (un largo y un corto); el bootstrap es **determinista** (misma semilla ⇒
+  mismo IC) y `has_edge` ⇔ `r_ci_low > 0`; `sl_frac = None` / sin operaciones ⇒ métricas en R
+  `None` y `has_edge = False`; el comando CLI y la ruta API devuelven el **mismo** reporte para
+  la misma corrida (contrato dualidad); el reporte se obtiene **leyendo** la corrida guardada
+  sin recomputar la simulación; suites finances-core y finances-backtester verdes;
+  ruff/mypy/format verdes; verificación independiente del cálculo estadístico (ítem de riesgo:
+  corrección de dominio) antes de mergear.
