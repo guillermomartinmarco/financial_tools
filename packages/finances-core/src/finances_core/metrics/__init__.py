@@ -9,6 +9,14 @@ objetivos.
 
 from __future__ import annotations
 
+from finances_core.metrics.evaluation import (
+    DEFAULT_CI_LEVEL,
+    DEFAULT_MIN_TRADES,
+    DEFAULT_N_RESAMPLES,
+    DEFAULT_SEED,
+    EvaluationReport,
+    compute_evaluation,
+)
 from finances_core.metrics.frames import (
     EQUITY_SCHEMA,
     EXIT_REASON_DOMAIN,
@@ -38,9 +46,15 @@ __all__ = [
     "EXIT_REASON_DOMAIN",
     "EXIT_REASON_END_OF_DATA",
     "EXIT_REASON_SIGNAL",
+    "DEFAULT_CI_LEVEL",
+    "DEFAULT_MIN_TRADES",
+    "DEFAULT_N_RESAMPLES",
+    "DEFAULT_SEED",
     "EXIT_REASON_STOP_LOSS",
     "EXIT_REASON_TAKE_PROFIT",
+    "EvaluationReport",
     "OBJECTIVES",
+    "compute_evaluation",
     "SIDE_DOMAIN",
     "SIDE_LONG",
     "TRADES_SCHEMA",
