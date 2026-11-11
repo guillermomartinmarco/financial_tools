@@ -111,6 +111,8 @@ def test_open_time_never_enters_the_framework() -> None:
 
     assert {f.name for f in dataclasses.fields(FrameworkInput)} == {
         "open",
+        "high",
+        "low",
         "close",
         "entries",
         "exits",
@@ -232,7 +234,7 @@ def test_side_out_of_domain_is_rejected(side: int) -> None:
         )
 
 
-@pytest.mark.parametrize("reason", [-1, 2, 7, 300])
+@pytest.mark.parametrize("reason", [-1, 4, 7, 300])
 def test_exit_reason_out_of_domain_is_rejected(reason: int) -> None:
     with pytest.raises(OutputOutOfRangeError, match="exit_reason"):
         from_framework_output(

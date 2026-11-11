@@ -320,7 +320,14 @@ def _run(  # noqa: PLR0913, PLR0917 - estado interno de run_backtest
     phases.advance("SIMULATING")
     mark = time.perf_counter()
     costs = CostModel(fees_bps=request.fees_bps, slippage_bps=request.slippage_bps)
-    output = engine.run(candles.frame, signals, costs, request.size_fraction, request.initial_cash)
+    output = engine.run(
+        candles.frame,
+        signals,
+        costs,
+        request.size_fraction,
+        request.initial_cash,
+        request.risk,
+    )
     fields["engine_ms"] = _ms(time.perf_counter() - mark)
     validate_engine_output(output, candles.n_bars)
     summary = metrics.compute(

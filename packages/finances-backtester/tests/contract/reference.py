@@ -28,6 +28,8 @@ from finances_core.backtest.frames import (
     EQUITY_SCHEMA,
     EXIT_REASON_END_OF_DATA,
     EXIT_REASON_SIGNAL,
+    EXIT_REASON_STOP_LOSS,
+    EXIT_REASON_TAKE_PROFIT,
     SIDE_LONG,
     SIDE_SHORT,
     TRADES_SCHEMA,
@@ -518,4 +520,242 @@ def simulate_short_round_trip(entry_open: float, exit_open: float, costs: Costs)
         fees=fees,
         pnl=pnl,
         return_=return_,
+    )
+
+
+# ------------------------------------------------- stops de riesgo (Enmienda G4)
+
+
+@dataclass(frozen=True)
+class StopTrade:
+    """Operación cerrada bajo stops (``simulate_with_stops``); ``side`` largo/corto."""
+
+    entry_time_ms: int
+    exit_time_ms: int
+    side: int
+    entry_price: float
+    exit_price: float
+    size: float
+    fees: float
+    pnl: float
+    ret: float
+    exit_reason: int
+
+
+@dataclass(frozen=True)
+class StopSim:
+    """Salida de :func:`simulate_with_stops`: operaciones, ``equity`` y ``drawdown``."""
+
+    trades: tuple[StopTrade, ...]
+    equity: tuple[float, ...]
+    drawdown: tuple[float, ...]
+    exposed_bars: int
+
+
+def _touches(
+    *, side: int, bar_open: float, bar_high: float, bar_low: float, level: float, is_stop_loss: bool
+) -> bool:
+    """¿La vela alcanza ``level`` en la dirección de ese stop (incluye hueco al ``open``)?
+
+    Stop-loss largo / take-profit corto miran hacia abajo (``low``/``open`` ≤ ``level``);
+    take-profit largo / stop-loss corto miran hacia arriba (``high``/``open`` ≥ ``level``).
+    """
+    looks_down = (side == SIDE_LONG) == is_stop_loss
+    if looks_down:
+        return bar_low <= level or bar_open <= level
+    return bar_high >= level or bar_open >= level
+
+
+def _stop_fill(*, bar_open: float, level: float, looks_down: bool) -> float:
+    """Precio de llenado del stop: el ``open`` si la barra abrió pasado el nivel (hueco), si
+    no el nivel exacto. Los stops no sufren deslizamiento (verificado contra VectorBT).
+    """
+    if looks_down:
+        return bar_open if bar_open <= level else level
+    return bar_open if bar_open >= level else level
+
+
+def _bar_stop_exit(
+    *,
+    side: int,
+    raw_entry: float,
+    extreme: float,
+    bar_open: float,
+    bar_high: float,
+    bar_low: float,
+    risk: Any,
+) -> tuple[float, int] | None:
+    """``(exit_price, reason)`` si un stop dispara en esta barra, si no ``None``.
+
+    Chequea primero el stop-loss (prioridad en empate), luego el take-profit. El nivel del
+    stop-loss es fijo desde ``raw_entry`` o, con ``sl_trail``, desde ``extreme`` (pico/valle
+    de las barras previas).
+    """
+    sign = 1.0 if side == SIDE_LONG else -1.0
+    sl_down = side == SIDE_LONG
+    touch = {"side": side, "bar_open": bar_open, "bar_high": bar_high, "bar_low": bar_low}
+    if risk.sl_frac is not None:
+        basis = extreme if risk.sl_trail else raw_entry
+        sl_level = basis * (1.0 - sign * risk.sl_frac)
+        if _touches(level=sl_level, is_stop_loss=True, **touch):
+            return _stop_fill(bar_open=bar_open, level=sl_level, looks_down=sl_down), (
+                EXIT_REASON_STOP_LOSS
+            )
+    if risk.tp_frac is not None:
+        tp_level = raw_entry * (1.0 + sign * risk.tp_frac)
+        if _touches(level=tp_level, is_stop_loss=False, **touch):
+            return _stop_fill(bar_open=bar_open, level=tp_level, looks_down=not sl_down), (
+                EXIT_REASON_TAKE_PROFIT
+            )
+    return None
+
+
+def simulate_with_stops(  # noqa: PLR0912, PLR0915 - oráculo lineal de 5 pasos por barra
+    candles: Candles,
+    entries: Sequence[bool],
+    exits: Sequence[bool],
+    entries_short: Sequence[bool],
+    exits_short: Sequence[bool],
+    costs: Costs,
+    risk: Any,
+) -> StopSim:
+    """Oráculo independiente de RF-5 + stops de riesgo (Enmienda G4), en Python puro.
+
+    Una posición a la vez (largo o corto). Señal al cierre de ``t`` → orden en la apertura
+    de ``t+1``; entrada en la última barra ignorada; posición abierta al final liquidada al
+    ``close`` (``end_of_data``). Los stops se evalúan en las barras **posteriores** a la de
+    entrada contra ``high``/``low`` (con hueco al ``open``): nivel fijo desde ``raw_entry``
+    (``open`` de la barra de entrada, pre-deslizamiento), o trailing desde el pico/valle de
+    las barras previas (sin la actual ni la de entrada). En empate en la misma barra gana el
+    stop-loss. Entrada y salida por señal/fin de datos sufren deslizamiento; los stops no.
+    """
+    n = candles.n
+    fee = costs.fees_bps / BPS
+    slip = costs.slippage_bps / BPS
+    sl_frac = getattr(risk, "sl_frac", None) if risk is not None else None
+    trail = bool(getattr(risk, "sl_trail", False)) if risk is not None else False
+
+    cash = costs.initial_cash
+    qty = 0.0
+    side = 0
+    entry_price = entry_fee = raw_entry = 0.0
+    entry_time = entry_bar = 0
+    extreme = 0.0  # pico (largo) / valle (corto) del trailing, sin la barra actual
+    pending: str | None = None
+    trades: list[StopTrade] = []
+    equity: list[float] = []
+    exposed = 0
+
+    def record(exit_price: float, time_ms: int, reason: int) -> None:
+        nonlocal cash, qty, side
+        exit_fee = fee * exit_price * qty
+        if side == SIDE_LONG:
+            cash += exit_price * qty - exit_fee
+            pnl = (exit_price - entry_price) * qty - (entry_fee + exit_fee)
+        else:
+            cash -= exit_price * qty + exit_fee
+            pnl = (entry_price - exit_price) * qty - (entry_fee + exit_fee)
+        fees = entry_fee + exit_fee
+        ret = pnl / (entry_price * qty + entry_fee)
+        trades.append(
+            StopTrade(
+                entry_time, time_ms, side, entry_price, exit_price, qty, fees, pnl, ret, reason
+            )
+        )
+        qty = 0.0
+        side = 0
+
+    for t in range(n):
+        # 1) Ejecutar la orden pendiente a la apertura de t (deslizamiento en señales).
+        if pending == "long" and t < n - 1:
+            raw_entry = candles.open[t]
+            entry_price = raw_entry * (1.0 + slip)
+            qty = costs.size_fraction * cash / (entry_price * (1.0 + fee))
+            entry_fee = fee * entry_price * qty
+            cash -= entry_price * qty + entry_fee
+            side, entry_time, entry_bar, extreme = SIDE_LONG, candles.open_time_ms[t], t, raw_entry
+        elif pending == "short" and t < n - 1:
+            raw_entry = candles.open[t]
+            entry_price = raw_entry * (1.0 - slip)
+            qty = costs.size_fraction * cash / (entry_price * (1.0 + fee))
+            entry_fee = fee * entry_price * qty
+            cash += entry_price * qty - entry_fee
+            side, entry_time, entry_bar, extreme = SIDE_SHORT, candles.open_time_ms[t], t, raw_entry
+        elif pending == "exit_long" and side == SIDE_LONG:
+            record(candles.open[t] * (1.0 - slip), candles.open_time_ms[t], EXIT_REASON_SIGNAL)
+        elif pending == "exit_short" and side == SIDE_SHORT:
+            record(candles.open[t] * (1.0 + slip), candles.open_time_ms[t], EXIT_REASON_SIGNAL)
+        pending = None
+
+        # 2) Stops: solo en barras posteriores a la de entrada (la entrada se excluye).
+        if side != 0 and t > entry_bar and risk is not None:
+            hit = _bar_stop_exit(
+                side=side,
+                raw_entry=raw_entry,
+                extreme=extreme,
+                bar_open=candles.open[t],
+                bar_high=candles.high[t],
+                bar_low=candles.low[t],
+                risk=risk,
+            )
+            if hit is not None:
+                record(hit[0], candles.open_time_ms[t], hit[1])
+            elif trail and sl_frac is not None:
+                # Pico/valle para la próxima barra (la actual se excluye del nivel vigente).
+                extreme = (
+                    max(extreme, candles.high[t])
+                    if side == SIDE_LONG
+                    else min(extreme, candles.low[t])
+                )
+
+        # 3) Liquidación final al cierre de la última barra.
+        if side != 0 and t == n - 1:
+            exit_px = candles.close[t] * (1.0 - slip if side == SIDE_LONG else 1.0 + slip)
+            record(exit_px, candles.open_time_ms[t], EXIT_REASON_END_OF_DATA)
+
+        # 4) Marca de equity y exposición.
+        if side == SIDE_LONG:
+            exposed += 1
+            equity.append(cash + qty * candles.close[t])
+        elif side == SIDE_SHORT:
+            exposed += 1
+            equity.append(cash - qty * candles.close[t])
+        else:
+            equity.append(cash)
+
+        # 5) Programar la orden de la próxima barra (señal al cierre de t).
+        if side == 0 and entries[t]:
+            pending = "long"
+        elif side == 0 and entries_short[t]:
+            pending = "short"
+        elif side == SIDE_LONG and exits[t]:
+            pending = "exit_long"
+        elif side == SIDE_SHORT and exits_short[t]:
+            pending = "exit_short"
+
+    peak = costs.initial_cash
+    drawdown: list[float] = []
+    for value in equity:
+        peak = max(peak, value)
+        drawdown.append(value / peak - 1.0)
+    return StopSim(tuple(trades), tuple(equity), tuple(drawdown), exposed)
+
+
+def stops_trades_frame(sim: StopSim) -> pl.DataFrame:
+    """Tabla ``trades`` canónica (RF-6) de un :class:`StopSim` (con ``side``)."""
+    rows = sim.trades
+    data: dict[str, list[Any]] = {
+        "entry_time_ms": [r.entry_time_ms for r in rows],
+        "exit_time_ms": [r.exit_time_ms for r in rows],
+        "side": [r.side for r in rows],
+        "entry_price": [r.entry_price for r in rows],
+        "exit_price": [r.exit_price for r in rows],
+        "size": [r.size for r in rows],
+        "fees": [r.fees for r in rows],
+        "pnl": [r.pnl for r in rows],
+        "return": [r.ret for r in rows],
+        "exit_reason": [r.exit_reason for r in rows],
+    }
+    return pl.DataFrame(
+        {name: pl.Series(name, data[name], dtype=dtype) for name, dtype in TRADES_SCHEMA.items()}
     )

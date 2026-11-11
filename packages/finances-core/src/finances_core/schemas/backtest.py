@@ -99,6 +99,9 @@ class BacktestRequest(BaseModel):
     size_fraction: float = Field(default=1.0, gt=0, le=1)
     fees_bps: float = Field(default=10.0, ge=0, allow_inf_nan=False)
     slippage_bps: float = Field(default=0.0, ge=0, allow_inf_nan=False)
+    # Stops de riesgo a nivel de corrida (Enmienda G4). None => sin stops (aditivo, sin
+    # cambio de comportamiento respecto a las corridas previas).
+    risk: RiskModel | None = Field(default=None)
     force: bool = Field(default=False, strict=True)
 
     @field_validator("start", "end")
@@ -173,6 +176,34 @@ class CostModel(BaseModel):
 
     fees_bps: float = Field(ge=0, allow_inf_nan=False)
     slippage_bps: float = Field(ge=0, allow_inf_nan=False)
+
+
+class RiskModel(BaseModel):
+    """Stops de riesgo a nivel de corrida (Enmienda G4): SL/TP/trailing uniformes.
+
+    Paralelo a :class:`CostModel`: define, para todas las operaciones de la corrida, un
+    stop-loss (``sl_frac``) y/o take-profit (``tp_frac``) como fracción del precio de
+    entrada, y si el stop-loss sigue al precio (``sl_trail``). ``None`` en una fracción
+    desactiva ese stop; ``sl_trail`` exige un ``sl_frac`` al que seguir.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    sl_frac: float | None = Field(default=None, gt=0.0, le=1.0, allow_inf_nan=False)
+    tp_frac: float | None = Field(default=None, gt=0.0, le=1.0, allow_inf_nan=False)
+    sl_trail: bool = Field(default=False, strict=True)
+
+    @model_validator(mode="after")
+    def _check_trailing_needs_stop(self) -> RiskModel:
+        """``sl_trail`` sin ``sl_frac`` no tiene stop al que seguir (sin sentido).
+
+        Raises:
+            ValueError: SI ``sl_trail`` es ``True`` y ``sl_frac`` es ``None``.
+        """
+        if self.sl_trail and self.sl_frac is None:
+            msg = "sl_trail=True requiere sl_frac (no hay stop-loss al que seguir)"
+            raise ValueError(msg)
+        return self
 
 
 class RunSummary(BaseModel):

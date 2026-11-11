@@ -15,9 +15,9 @@ from typing import Protocol
 import polars as pl
 
 from finances_core.backtest.strategies.base import Signals
-from finances_core.schemas.backtest import CostModel
+from finances_core.schemas.backtest import CostModel, RiskModel
 
-__all__ = ["BacktestEngine", "CostModel", "EngineOutput", "Signals"]
+__all__ = ["BacktestEngine", "CostModel", "EngineOutput", "RiskModel", "Signals"]
 
 
 @dataclass(frozen=True)
@@ -42,13 +42,14 @@ class BacktestEngine(Protocol):
         """Versión de la biblioteca de simulación (``engine_version``)."""
         ...
 
-    def run(
+    def run(  # noqa: PLR0913, PLR0917 - contrato de motor (RF-10); `risk` aditivo (Enmienda G4)
         self,
         candles: pl.DataFrame,
         signals: Signals,
         costs: CostModel,
         size_fraction: float,
         initial_cash: float,
+        risk: RiskModel | None = None,
     ) -> EngineOutput:
         """Simula según RF-5 y devuelve ``trades``/``equity`` canónicos (RF-6).
 
@@ -60,5 +61,7 @@ class BacktestEngine(Protocol):
             costs: comisión y deslizamiento en puntos básicos.
             size_fraction: fracción de la caja por entrada (``0 < f <= 1``).
             initial_cash: caja inicial (``> 0``).
+            risk: stops de riesgo de la corrida (SL/TP/trailing, Enmienda G4); ``None``
+                (por defecto) no aplica stops y preserva el comportamiento previo.
         """
         ...

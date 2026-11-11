@@ -16,6 +16,7 @@ from finances_core.schemas.backtest import (
     EquityPage,
     KindInfo,
     ResolvedStrategy,
+    RiskModel,
     RunListItem,
     RunManifest,
     RunsPage,
@@ -145,6 +146,54 @@ def test_request_accepts_size_fraction_upper_bound() -> None:
 def test_request_rejects_negative_costs(field: str) -> None:
     with pytest.raises(ValidationError, match=field):
         _request(**{field: -1.0})
+
+
+# ----------------------------------------------------------------- RiskModel (Enmienda G4)
+def test_risk_model_defaults_are_inert() -> None:
+    risk = RiskModel()
+    assert risk.sl_frac is None
+    assert risk.tp_frac is None
+    assert risk.sl_trail is False
+
+
+def test_request_default_risk_is_none() -> None:
+    assert _request().risk is None
+
+
+@pytest.mark.parametrize("field", ["sl_frac", "tp_frac"])
+@pytest.mark.parametrize("value", [0.0, -0.1, 1.0001, 2.0, float("inf"), float("nan")])
+def test_risk_model_rejects_frac_outside_half_open_unit(field: str, value: float) -> None:
+    with pytest.raises(ValidationError, match=field):
+        RiskModel.model_validate({field: value})
+
+
+@pytest.mark.parametrize("field", ["sl_frac", "tp_frac"])
+def test_risk_model_accepts_frac_unit_bounds(field: str) -> None:
+    assert getattr(RiskModel.model_validate({field: 1.0}), field) == 1.0
+    assert getattr(RiskModel.model_validate({field: 0.01}), field) == 0.01
+
+
+def test_risk_model_rejects_trailing_without_stop_loss() -> None:
+    with pytest.raises(ValidationError, match="sl_trail"):
+        RiskModel.model_validate({"sl_trail": True})
+    with pytest.raises(ValidationError, match="sl_trail"):
+        RiskModel.model_validate({"sl_trail": True, "tp_frac": 0.1})
+
+
+def test_risk_model_accepts_trailing_with_stop_loss() -> None:
+    risk = RiskModel.model_validate({"sl_frac": 0.1, "sl_trail": True})
+    assert (risk.sl_frac, risk.sl_trail) == (0.1, True)
+
+
+def test_risk_model_forbids_extra_keys() -> None:
+    with pytest.raises(ValidationError, match="atr"):
+        RiskModel.model_validate({"sl_frac": 0.1, "atr": 2.0})
+
+
+def test_request_accepts_nested_risk_and_roundtrips() -> None:
+    request = _request(risk={"sl_frac": 0.05, "tp_frac": 0.1, "sl_trail": True})
+    assert request.risk == RiskModel(sl_frac=0.05, tp_frac=0.1, sl_trail=True)
+    assert BacktestRequest.model_validate_json(request.model_dump_json()) == request
 
 
 @pytest.mark.parametrize("cash", [0.0, -5.0, float("inf"), float("nan")])
