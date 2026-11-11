@@ -52,6 +52,7 @@ class BacktestRequest(BaseModel):
     size_fraction: float = Field(default=1.0, gt=0, le=1)
     fees_bps: float = Field(default=10.0, ge=0)
     slippage_bps: float = Field(default=0.0, ge=0)
+    risk: RiskModel | None = None            # stops SL/TP/trailing a nivel de corrida (ver Enmienda G4)
     force: bool = False                      # model_validator: start_ms <= end_ms
 
 class ResolvedStrategy(BaseModel):
@@ -98,10 +99,14 @@ class EquityPage(BaseModel): items: list[dict[str, Any]]; count: int; next_after
 
 ### 1.3 Contrato de estrategia y registro (`backtest/strategies/`, `backtest/catalog.py`)
 ```python
-# strategies/base.py
+# strategies/base.py  (forma vigente: ver Enmienda L0-G2a y Enmienda G2b)
 class Signals(NamedTuple):
+    # G2a: las estrategias emiten posición-objetivo (pl.Series Int8) y el núcleo deriva los
+    # flancos; G2b: Signals lleva 4 campos (largo + corto).
     entries: pl.Series        # Boolean, len == candles.height; señal al cierre de t (RF-2)
     exits: pl.Series
+    entries_short: pl.Series  # Enmienda G2b (corto)
+    exits_short: pl.Series
 
 class MetricsTarget(BaseModel):              # informativo (RF-16); sin efecto en la ejecución
     model_config = ConfigDict(extra="forbid")
@@ -161,9 +166,10 @@ class BacktestEngine(Protocol):
     name: str
     def version(self) -> str: ...
     def run(self, candles: pl.DataFrame, signals: Signals,
-            costs: CostModel, size_fraction: float, initial_cash: float) -> EngineOutput: ...
+            costs: CostModel, size_fraction: float, initial_cash: float,
+            risk: RiskModel | None = None) -> EngineOutput: ...   # risk: ver Enmienda G4 (aditivo)
 ```
-Sin `supported_kinds`, `kind`, `params` ni `ResolvedStrategy` (RF-10, RF-21, ADR-B09). `Signals` ya está normalizado (RF-16). `frames.validate_engine_output(out, n_bars)` comprueba columnas, dtypes (`Float32`/`Int64`/`Int8`), dominios (`side ∈ {1}`, `exit_reason ∈ {0,1}`), finitud, orden y `equity.height == n_bars` (`OutputOutOfRangeError` si no).
+Sin `supported_kinds`, `kind`, `params` ni `ResolvedStrategy` (RF-10, RF-21, ADR-B09). `Signals` ya está normalizado (RF-16). `frames.validate_engine_output(out, n_bars)` comprueba columnas, dtypes (`Float32`/`Int64`/`Int8`), dominios (`side ∈ {1, -1}` tras Enmienda G2b, `exit_reason ∈ {0, 1, 2, 3}` tras Enmienda G4), finitud, orden y `equity.height == n_bars` (`OutputOutOfRangeError` si no).
 
 ### 1.5 Layout de resultados
 ```
@@ -394,6 +400,10 @@ class RiskModel(BaseModel):          # finances_core/schemas/backtest.py, junto 
     sl_frac: float | None = Field(default=None, gt=0.0, le=1.0, allow_inf_nan=False)
     tp_frac: float | None = Field(default=None, gt=0.0, le=1.0, allow_inf_nan=False)
     sl_trail: bool = Field(default=False)  # requiere sl_frac; validar con model_validator
+# Cota le=1.0: para sl_frac es natural (en un largo no se pierde más del 100%). Para tp_frac
+# es un TOPE DELIBERADO de v1 (take-profit ≤ +100% del precio de entrada): VectorBT acepta
+# tp_stop > 1.0 y una estrategia de tendencia puede buscar objetivos > 100%, así que esta
+# cota se revisará si una estrategia la necesita (decisión del usuario, 2026-11-10).
 
 # BacktestRequest gana:
     risk: RiskModel | None = Field(default=None)
@@ -404,15 +414,39 @@ def run(self, candles, signals, costs, size_fraction, initial_cash,
 ```
 
 `ft_vectorbt/engine.py::simulate`: si `risk` no es `None`, pasa a
-`vbt.Portfolio.from_signals(..., sl_stop=risk.sl_frac, tp_stop=risk.tp_frac,
-sl_trail=risk.sl_trail)` (``None`` en `sl_frac`/`tp_frac` se traduce a `np.nan`/ausente, el
-default de VectorBT = sin ese stop). Clasificación de `exit_reason` en
-`from_framework_output`: para cada operación cerrada por `exit_reason` candidato (no
-forzada por fin de datos), comparar `exit_price` contra `entry_price·(1 - sign·sl_frac)` y
-`entry_price·(1 + sign·tp_frac)` (`sign = +1` largo, `-1` corto) con tolerancia relativa
-`1e-4` (RFC-0004); el primer nivel que matchea fija `EXIT_REASON_STOP_LOSS`/
-`EXIT_REASON_TAKE_PROFIT`; si ninguno matchea, mantiene la clasificación `SIGNAL`/
-`END_OF_DATA` ya existente.
+`vbt.Portfolio.from_signals(..., open=inp.open, high=inp.high, low=inp.low,
+sl_stop=risk.sl_frac, tp_stop=risk.tp_frac, sl_trail=risk.sl_trail)` (``None`` en
+`sl_frac`/`tp_frac` se traduce a `np.nan`/ausente, el default de VectorBT = sin ese stop).
+Las mechas `open`/`high`/`low` solo alimentan la detección intrabar de stops; sin `risk` no
+se pasan, para preservar byte a byte la salida previa (goldens de las 17 estrategias).
+
+Clasificación de `exit_reason` (`_stop_exit_reasons`/`_classify_stop_reason`): VectorBT no
+expone el motivo de salida, así que para cada operación cerrada se **re-deriva** el primer
+stop que dispara recorriendo las barras `[entry_idx+1, exit_idx]` contra `high`/`low` de la
+vela. El nivel se calcula desde `raw_entry = open[entry_idx]` (precio crudo de ejecución,
+**pre-deslizamiento**: la base que usa VectorBT, no el `entry_price` registrado): `sl_level =
+basis·(1 - sign·sl_frac)` y `tp_level = raw_entry·(1 + sign·tp_frac)` (`sign = +1` largo,
+`-1` corto), con `basis = raw_entry` para el stop fijo y el pico/valle de las barras previas
+(excluye la actual y la de entrada) para `sl_trail`. Un stop dispara si la mecha o el `open`
+(hueco) cruza el nivel; en empate en la misma barra gana el stop-loss. El primer disparo
+fija `EXIT_REASON_STOP_LOSS`/`EXIT_REASON_TAKE_PROFIT`; si ninguno dispara hasta `exit_idx`,
+se mantiene `SIGNAL`/`END_OF_DATA`. Nota: la comparación directa `exit_price` vs
+`entry_price·(1±frac)` que esbozaba el diseño inicial resultó **insuficiente** (verificado
+contra VectorBT real): los huecos llenan al `open`, el trailing usa el pico y el
+deslizamiento mueve `entry_price`; por eso se re-deriva el toque sobre la vela. Es detalle
+de implementación, sin cambio del contrato ni del comportamiento observable.
+
+El stop fija `exit_price` en el nivel teórico, salvo hueco (la barra abre pasada el nivel)
+en cuyo caso llena al `open`; los stops **no** sufren deslizamiento, pero sí comisión de
+salida. Las salidas por señal y la liquidación de fin de datos sí sufren deslizamiento.
+
+**Invariante a vigilar** (acoplamiento con VectorBT): el `exit_reason` se re-deriva de las
+mechas de forma **independiente** de la decisión interna de VectorBT (el precio y el
+índice de salida sí vienen de VectorBT). La clasificación asume el modelo verificado contra
+VectorBT 1.2.0 — en particular que el pico del trailing **excluye** la barra en curso y la de
+entrada. Si se actualiza VectorBT o cambia su temporización del trailing, hay que re-verificar
+esa convención contra la referencia de `tests/contract/` (un desajuste reetiquetaría un
+`sl_trail` como señal); el test de contraste motor↔referencia es la red que lo caza.
 
 **Referencia de verificación independiente** (`tests/contract/reference.py`,
 finances-backtester): nueva función Python pura `simulate_with_stops` (sin

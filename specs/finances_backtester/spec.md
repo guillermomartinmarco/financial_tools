@@ -567,6 +567,8 @@ industria para comparar estrategias con distinto tamaño de posición/volatilida
 - `schemas/backtest.py`: nuevo `RiskModel` (paralelo a `CostModel`):
   `sl_frac: float | None = None` (fracción de pérdida máxima, `None` = sin stop),
   `tp_frac: float | None = None` (fracción de ganancia objetivo, `None` = sin take-profit),
+  ambas en `(0, 1]`; la cota `≤ 1` de `tp_frac` es un **tope deliberado de v1** (take-profit
+  ≤ +100%), a revisar si una estrategia necesita objetivos mayores (ver nota en `plan.md`),
   `sl_trail: bool = False` (si `sl_stop` seguimiento al alza). `BacktestRequest` gana
   `risk: RiskModel | None = None` (por defecto `None`: **sin cambio de comportamiento**,
   aditivo).
@@ -580,10 +582,13 @@ industria para comparar estrategias con distinto tamaño de posición/volatilida
 - `metrics/frames.py`: `EXIT_REASON_DOMAIN` gana `EXIT_REASON_STOP_LOSS = 2` y
   `EXIT_REASON_TAKE_PROFIT = 3` (además de `SIGNAL=0`, `END_OF_DATA=1`). VectorBT **no** expone
   el motivo de salida en sus registros (verificado: `trades.records_readable`/`orders` no
-  distinguen stop de señal); el motor clasifica comparando `exit_price` contra el nivel te\u00f3rico
-  (`entry_price \u00b7 (1 \u00b1 sl_frac)` / `entry_price \u00b7 (1 \u00b1 tp_frac)`, signo seg\u00fan `side`) dentro de
-  una tolerancia de punto flotante; si no coincide con ning\u00fan nivel, es `SIGNAL` o
-  `END_OF_DATA` seg\u00fan la l\u00f3gica ya existente.
+  distinguen stop de señal); el motor clasifica **re-derivando** el primer stop que dispara,
+  barra a barra sobre `high`/`low` de la vela (no solo `close`), desde el precio de entrada
+  crudo `open[entry_idx]` (pre-deslizamiento, la base real de VectorBT): nivel fijo para el
+  stop/take-profit y pico/valle previo para `sl_trail`, con hueco al `open` y prioridad del
+  stop-loss en empate. Si ning\u00fan stop dispara, es `SIGNAL` o `END_OF_DATA` seg\u00fan la
+  l\u00f3gica ya existente. (La comparaci\u00f3n directa `exit_price` vs `entry_price\u00b7(1 \u00b1
+  frac)` del boceto inicial no cubre huecos, trailing ni deslizamiento; ver `plan.md`.)
 - **R-m\u00faltiplo sin campo nuevo**: como `sl_frac` es constante por corrida,
   `R[trade] = pnl[trade] / (entry_price[trade] \u00b7 size[trade] \u00b7 sl_frac)` se deriva de columnas
   que `trades` ya tiene + el `sl_frac` de la corrida (manifiesto); **sin** `sl_frac` definido
