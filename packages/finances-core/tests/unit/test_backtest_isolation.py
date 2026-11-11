@@ -31,11 +31,17 @@ FORBIDDEN_ROOTS = frozenset(
 )
 #: Única excepción ``ft_*`` (ADR-B02): el envoltorio de ``ft_strategy_manager``.
 FT_EXCEPTIONS = {"finances_core.backtest.strategy_source": frozenset({"ft_strategy_manager"})}
-#: Excepción ``Float64`` (RFC-0007): acumulación de varianza en ``_lib``, por función nombrada.
-#: La identidad ``E[x²]-E[x]²`` sufre cancelación catastrófica en ``Float32`` (171% de error a
-#: escala BTC); se acumula en ``Float64`` y se baja a ``Float32`` (mismo motivo que RFC-0006).
+#: Excepción ``Float64`` (RFC-0007): cálculo interno en doble precisión en ``_lib``, por función
+#: nombrada. (1) varianza ``E[x²]-E[x]²`` con cancelación catastrófica en ``Float32`` (171% de
+#: error a escala BTC) en ``rolling_std_stable``/``zscore``; (2) cocientes direccionales de
+#: Wilder (``+DI``/``-DI`` y ``DX = 100·|+DI - -DI|/(+DI + -DI)``) en ``plus_di``/``minus_di``/
+#: ``adx`` (Enmienda L2a); (3) ``tp - SMA`` con cancelación en ``cci`` y magnitudes grandes
+#: ``tp·volume`` en ``mfi`` (Enmienda L2b). Siempre se acumula en ``Float64`` y se baja a
+#: ``Float32``.
 DOUBLE_EXCEPTIONS = {
-    "finances_core.backtest.strategies._lib": frozenset({"rolling_std_stable", "zscore"}),
+    "finances_core.backtest.strategies._lib": frozenset(
+        {"rolling_std_stable", "zscore", "plus_di", "minus_di", "adx", "cci", "mfi"}
+    ),
 }
 
 
