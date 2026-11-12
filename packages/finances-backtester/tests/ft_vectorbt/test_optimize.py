@@ -98,6 +98,56 @@ def test_min_trades_constraint_prunes_all(service_settings: FinancesSettings) ->
     assert result.best_score == float("-inf")  # calmar es MAX -> degenerado
 
 
+# --------------------------------------------------------------------- evaluación / muestreo
+
+
+def _results_digest(path: Path) -> list[str]:
+    return sorted(str(p) for p in path.rglob("*") if p.is_file()) if path.exists() else []
+
+
+def test_optimize_does_not_persist_runs(service_settings: FinancesSettings) -> None:
+    # O3.1: la evaluación en memoria del estudio no escribe ninguna corrida en FT_RESULTS_DIR
+    # (solo el CLI con --save-best persiste; `optimize` no tiene ese camino).
+    results = service_settings.RESULTS_DIR
+    before = _results_digest(results)
+    _run(service_settings)
+    assert _results_digest(results) == before
+
+
+class _SpyTrial:
+    """Trial de Optuna falso: registra las llamadas `suggest_*` sin optimizar nada."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[object, ...]] = []
+
+    def suggest_categorical(self, name: str, choices: object) -> object:
+        seq = list(choices)  # type: ignore[call-overload]
+        self.calls.append(("categorical", name, tuple(seq)))
+        return seq[0]
+
+    def suggest_int(self, name: str, low: int, high: int, *, step: int, log: bool) -> int:
+        self.calls.append(("int", name, low, high, step, log))
+        return low
+
+    def suggest_float(
+        self, name: str, low: float, high: float, *, step: float | None, log: bool
+    ) -> float:
+        self.calls.append(("float", name, low, high, step, log))
+        return low
+
+
+def test_suggest_maps_each_axis_type_and_propagates_log() -> None:
+    # O4.1: cada tipo de eje produce el `suggest_*` correcto y `log` se propaga.
+    spy = _SpyTrial()
+    optimize._suggest(spy, SweepAxis(param="k", type="categorical", choices=["a", "b"]))  # type: ignore[arg-type]
+    optimize._suggest(spy, SweepAxis(param="n", type="int", low=5, high=20, step=2, log=True))  # type: ignore[arg-type]
+    optimize._suggest(spy, SweepAxis(param="x", type="float", low=0.1, high=1.0, log=True))  # type: ignore[arg-type]
+    assert [c[0] for c in spy.calls] == ["categorical", "int", "float"]
+    assert spy.calls[0] == ("categorical", "k", ("a", "b"))
+    assert spy.calls[1] == ("int", "n", 5, 20, 2, True)  # log propagado en int
+    assert spy.calls[2][0] == "float" and spy.calls[2][-1] is True  # log propagado en float
+
+
 # --------------------------------------------------------------------------- CLI
 
 
