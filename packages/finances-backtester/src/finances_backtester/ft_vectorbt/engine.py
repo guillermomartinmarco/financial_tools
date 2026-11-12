@@ -23,7 +23,7 @@ from typing import Any
 import numpy as np
 import numpy.typing as npt
 import polars as pl
-import vectorbt as vbt  # type: ignore[import-untyped]  # sin py.typed ni stubs
+import vectorbt as vbt  # type: ignore[import-untyped, unused-ignore]  # sin py.typed ni stubs; unused-ignore tolera entornos donde vectorbt resuelve con tipos (CI py3.12)
 from finances_core.backtest.costs import fee_rate, slip
 from finances_core.backtest.engine_api import CostModel, EngineOutput, RiskModel, Signals
 from finances_core.backtest.errors import OutputOutOfRangeError
