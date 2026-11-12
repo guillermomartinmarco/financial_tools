@@ -665,3 +665,59 @@ vectorización con NumPy aquí requeriría su propio RFC que enmiende el Art. 8 
   sin recomputar la simulación; suites finances-core y finances-backtester verdes;
   ruff/mypy/format verdes; verificación independiente del cálculo estadístico (ítem de riesgo:
   corrección de dominio) antes de mergear.
+
+## Enmienda L2 — Expansión de `_lib`: más indicadores y patrones de velas
+
+Origen: el research del usuario se queda corto de indicadores para construir y probar estrategias.
+`_lib` (Enmienda L1) tiene 15 primitivas; se amplía con más indicadores matemáticos y un
+subconjunto curado de patrones de velas, para que las estrategias (integradas y locales) tengan
+más material. Cambio **aditivo** del contrato de autoría de estrategias (RF-2, plan §1.1,
+ADR-B12): no toca `signals(candles, params)` ni las 17 estrategias existentes; sus *golden* y el
+`CATALOG_VERSION` quedan intactos.
+
+**Decisiones de producto (usuario):**
+1. **Expandir `_lib`** (no precomputar ni inyectar columnas): las estrategias siguen componiendo
+   `pl.Expr` sobre `candles`. Sin cambio de contrato.
+2. **Oráculo = TA-Lib** (el build instalado trae 237 funciones, incluidas ADX, STOCH, CCI, WILLR,
+   MFI, BBANDS, **ICHIMOKU**, **SUPERTREND**, **SAR**). La validación es dual, como el resto del
+   repo: *golden* hand-computed en los tests de finances-core (sin importar `talib`) **y** una
+   cross-validación viva contra TA-Lib en finances-api/finances-analytics (que sí tienen `talib`),
+   importando `finances_core...._lib`.
+3. **Patrones de velas**: subconjunto curado (no los ~61), como booleanos `pl.Expr`.
+
+**Contrato nuevo (todo en `finances_core/backtest/strategies/_lib`):**
+
+- **Indicadores vectorizables** (`pl.Expr`, Float32, prefijo-estable, `null` en calentamiento,
+  reusando `_wilder_mean`/`ema`; Float64 interno solo ante cancelación, excepción RFC-0007 como
+  `rolling_std_stable`/`zscore`):
+  - Direccional (Wilder): `plus_di(high, low, close, n)`, `minus_di(...)`, `adx(..., n)`.
+  - Osciladores: `stoch_k(high, low, close, k)`, `stoch_d(..., k, d)`, `cci(high, low, close, n)`,
+    `williams_r(high, low, close, n)`, `mfi(high, low, close, volume, n)`.
+  - Bandas: `bbands_pctb(close, n, k)`, `bbands_bandwidth(close, n, k)`.
+  - `ichimoku(high, low, tenkan, kijun, senkou_b)` → tenkan, kijun, senkou_a, senkou_b. Los
+    senkou se exponen **causales**: el valor "del cloud en `t`" se calcula de datos `<= t` (el
+    *forward shift* clásico se modela sin mirar el futuro; RF-20). Sin `chikou` (mira el futuro).
+- **Indicadores con estado** (`_lib/stateful.py`): recursión condicional no expresable como
+  `pl.Expr`. Se calculan con un **scan causal puro** (bucle Python sobre la columna en doble
+  precisión escalar — floats de Python, sin NumPy, como el bootstrap de G5) que recibe `pl.Series`
+  y devuelve `pl.Series` `Float32`. Determinista y solo mira `<= t`:
+  - `supertrend(high, low, close, period, multiplier)` → `(supertrend, trend)`.
+  - `sar(high, low, acceleration, maximum)` (Parabolic SAR).
+- **Patrones de velas** (`_lib/patterns.py`, booleanos `pl.Expr`, `True` = patrón presente en `t`,
+  validados vs `CDL*` de TA-Lib): subconjunto curado — `doji`, `hammer`, `shooting_star`,
+  `bullish_engulfing`, `bearish_engulfing`, `harami`, `marubozu`, `piercing`, `dark_cloud_cover`,
+  `morning_star`, `evening_star`.
+
+**Precisión / constitución (RF-11)**: todo vive en `finances_core` en el límite `Float32`/`Int64`.
+Los indicadores vectorizables son `pl.Expr` Float32 (Float64 interno solo por cancelación,
+excepción RFC-0007 ya vigente). Los con estado usan reducciones escalares en doble precisión
+(floats de Python), sin NumPy ni columnas `float64` — el scan es causal y determinista. La
+excepción RFC-0004 (NumPy/pandas) sigue siendo exclusiva de `ft_<motor>/engine.py`.
+
+- **Hecho cuando** (por tanda): cada indicador/patrón nuevo tiene su test unitario hand-computed
+  en finances-core (fórmula documentada, `pl.Float32`, `null` en calentamiento, prefijo-estable);
+  una cross-validación viva contra TA-Lib (en finances-api/finances-analytics, importando `_lib`)
+  concuerda dentro de tolerancia (RFC-0004); `ichimoku`/`supertrend`/`sar` no miran el futuro
+  (test de causalidad: truncar la serie en `t` no cambia el valor en `t`); aditivo — las 17
+  estrategias y sus *golden* y `CATALOG_VERSION` no cambian; suites finances-core y
+  finances-analytics/api verdes; ruff/mypy/format verdes.
