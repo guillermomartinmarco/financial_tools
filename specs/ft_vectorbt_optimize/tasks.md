@@ -26,11 +26,13 @@
 
 - [x] **O3.1**: `evaluate(params, window, settings) -> TradingMetrics` (señales núcleo → `VectorbtEngine.run` → `compute_trading_metrics`), **sin persistir** — depende de `O2.1`
   - **Hecho cuando**: devuelve métricas de una ventana sin escribir en `FT_RESULTS_DIR` (sha256 del dir antes/después, o `tree_digest`, sin cambios); reusa el pipeline mínimo sin alterar el `run` persistido; coincide con el backtest persistido para la misma ventana/params (mismas métricas base).
+  - **Evidencia**: `test_optimize_does_not_persist_runs` (digest de `FT_RESULTS_DIR` sin cambios tras una corrida). La paridad de métricas con el motor persistido se hereda del catálogo neutral: `optimize` usa `compute_trading_metrics`, cuya equivalencia con `backtest.metrics.compute`/`RunSummary` prueba `test_equity_metrics_match_backtest_run_summary` (M2.1).
 
 ## Fase O4: Estudio Optuna (RF-3, RF-5, RF-6, RF-8)
 
 - [x] **O4.1**: Muestreo de parámetros desde el sweep (`suggest_int/float/categorical`, `log`) — depende de `O1.1`
   - **Hecho cuando**: cada tipo de eje produce `suggest_*` correcto; `log=true` usa escala logarítmica; test con un `trial` espía.
+  - **Evidencia**: `test_suggest_maps_each_axis_type_and_propagates_log` (trial espía: `categorical`→`suggest_categorical`, `int`→`suggest_int`, `float`→`suggest_float`, con `log` propagado).
 - [x] **O4.2**: `run_study(...)` con `TPESampler(seed)`, dirección de `OBJECTIVES`, score = agregado OOS, constraint `min_trades` y degenerado — depende de `O3.1`, `O4.1`, `O1.1`
   - **Hecho cuando**: objetivo desconocido → `unknown_objective`; `n_trades<min_trades` o métrica no finita → valor degenerado y el estudio **no** aborta (`n_pruned` lo cuenta); un error tipado del motor en un trial → `TrialPruned`; devuelve `OptimizeResult` con `best_params`/`best_score`/`folds`.
 - [x] **O4.3**: Determinismo (RF-8) — depende de `O4.2`
@@ -45,8 +47,9 @@
 
 - [x] **O6.1**: Checks del paquete verdes + `test_isolation.py` verde — depende de `O5.1`
   - **Hecho cuando**: `ruff`+`ruff format`+`mypy --strict src`+`pytest -q` verdes; `test_isolation.py` confirma que `optimize.py`/`cli.py` no importan `catalog`/`strategies` ni hermanas.
-- [x] **O6.2**: Matriz Art. 20 en el PR — depende de `O6.1`
+- [ ] **O6.2**: Matriz Art. 20 en el PR — depende de `O6.1`
   - **Hecho cuando**: 10 dimensiones evidenciadas (Funcional por tests; Arquitectural por aislamiento; Datos float32; Concurrencia = N/A o `n_jobs` futuro; Desempeño = evaluación en memoria; Despliegue = CLI); firmado por el Tech Lead.
+  - **Queda abierta**: artefacto de proceso del PR (la matriz + la firma del Tech Lead viven en el PR, no en el código), igual que `M3.4` en `specs/metrics`.
 
 ## Evidencia (Slice 2 implementado)
 
@@ -56,9 +59,10 @@
 - **O1–O2:** `SweepSpec`/`SweepAxis` (Pydantic `extra="forbid"`, validan rangos y duplicados), `validate_sweep` contra el esquema `Params` vía `strategy_source.kinds()`, `anchored_folds` (folds anclados).
 - **O3–O4:** `evaluate_params` en memoria (sin persistir); estudio Optuna `TPESampler(seed)` con dirección mapeada (`maximize`/`minimize`), objetivo del catálogo `finances_core.metrics.OBJECTIVES`, trials inválidos → degenerado sin abortar (`n_pruned`), determinismo por semilla.
 - **O5:** comando `ft_vectorbt optimize` (todas las opciones de RF-1; objetivo/sweep inválidos → exit 2; estrategia/dataset inexistente → exit 1; exactamente uno de `--strategy-id`/`--kind`).
-- **O6:** `ruff` + `ruff format` + `mypy --strict` verdes; `test_optimize.py` (9 casos: sweep, folds, determinismo, constraint, objetivo desconocido, CLI); `test_isolation.py` verde (`optimize.py`/`cli.py` no importan `catalog`/`strategies`). Regresión: finances-core **1280**, finances-backtester **345 passed**.
+- **O6:** `ruff` + `ruff format` + `mypy --strict` verdes; `test_optimize.py` (13 casos: sweep, folds, determinismo, constraint, objetivo desconocido, CLI, no-persist O3.1, muestreo O4.1); `test_isolation.py` verde (`optimize.py`/`cli.py` no importan `catalog`/`strategies`). Regresión: finances-core **1280**, finances-backtester **345 passed**.
 
 ## Enmienda E1 — `--start`/`--end` amigables (reemplazan `--start-ms`/`--end-ms`)
 
-- [ ] **E1.O** — el comando `optimize` expone `--start`/`--end` (ISO 8601 | ms epoch | `now`) en lugar de `--start-ms`/`--end-ms`, convertidos a ms con `finances_core.timeutils.parse_time_input` antes de `anchored_folds`.
+- [x] **E1.O** — el comando `optimize` expone `--start`/`--end` (ISO 8601 | ms epoch | `now`) en lugar de `--start-ms`/`--end-ms`, convertidos a ms con `finances_core.timeutils.parse_time_input` antes de `anchored_folds`.
   - **Hecho cuando**: `CliRunner`: `--start 2024-01-01` acota el histórico y `--start basura` → exit 2; `test_optimize.py` verde.
+  - **Evidencia**: `test_cli_optimize_with_start_bounds_history` (`--start` acota) y `test_cli_optimize_unparseable_start_exit_2` (basura → exit 2); el comando `optimize` de `cli.py` convierte con `parse_time_input` antes de `anchored_folds`.

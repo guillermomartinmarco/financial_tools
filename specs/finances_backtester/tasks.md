@@ -4,7 +4,9 @@
 > Checks por paquete: `python -m ruff check`, `python -m ruff format --check`, `python -m mypy --strict src`, `python -m pytest -q`.
 > Las tareas `B*` (núcleo compartido) **preceden** a las `V*` de `specs/ft_vectorbt/tasks.md`; cada tarea indica su dependencia.
 > Tests del núcleo en `packages/finances-core/tests/unit/`; sin red y con `FT_PROJECT_ROOT` temporal.
-> Estado: 27 de 35 tareas completadas (`B0.1`, `B0.2`, `B0.3`, `B1.1`, `B1.2`, `B1.3`, `B1.4`, `B1.5`, `B1.6`, `B1.7`, `B1.8`, `B1.9`, `B1.10`, `B1.11`, `B2.1`, `B3.1`, `B3.2`, `B4.1`, `B4.2`, `B5.1`, `B5.2`, `B6.1`, `B6.2`, `B6.3`, `B7.1`, `B7.2`, `P1`); el resto pendiente.
+> Estado: 29 de 35 tareas completadas (`B0.1`, `B0.2`, `B0.3`, `B1.1`, `B1.2`, `B1.3`, `B1.4`, `B1.5`, `B1.6`, `B1.7`, `B1.8`, `B1.9`, `B1.10`, `B1.11`, `B2.1`, `B3.1`, `B3.2`, `B4.1`, `B4.2`, `B5.1`, `B5.2`, `B6.1`, `B6.2`, `B6.3`, `B7.1`, `B7.2`, `P1`, `P4`, `P5`); el resto pendiente (`P2`, `P3`, `P6`–`P9`).
+>
+> **Enmiendas posteriores al MVP** (seguimiento inline en `spec.md`, no se duplican aquí — convención G2b–L2): `L0-G1` (volumen), `L0-G2a` (posición-objetivo), `L1` (fundación `_lib`), `G2b` (motor de cortos), `G3` (largo/corto en las 17), `G4` (stops SL/TP/trailing), `G5` (evaluación honesta) y `L2` (expansión de `_lib`: indicadores + patrones, #70) están **implementadas y mergeadas en `main`**. El «Hecho cuando» de cada una vive en su sección `## Enmienda …` de `spec.md`.
 
 ## Fase 0: Gobernanza y esqueleto
 
@@ -124,10 +126,12 @@ No se editan en este ciclo; cada uno es una tarea a ejecutar con su aprobación.
   - **Hecho cuando**: el Art. 10 lista solo paquetes existentes o previstos en el README.
 - [ ] **P3**: `packages/finances-core/src/ft_setup/env_list.conf` (y `.j2`, `specs/ft_setup`): registrar `FT_BACKTEST_MAX_CONCURRENT` y actualizar la descripción de `FT_STRATEGIES_DIR` («Raíz de las estrategias Python locales: una subcarpeta por `kind` con `logic.py` y `README.md`; el código se ejecuta con los privilegios del servicio») — tras B5.2
   - **Hecho cuando**: `ft_setup` genera ambas variables con descripción, ejemplo y `source_tool = "ft_backtester"` (la primera) / descripción nueva (la segunda); sus tests pasan.
-- [ ] **P4**: `README.md`: la fila de `finances-backtester` pasa de *(planificado)* a *(en desarrollo)* con `ft_vectorbt`, se documentan los comandos tras V7.2 y se enlaza `docs/guides/strategy-authoring.md`
+- [x] **P4**: `README.md`: la fila de `finances-backtester` pasa de *(planificado)* a *(en desarrollo)* con `ft_vectorbt`, se documentan los comandos tras V7.2 y se enlaza `docs/guides/strategy-authoring.md`
   - **Hecho cuando**: el README describe `ft_vectorbt run`, `/backtest/vectorbt` y cómo añadir una estrategia local, coherentemente con las specs.
-- [ ] **P5**: `specs/finances_api/{spec,plan,tasks}.md`: añadir `ft_vectorbt` (prefijo `/backtest/vectorbt`, paquete `finances-backtester`) a RF-1 y una tarea T12 — tras V5.1
+  - **Evidencia**: `README.md` fila `finances-backtester` *(ft_vectorbt operativo; resto planificado)*, sección `ft_vectorbt` **operativo** con comandos, y enlace a `docs/guides/strategy-authoring.md`.
+- [x] **P5**: `specs/finances_api/{spec,plan,tasks}.md`: añadir `ft_vectorbt` (prefijo `/backtest/vectorbt`, paquete `finances-backtester`) a RF-1 y una tarea T12 — tras V5.1
   - **Hecho cuando**: `specs/finances_api` lista el prefijo y T12 está marcada con su evidencia.
+  - **Evidencia**: `specs/finances_api/spec.md` lista `/backtest/vectorbt` en RF-1 y `specs/finances_api/tasks.md` `T12` está `- [x]` («equivale a `P5`»).
 - [ ] **P6**: `specs/ft_strategy_manager/spec.md`: nota de que `parameters` puede seguir la forma `{kind, params}` del registro de estrategias (integradas y locales; US-2 ya cita `ft_vectorbt`) y de que `finances_core.backtest.strategy_source` es consumidor del servicio — informativo
   - **Hecho cuando**: la nota existe y no contradice RF-1/RF-2.
 - [ ] **P7**: `AGENTS.md` §1 («Aislamiento Cruzado») y §4: mencionar que el envoltorio `strategy_source` es el modo de consumir `ft_strategy_manager` (solo si A2 se confirma) y que las estrategias Python viven en `finances_core/backtest/strategies/` y `FT_STRATEGIES_DIR`, que las señales se calculan en el núcleo y que **nunca se acepta código de estrategia por la API**
