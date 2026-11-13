@@ -30,6 +30,8 @@ from finances_core.backtest.strategies._lib import (
     rolling_min_prev,
     rolling_std_stable,
     rsi_wilder,
+    session_vwap,
+    session_vwap_sigma,
     sma,
     stoch_d,
     stoch_k,
@@ -510,6 +512,66 @@ def test_vwap_is_rolling_volume_weighted_typical_price() -> None:
     assert out.to_list() == pytest.approx(expected, abs=1e-3)
 
 
+# -------------------------------------------------- VWAP anclado a sesión (Enmienda L3)
+# high: 12 15  6  9   low: 6 9 3 3   close: 9 12 3 6   volume: 10 20 5 15   session: 0 0 1 1
+# tp = (h+l+c)/3: 9, 12, 4, 6
+SES_HIGH = [12.0, 15.0, 6.0, 9.0]
+SES_LOW = [6.0, 9.0, 3.0, 3.0]
+SES_CLOSE = [9.0, 12.0, 3.0, 6.0]
+SES_VOL = [10.0, 20.0, 5.0, 15.0]
+SES_ID = [0, 0, 1, 1]
+
+
+def _session_frame(
+    high: list[float], low: list[float], close: list[float], vol: list[float], ses: list[int]
+) -> pl.DataFrame:
+    return pl.DataFrame(
+        {
+            "high": pl.Series(high, dtype=pl.Float32),
+            "low": pl.Series(low, dtype=pl.Float32),
+            "close": pl.Series(close, dtype=pl.Float32),
+            "volume": pl.Series(vol, dtype=pl.Float32),
+            "session": pl.Series(ses, dtype=pl.Int64),
+        }
+    )
+
+
+def _session_cols() -> tuple[pl.Expr, pl.Expr, pl.Expr, pl.Expr, pl.Expr]:
+    return (
+        pl.col("high"),
+        pl.col("low"),
+        pl.col("close"),
+        pl.col("volume"),
+        pl.col("session"),
+    )
+
+
+def test_session_vwap_accumulates_within_session_and_resets() -> None:
+    frame = _session_frame(SES_HIGH, SES_LOW, SES_CLOSE, SES_VOL, SES_ID)
+    out = frame.select(session_vwap(*_session_cols())).to_series()
+    assert out.dtype == pl.Float32
+    # ses0: t0 90/10=9; t1 (90+240)/30=11. ses1 (reset): t2 20/5=4; t3 (20+90)/20=5.5
+    assert out.to_list() == pytest.approx([9.0, 11.0, 4.0, 5.5], abs=1e-4)
+
+
+def test_session_vwap_sigma_is_volume_weighted_deviation() -> None:
+    frame = _session_frame(SES_HIGH, SES_LOW, SES_CLOSE, SES_VOL, SES_ID)
+    out = frame.select(session_vwap_sigma(*_session_cols())).to_series()
+    assert out.dtype == pl.Float32
+    # sqrt(E_v[tp²] - vwap²) dentro de la sesión:
+    #   t0: 81-81=0 ; t1: 123-121=2 -> √2 ; t2 (reset): 16-16=0 ; t3: 31-30.25=0.75 -> √0.75
+    assert out.to_list() == pytest.approx([0.0, math.sqrt(2), 0.0, math.sqrt(0.75)], abs=1e-4)
+
+
+def test_session_vwap_null_until_session_volume_positive() -> None:
+    # primera barra de la sesión con volumen 0 -> Σvol==0 -> null; luego definida
+    frame = _session_frame([2.0, 2.0], [1.0, 1.0], [1.5, 1.5], [0.0, 10.0], [0, 0])
+    vwap_out = frame.select(session_vwap(*_session_cols())).to_series().to_list()
+    sigma_out = frame.select(session_vwap_sigma(*_session_cols())).to_series().to_list()
+    assert vwap_out[0] is None and vwap_out[1] == pytest.approx(1.5, abs=1e-4)
+    assert sigma_out[0] is None and sigma_out[1] == pytest.approx(0.0, abs=1e-4)
+
+
 def test_vwap_is_null_when_window_volume_is_zero() -> None:
     frame = _ohlcv([2.0, 2.0, 2.0], [1.0, 1.0, 1.0], [1.5, 1.5, 1.5], [0.0, 0.0, 0.0])
     out = frame.select(
@@ -525,7 +587,9 @@ def _prefix_frame(n: int = 128) -> pl.DataFrame:
     high = [c + 1.25 + (i % 5) * 0.1 for i, c in enumerate(close)]
     low = [c - 1.25 - (i % 7) * 0.1 for i, c in enumerate(close)]
     volume = [100.0 + (i % 17) * 10.0 for i in range(n)]
-    return _ohlcv(high, low, close, volume)
+    # columna de sesión (id causal por bloque de 16 barras) para las primitivas ancladas a sesión
+    session = pl.Series("session", [i // 16 for i in range(n)], dtype=pl.Int64)
+    return _ohlcv(high, low, close, volume).with_columns(session)
 
 
 _PREFIX_PRIMITIVES = {
@@ -554,6 +618,12 @@ _PREFIX_PRIMITIVES = {
     "ichimoku_tenkan": lambda: ichimoku(pl.col("high"), pl.col("low"), 9, 26, 52)["tenkan"],
     "ichimoku_senkou_a": lambda: ichimoku(pl.col("high"), pl.col("low"), 9, 26, 52)["senkou_a"],
     "ichimoku_senkou_b": lambda: ichimoku(pl.col("high"), pl.col("low"), 9, 26, 52)["senkou_b"],
+    "session_vwap": lambda: session_vwap(
+        pl.col("high"), pl.col("low"), pl.col("close"), pl.col("volume"), pl.col("session")
+    ),
+    "session_vwap_sigma": lambda: session_vwap_sigma(
+        pl.col("high"), pl.col("low"), pl.col("close"), pl.col("volume"), pl.col("session")
+    ),
 }
 
 

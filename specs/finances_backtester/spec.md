@@ -721,3 +721,44 @@ excepción RFC-0004 (NumPy/pandas) sigue siendo exclusiva de `ft_<motor>/engine.
   (test de causalidad: truncar la serie en `t` no cambia el valor en `t`); aditivo — las 17
   estrategias y sus *golden* y `CATALOG_VERSION` no cambian; suites finances-core y
   finances-analytics/api verdes; ruff/mypy/format verdes.
+
+## Enmienda L3 — VWAP anclado a sesión en `_lib`
+
+Origen: el research necesita **área de valor intradía anclada a la sesión**, no el `vwap` rodante
+(cuya ventana de `n` barras cruza días). Se amplía `_lib` con dos primitivas `pl.Expr` ancladas a
+sesión, composables como `vwap`/`ichimoku`. Cambio **aditivo** (RF-2, plan §1.1, ADR-B12): no toca
+`signals(candles, params)`, ni las 17 estrategias, ni sus *golden*, ni `CATALOG_VERSION` (agregar
+ayudas a `_lib` no cambia la semántica de las existentes, A22).
+
+**Contrato (en `finances_core/backtest/strategies/_lib`):**
+- `session_vwap(high, low, close, volume, session) -> pl.Expr`: `tp=(high+low+close)/3`;
+  `Σ(tp·volume)/Σ(volume)` acumulado **dentro de la sesión** (`.cum_sum().over(session)`).
+- `session_vwap_sigma(high, low, close, volume, session) -> pl.Expr`: desvío **ponderado por
+  volumen** de `tp`, `sqrt(E_v[tp²] - vwap²)`, recortado `≥ 0`.
+
+`session` es un id de agrupamiento que **provee el consumidor** (causal, derivado de `open_time_ms`,
+p. ej. fecha ET); la primitiva es **genérica** — sin lógica de zona horaria/horario adentro. El
+área de valor la compone la estrategia: `VAH/VAL = session_vwap ± k·session_vwap_sigma`.
+
+**Requisitos (EARS):**
+- **RF-L3.1**: `session_vwap`/`session_vwap_sigma` **DEBEN** acumular solo dentro de la sesión y
+  **resetear** en cada apertura (`.over(session)`), mirando solo barras `<= t` (RF-20,
+  prefijo-estable: truncar la serie en `t` no cambia el valor en `t`).
+- **RF-L3.2**: SI la suma de `volume` de la sesión hasta `t` es `0`, ENTONCES ambas salidas son
+  `null`.
+- **RF-L3.3**: `session_vwap_sigma` **DEBE** recortar la varianza a `≥ 0` antes de la raíz.
+- **RF-L3.4**: salida `Float32`. `session_vwap_sigma` computa en **`Float64` interno** (la identidad
+  `E_v[tp²] - vwap²` sufre cancelación catastrófica en `Float32`, **excepción RFC-0007**, misma que
+  `rolling_std_stable`; ver addendum de RFC-0007 y `DOUBLE_EXCEPTIONS`). `session_vwap` es cociente
+  de sumas positivas → `Float32` puro, **sin** excepción.
+
+**Nota de precisión**: `session_vwap` promedia en `Float32` y `session_vwap_sigma` recomputa su media
+en `Float64`; al componer `VAH/VAL = session_vwap ± k·session_vwap_sigma` las dos medias difieren en
+~`√n·ε` (`Float32`), despreciable para bandas de área de valor.
+
+- **Hecho cuando**: `session_vwap`/`session_vwap_sigma` tienen test hand-computed en finances-core
+  (una sesión + reset en el borde, `Σvolume==0 → null`, `pl.Float32`); test de
+  prefijo-estabilidad/causalidad (truncar en `t` no cambia el valor en `t`); `session_vwap_sigma`
+  figura en el allowlist `DOUBLE_EXCEPTIONS` del guard de aislamiento; aditivo — 17 estrategias,
+  *golden* y `CATALOG_VERSION` sin cambios; suites finances-core verdes; ruff/mypy/format verdes.
+  Sin equivalente TA-Lib (VWAP anclado a sesión no es función de TA-Lib) → sin cross-validación viva.

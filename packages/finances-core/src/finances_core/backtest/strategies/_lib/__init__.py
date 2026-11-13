@@ -418,6 +418,47 @@ def vwap(high: pl.Expr, low: pl.Expr, close: pl.Expr, volume: pl.Expr, n: int) -
     return pl.when(den > 0).then(num / den).otherwise(None).cast(pl.Float32)
 
 
+def session_vwap(
+    high: pl.Expr, low: pl.Expr, close: pl.Expr, volume: pl.Expr, session: pl.Expr
+) -> pl.Expr:
+    """VWAP **anclado a sesión**: acumulado desde la apertura de cada sesión; nulo si ``Σvol==0``.
+
+    ``tp = (high+low+close)/3``; ``vwap[t] = Σ(tp·volume) / Σ(volume)`` **dentro de la sesión**
+    (``cum_sum().over(session)``), reseteando en cada apertura. ``session`` es un id de
+    agrupamiento que provee el consumidor (p. ej. fecha ET), causal y derivado de
+    ``open_time_ms``; la primitiva es genérica (sin lógica de zona horaria/horario adentro).
+    Cociente de sumas positivas (sin cancelación), ``Float32``. Solo mira barras ``<= t``
+    dentro de la sesión: prefijo-estable (RF-20).
+    """
+    typical = (high + low + close) / 3.0
+    num = (typical * volume).cum_sum().over(session)
+    den = volume.cum_sum().over(session)
+    return pl.when(den > 0).then(num / den).otherwise(None).cast(pl.Float32)
+
+
+def session_vwap_sigma(
+    high: pl.Expr, low: pl.Expr, close: pl.Expr, volume: pl.Expr, session: pl.Expr
+) -> pl.Expr:
+    """Desvío **ponderado por volumen** de ``tp`` dentro de la sesión; nulo si ``Σvol==0``.
+
+    ``sigma[t] = sqrt(E_v[tp²] - vwap[t]²)`` con ``E_v[tp²] = Σ(tp²·volume)/Σ(volume)`` y
+    ``vwap = Σ(tp·volume)/Σ(volume)``, todo acumulado dentro de la sesión
+    (``cum_sum().over(session)``). El área de valor se compone en la estrategia
+    (``VAH/VAL = session_vwap ± k·session_vwap_sigma``). Float64 interno (la identidad
+    ``E_v[tp²] - vwap²`` sufre cancelación catastrófica en ``Float32``, **excepción RFC-0007**
+    como ``rolling_std_stable``; ``session_vwap``, cociente de sumas positivas, no la necesita);
+    recortado a ``>= 0`` y casteado a ``Float32``; prefijo-estable (solo mira ``<= t`` dentro de
+    la sesión, RF-20). Enmienda L3 de ``specs/finances_backtester/spec.md``.
+    """
+    typical = ((high + low + close) / 3.0).cast(pl.Float64)
+    vol = volume.cast(pl.Float64)
+    sum_v = vol.cum_sum().over(session)
+    mean_tp = (typical * vol).cum_sum().over(session) / sum_v
+    mean_tp2 = (typical * typical * vol).cum_sum().over(session) / sum_v
+    variance = (mean_tp2 - mean_tp * mean_tp).clip(lower_bound=0.0)
+    return pl.when(sum_v > 0).then(variance.sqrt()).otherwise(None).cast(pl.Float32)
+
+
 def rolling_max_prev(x: pl.Expr, window: int) -> pl.Expr:
     """``max(x[t-window..t-1])``: excluye la barra actual; nulo para ``t < window``."""
     return x.shift(1).rolling_max(window_size=window)
@@ -467,6 +508,8 @@ __all__ = [
     "rolling_min_prev",
     "rolling_std_stable",
     "rsi_wilder",
+    "session_vwap",
+    "session_vwap_sigma",
     "sma",
     "stoch_d",
     "stoch_k",
