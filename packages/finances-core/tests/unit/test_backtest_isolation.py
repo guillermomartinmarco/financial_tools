@@ -36,11 +36,21 @@ FT_EXCEPTIONS = {"finances_core.backtest.strategy_source": frozenset({"ft_strate
 #: error a escala BTC) en ``rolling_std_stable``/``zscore``; (2) cocientes direccionales de
 #: Wilder (``+DI``/``-DI`` y ``DX = 100·|+DI - -DI|/(+DI + -DI)``) en ``plus_di``/``minus_di``/
 #: ``adx`` (Enmienda L2a); (3) ``tp - SMA`` con cancelación en ``cci`` y magnitudes grandes
-#: ``tp·volume`` en ``mfi`` (Enmienda L2b). Siempre se acumula en ``Float64`` y se baja a
-#: ``Float32``.
+#: ``tp·volume`` en ``mfi`` (Enmienda L2b); (4) la identidad volume-weighted
+#: ``E_v[tp²] - vwap²`` en ``session_vwap_sigma`` (misma cancelación que ``rolling_std_stable``).
+#: Siempre se acumula en ``Float64`` y se baja a ``Float32``.
 DOUBLE_EXCEPTIONS = {
     "finances_core.backtest.strategies._lib": frozenset(
-        {"rolling_std_stable", "zscore", "plus_di", "minus_di", "adx", "cci", "mfi"}
+        {
+            "rolling_std_stable",
+            "zscore",
+            "plus_di",
+            "minus_di",
+            "adx",
+            "cci",
+            "mfi",
+            "session_vwap_sigma",
+        }
     ),
 }
 
@@ -155,7 +165,8 @@ def test_checker_detects_violations_in_builtin_strategies() -> None:
 
 
 def test_double_exception_is_scoped_to_named_lib_functions() -> None:
-    # RFC-0007: Float64 permitido dentro de rolling_std_stable/zscore, flagueado fuera.
+    # RFC-0007 (+ addendum L2/L3): Float64 permitido solo dentro de las funciones nombradas en
+    # DOUBLE_EXCEPTIONS (aquí se prueba con rolling_std_stable como ejemplo), flagueado fuera.
     allowed = (
         "import polars as pl\n"
         "def rolling_std_stable(x: pl.Expr, n: int) -> pl.Expr:\n"

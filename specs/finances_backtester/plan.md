@@ -561,3 +561,29 @@ Validación (dual, por indicador):
 
 **Tandas** (cada una test-first, aditiva): (L2a) direccional ADX/+DI/−DI; (L2b) osciladores
 stoch/cci/willr/mfi; (L2c) bandas + ichimoku; (L2d) con estado supertrend/sar; (L2e) patrones.
+
+## Enmienda L3 — contrato de datos (VWAP anclado a sesión)
+
+Todo en `finances_core/backtest/strategies/_lib/__init__.py`. Aditivo: no cambia
+`signals(candles, params)`.
+
+```python
+# pl.Expr -> Float32, anclado a sesión (cum_sum().over(session)), null si Σvolume==0 en la sesión
+def session_vwap(high: pl.Expr, low: pl.Expr, close: pl.Expr, volume: pl.Expr,
+                 session: pl.Expr) -> pl.Expr: ...        # Σ(tp·v)/Σ(v) acumulado por sesión
+def session_vwap_sigma(high: pl.Expr, low: pl.Expr, close: pl.Expr, volume: pl.Expr,
+                       session: pl.Expr) -> pl.Expr: ...  # sqrt(E_v[tp²]-vwap²), ≥0, Float64 interno
+```
+
+Fórmulas:
+- `tp=(high+low+close)/3`; `session_vwap = Σ(tp·v)/Σ(v)` acumulado por sesión; `null` si `Σv==0`.
+  Cociente de sumas positivas → `Float32` puro (sin cancelación).
+- `session_vwap_sigma = sqrt(E_v[tp²] − vwap²)` con `E_v[tp²]=Σ(tp²·v)/Σ(v)`; **Float64 interno**
+  (cancelación, excepción RFC-0007 como `rolling_std_stable`), `clip(≥0)`, salida `Float32`.
+- `session` lo provee el consumidor (id causal por sesión, p. ej. fecha ET derivada de
+  `open_time_ms`); la primitiva es genérica (sin TZ/horario). Área de valor en la estrategia:
+  `VAH/VAL = session_vwap ± k·session_vwap_sigma`.
+
+Validación: golden hand-computed en `tests/unit/test_strategies_lib.py` (sesión + reset en el borde,
+`Σv==0→null`, prefijo-estable/causal). `session_vwap_sigma` en `DOUBLE_EXCEPTIONS`. Sin equivalente
+TA-Lib → sin cross-validación viva.

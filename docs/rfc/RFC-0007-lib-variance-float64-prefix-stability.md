@@ -5,7 +5,7 @@
 | Estado | **Aprobado** (2026-11-08, Tech Lead) — excepción Art. 5.3 sobre RFC-0004; aplicado en el PR del Lote 1 |
 | Fecha | 2026-11-08 |
 | Artículo afectado | Art. 5.3 (Conversión y Validación) — **excepción/aclaración**, no enmienda |
-| Alcance | `packages/finances-core/src/finances_core/backtest/strategies/_lib/__init__.py`, funciones `rolling_std_stable` y `zscore` (Enmienda L1 de `specs/finances_backtester/spec.md`) |
+| Alcance | `packages/finances-core/src/finances_core/backtest/strategies/_lib/__init__.py`, funciones `rolling_std_stable` y `zscore` (Enmienda L1); extendido a `plus_di`/`minus_di`/`adx`/`cci`/`mfi` (Enmienda L2) y `session_vwap_sigma` (Enmienda L3) — ver **Addendum** |
 | Referencias | RFC-0004 (frontera `Float64` de los motores; `backtest/**` es `Float32`), RFC-0006 (mismo problema en `ft_indicators`), `docs/design/strategy-library.md`, `tests/unit/test_backtest_isolation.py`, `tests/unit/test_strategies_lib.py` |
 
 ## Contexto
@@ -45,7 +45,8 @@ dato persistido y las señales expuestas son `Float32`.
 
 ## Verificación (obligatoria para aceptar la excepción)
 - `test_strategies_lib.py`: valor hand-computed de `rolling_std_stable`/`zscore` (población) ✓ y
-  `test_primitive_is_prefix_stable_bit_for_bit` sobre las 12 primitivas ✓ (incluye `rolling_std_stable`/`zscore`).
+  `test_primitive_is_prefix_stable_bit_for_bit` sobre todas las primitivas de `_PREFIX_PRIMITIVES`
+  ✓ (hoy 27; incluye `rolling_std_stable`/`zscore` y las del Addendum).
 - `test_backtest_isolation.py`: excepción `Float64` acotada por nombre de función ✓; fuera de alcance sigue flagueada ✓.
 - `run_id` y goldens de `sma_cross`/`rsi_reversion`/`donchian_breakout` **byte-idénticos**; `CATALOG_VERSION` **no**
   cambia (L1 es aditivo, ninguna integrada usa las nuevas ayudas).
@@ -63,6 +64,22 @@ dato persistido y las señales expuestas son `Float32`.
 Sin cambios para otras herramientas ni para el formato de datos persistido. No modifica la constitución (vía de
 excepción que el propio Art. 5.3 prevé, en continuidad con RFC-0004/RFC-0006); **no requiere *bump* de versión** ni de
 `CATALOG_VERSION`.
+
+## Addendum — funciones adicionales de `_lib` bajo la misma excepción
+La misma excepción acotada (acumular en `Float64`, bajar a `Float32` con un único `cast`, `Float64`
+confinado a la función, registrada en `DOUBLE_EXCEPTIONS` y verificada por
+`test_double_exception_is_scoped_to_named_lib_functions`) se extendió a funciones posteriores de
+`_lib`, cada una documentada en su enmienda de `specs/finances_backtester/spec.md`, por sufrir la
+misma cancelación de la identidad `E[x²]−E[x]²` (o un cociente análogo):
+- **Enmienda L2**: `plus_di`, `minus_di`, `adx` (cociente/`|+DI−−DI|`), `cci` (`tp−SMA`), `mfi`.
+- **Enmienda L3**: `session_vwap_sigma` (varianza *volume-weighted* `E_v[tp²]−vwap²` por sesión).
+
+Las primitivas que son **cociente de sumas positivas** (`vwap`, `session_vwap`, `obv`) **no** entran:
+no sufren cancelación y permanecen `Float32` puro. Esta extensión sigue siendo una vía de excepción
+de Art. 5.3 (no enmienda constitucional) y **no requiere *bump*** de versión ni de `CATALOG_VERSION`.
+
+- [x] Addendum aprobado por el Tech Lead — Firma: Guillermo Martín Marco  Fecha: 12/11/2026
+  (extensión de la excepción a `plus_di`/`minus_di`/`adx`/`cci`/`mfi` [L2] y `session_vwap_sigma` [L3]).
 
 ## Aprobación
 - [x] Aprobado por el Tech Lead — Firma: Guillermo Martín Marco Fecha: 08/11/2026
